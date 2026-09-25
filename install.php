@@ -12,15 +12,12 @@ if ($isInstalled) { http_response_code(410); exit('Instalação já concluída.'
 if (strtolower((string)($_SERVER['HTTP_HOST']??''))!==INTEGRAL_HOST || empty($_SERVER['HTTPS']) || $_SERVER['HTTPS']==='off') {
  http_response_code(403); exit('Endereço inválido ou HTTPS ausente.');
 }
-$token=(string)($_COOKIE['integral_sid']??'');
-if (!preg_match('/^[a-f0-9]{64}$/D',$token)) { http_response_code(403); exit('Entre como administrador em https://teste.qrcodevalidacao.com/ antes de instalar.'); }
 function centralInstall(string $action,array $data): bool {
  $ch=curl_init('https://teste.qrcodevalidacao.com/api.php?action='.$action);
  curl_setopt_array($ch,[CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>json_encode($data,JSON_THROW_ON_ERROR),CURLOPT_HTTPHEADER=>['Content-Type: application/json'],CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>8,CURLOPT_FOLLOWLOCATION=>false]);
  $response=curl_exec($ch); $status=curl_getinfo($ch,CURLINFO_RESPONSE_CODE); curl_close($ch);
  return $status===200 && is_array(json_decode((string)$response,true)) && (json_decode((string)$response,true)['ok']??false)===true;
 }
-if (!centralInstall('install_authorize',['token'=>$token])) { http_response_code(403); exit('O administrador não foi autorizado pela Direção Geral.'); }
 session_name('integral_install_csrf');
 session_set_cookie_params(['secure'=>true,'httponly'=>true,'samesite'=>'Strict','path'=>'/']);
 session_start(); $_SESSION['csrf']??=bin2hex(random_bytes(32));
@@ -28,8 +25,10 @@ $error=''; $success=false;
 if ($_SERVER['REQUEST_METHOD']==='POST') {
  if (($_SERVER['HTTP_ORIGIN']??'')!=='https://'.INTEGRAL_HOST || !is_string($_POST['_csrf']??null) || !hash_equals($_SESSION['csrf'],$_POST['_csrf'])) { http_response_code(403); exit('Formulário expirado ou origem inválida.'); }
  $dbName=trim((string)($_POST['db_name']??'')); $dbUser=trim((string)($_POST['db_user']??'')); $dbPassword=(string)($_POST['db_password']??'');
+ $deploymentKey=trim((string)($_POST['deployment_key']??''));
  $siteKey=trim((string)($_POST['turnstile_site_key']??'')); $turnstileSecret=trim((string)($_POST['turnstile_secret']??''));
- if (!preg_match('/^[a-zA-Z0-9_]{1,64}$/D',$dbName)||!preg_match('/^[a-zA-Z0-9_]{1,64}$/D',$dbUser)||$dbPassword==='' || (INTEGRAL_SYSTEM==='captacao' && ($siteKey==='' || $turnstileSecret===''))) $error='Preencha as credenciais completas do banco'.(INTEGRAL_SYSTEM==='captacao'?' e as chaves Turnstile.':'.');
+ if (!preg_match('/^[a-f0-9]{64}$/D',$deploymentKey) || !centralInstall('install_authorize',['deployment_key'=>$deploymentKey])) $error='Chave de instalação inválida. Confira a chave na configuração privada da Direção Geral.';
+ elseif (!preg_match('/^[a-zA-Z0-9_]{1,64}$/D',$dbName)||!preg_match('/^[a-zA-Z0-9_]{1,64}$/D',$dbUser)||$dbPassword==='' || (INTEGRAL_SYSTEM==='captacao' && ($siteKey==='' || $turnstileSecret===''))) $error='Preencha as credenciais completas do banco'.(INTEGRAL_SYSTEM==='captacao'?' e as chaves Turnstile.':'.');
  else {
   try {
    $dsn='mysql:host=localhost;dbname='.$dbName.';charset=utf8mb4';
@@ -54,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $contents="<?php\nreturn ".var_export($config,true).";\n";
    if (file_put_contents($tmp,$contents,LOCK_EX)===false) throw new RuntimeException('Sem permissão para escrever a configuração privada.');
    chmod($tmp,0600);
-   if (!centralInstall('install_register',['token'=>$token,'system'=>INTEGRAL_SYSTEM,'key'=>$key])) throw new RuntimeException('Não foi possível registrar o serviço na Direção Geral.');
+   if (!centralInstall('install_register',['deployment_key'=>$deploymentKey,'system'=>INTEGRAL_SYSTEM,'key'=>$key])) throw new RuntimeException('Não foi possível registrar o serviço na Direção Geral.');
    if (!rename($tmp,$secretPath)) throw new RuntimeException('Não foi possível concluir a configuração privada.');
    $success=true;
   } catch (Throwable $ex) { $error=$ex instanceof PDOException?'Banco inacessível ou estrutura inválida. Confira nome, usuário e senha.':$ex->getMessage(); }
@@ -63,4 +62,4 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
 }
 function h(string $s): string { return htmlspecialchars($s,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8'); }
 header('Content-Type: text/html; charset=utf-8');
-?><!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Instalar · Sistema Integral</title><style>body{font:16px system-ui;background:#f7f6fb;color:#19172a;margin:0}main{max-width:480px;margin:7vh auto;padding:28px;background:#fff;border-radius:18px;box-shadow:0 12px 40px #15112b13}label{display:block;margin:16px 0;font-weight:600}input{box-sizing:border-box;width:100%;padding:12px;border:1px solid #bcb8ce;border-radius:8px;margin-top:6px}button{padding:13px 22px;background:#5e35e9;color:white;border:0;border-radius:8px;cursor:pointer}.error{color:#a51635}</style><main><?php if($success): ?><h1>Instalação concluída</h1><p>As tabelas e a comunicação com a Direção Geral foram configuradas.</p><a href="/">Abrir área</a><?php else: ?><h1>Instalar <?=h(INTEGRAL_LABEL)?></h1><p>Informe os dados do banco MySQL deste site. A senha será salva somente fora de public_html.</p><?php if($error!==''): ?><p class="error" role="alert"><?=h($error)?></p><?php endif ?><form method="post"><input type="hidden" name="_csrf" value="<?=h($_SESSION['csrf'])?>"><label>Nome completo do banco<input name="db_name" required autocomplete="off" placeholder="u123456789_regional"></label><label>Usuário completo do banco<input name="db_user" required autocomplete="off" placeholder="u123456789_regional"></label><label>Senha do banco<input name="db_password" type="password" required autocomplete="new-password"></label><?php if(INTEGRAL_SYSTEM==='captacao'): ?><label>Chave pública Turnstile<input name="turnstile_site_key" required></label><label>Chave secreta Turnstile<input name="turnstile_secret" type="password" required></label><?php endif ?><button type="submit">Instalar <?=h(INTEGRAL_LABEL)?></button></form><?php endif ?></main></html>
+?><!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Instalar · Sistema Integral</title><style>body{font:16px system-ui;background:#f7f6fb;color:#19172a;margin:0}main{max-width:480px;margin:7vh auto;padding:28px;background:#fff;border-radius:18px;box-shadow:0 12px 40px #15112b13}label{display:block;margin:16px 0;font-weight:600}input{box-sizing:border-box;width:100%;padding:12px;border:1px solid #bcb8ce;border-radius:8px;margin-top:6px}button{padding:13px 22px;background:#5e35e9;color:white;border:0;border-radius:8px;cursor:pointer}.error{color:#a51635}</style><main><?php if($success): ?><h1>Instalação concluída</h1><p>As tabelas e a comunicação com a Direção Geral foram configuradas.</p><a href="/">Abrir área</a><?php else: ?><h1>Instalar <?=h(INTEGRAL_LABEL)?></h1><p>Informe a chave de instalação e os dados do banco MySQL deste site. A senha será salva somente fora de public_html.</p><?php if($error!==''): ?><p class="error" role="alert"><?=h($error)?></p><?php endif ?><form method="post"><input type="hidden" name="_csrf" value="<?=h($_SESSION['csrf'])?>"><label>Chave de instalação da Direção Geral<input name="deployment_key" type="password" required autocomplete="off"></label><label>Nome completo do banco<input name="db_name" required autocomplete="off" placeholder="u123456789_regional"></label><label>Usuário completo do banco<input name="db_user" required autocomplete="off" placeholder="u123456789_regional"></label><label>Senha do banco<input name="db_password" type="password" required autocomplete="new-password"></label><?php if(INTEGRAL_SYSTEM==='captacao'): ?><label>Chave pública Turnstile<input name="turnstile_site_key" required></label><label>Chave secreta Turnstile<input name="turnstile_secret" type="password" required></label><?php endif ?><button type="submit">Instalar <?=h(INTEGRAL_LABEL)?></button></form><?php endif ?></main></html>
