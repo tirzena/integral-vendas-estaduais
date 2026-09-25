@@ -1,5 +1,9 @@
 # Vendas Estaduais: primeiro teste PHP/MySQL
 
+## Instalação pelo navegador
+
+Depois de conectar a branch `main` na Hostinger e criar o banco MySQL, reimplante o Git. Entre como administrador em `https://teste.qrcodevalidacao.com/`, abra `/install.php` neste subdomínio e informe nome, usuário e senha do banco. O instalador identifica tabelas já importadas, cria as ausentes em banco vazio, gera uma chave individual, registra a chave na Direção Geral e salva a configuração fora de `public_html`. Para Captação, informe também as chaves do Cloudflare Turnstile. Após instalar, `/install.php` fica bloqueado. Os passos de criação manual de `integral-secrets` abaixo são uma alternativa para ambientes onde o PHP não pode gravar fora de `public_html`.
+
 Esta base permite login único via Direção Geral PHP e registros de trabalho por UF. As rotinas e dados específicos do OS ainda não foram migrados.
 
 1. Criar o site PHP/HTML `estadual.qrcodevalidacao.com` na Hostinger e conectar este repositório pela branch `main` à pasta `public_html`.
