@@ -12,12 +12,25 @@ function central(string $action,array $body): array {
  if (!is_string($reply)) return ['_status'=>503]; $decoded=json_decode($reply,true);
  if (!is_array($decoded)) return ['_status'=>503]; $decoded['_status']=$status; return $decoded;
 }
-function actor(): array {
+function actor(): ?array {
  $token=(string)($_COOKIE['integral_sid']??'');
- if (!preg_match('/^[a-f0-9]{64}$/D',$token)) { http_response_code(401); exit('Entre primeiro na Direção Geral.'); }
+ if (!preg_match('/^[a-f0-9]{64}$/D',$token)) return null;
  $result=central('introspect',['token'=>$token]);
- if (($result['_status']??0)!==200) { http_response_code(in_array($result['_status']??0,[401,403],true)?403:503); exit('Acesso não autorizado ou serviço de identidade indisponível.'); }
+ if (in_array($result['_status']??0,[401,403],true)) return null;
+ if (($result['_status']??0)!==200) { http_response_code(503); exit('Serviço de identidade indisponível.'); }
  return $result;
+}
+function centralLogin(string $email,string $password): array {
+ global $cfg;
+ $cookie='';
+ $ch=curl_init($cfg['central_api'].'?action=login');
+ curl_setopt_array($ch,[CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>json_encode(['email'=>$email,'password'=>$password],JSON_THROW_ON_ERROR),CURLOPT_HTTPHEADER=>['Content-Type: application/json'],CURLOPT_TIMEOUT=>8,CURLOPT_RETURNTRANSFER=>true,CURLOPT_FOLLOWLOCATION=>false]);
+ curl_setopt($ch,CURLOPT_HEADERFUNCTION,static function($ch,string $line) use (&$cookie): int {
+  if (preg_match('/^Set-Cookie:\s*integral_sid=([a-f0-9]{64})(?:;|$)/i',$line,$m)) $cookie=$m[1];
+  return strlen($line);
+ });
+ curl_exec($ch); $status=curl_getinfo($ch,CURLINFO_RESPONSE_CODE); curl_close($ch);
+ return ['_status'=>$status,'token'=>$status===200?$cookie:''];
 }
 function e(string $value): string { return htmlspecialchars($value,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8'); }
 function csrfSession(): void { session_name('integral_division_csrf'); session_set_cookie_params(['secure'=>true,'httponly'=>true,'samesite'=>'Lax']); session_start(); $_SESSION['csrf']??=bin2hex(random_bytes(32)); }
