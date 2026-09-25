@@ -2,7 +2,7 @@
 
 ## Instalação pelo navegador
 
-Depois de conectar a branch `main` na Hostinger e criar o banco MySQL, reimplante o Git. Entre como administrador em `https://teste.qrcodevalidacao.com/`, abra `/install.php` neste subdomínio e informe nome, usuário e senha do banco. O instalador identifica tabelas já importadas, cria as ausentes em banco vazio, gera uma chave individual, registra a chave na Direção Geral e salva a configuração fora de `public_html`. Para Captação, informe também as chaves do Cloudflare Turnstile. Após instalar, `/install.php` fica bloqueado. Os passos de criação manual de `integral-secrets` abaixo são uma alternativa para ambientes onde o PHP não pode gravar fora de `public_html`.
+Depois de conectar a branch `main` na Hostinger e criar o banco MySQL, reimplante o Git. Adicione uma chave `deployment_key` aleatória de 64 caracteres hexadecimais a `integral-secrets/teste.php` da Direção Geral. Abra `/install.php` neste subdomínio e informe essa chave, nome, usuário e senha do banco, sem login administrativo. O instalador identifica tabelas já importadas, cria as ausentes em banco vazio, gera uma chave individual, registra a chave na Direção Geral e salva a configuração fora de `public_html`. Para Captação, informe também as chaves do Cloudflare Turnstile. Após instalar, `/install.php` fica bloqueado. Os passos de criação manual de `integral-secrets` abaixo são uma alternativa para ambientes onde o PHP não pode gravar fora de `public_html`.
 
 Esta base permite login único via Direção Geral PHP e registros de trabalho por UF. As rotinas e dados específicos do OS ainda não foram migrados.
 
