@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-require __DIR__.'/common.php'; csrfSession(); $auth=actor(); $person=$auth['person']; $grants=$auth['grants'];
+require __DIR__.'/common.php'; csrfSession(); $auth=actor(); if (!$auth) { require __DIR__.'/login.php'; exit; } $person=$auth['person']; $grants=$auth['grants'];
 $allowed=array_values(array_unique(array_column($grants,'territory_uf'))); $notice='';
 if ($_SERVER['REQUEST_METHOD']==='POST') {
  csrfCheck(); $action=(string)($_POST['action']??'');
