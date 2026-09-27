@@ -1,0 +1,17 @@
+name: PHP syntax
+on:
+  push:
+    paths:
+      - '*.php'
+      - '.github/workflows/php-lint.yml'
+  pull_request:
+    paths:
+      - '*.php'
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check PHP syntax
+        run: |
+          for file in *.php; do php -l "$file"; done
