@@ -12,6 +12,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
  $password=(string)($_POST['password']??'');
  if (!filter_var($email,FILTER_VALIDATE_EMAIL)||$password===''||strlen($password)>1024) $notice='Informe e-mail e senha válidos.';
  else {
+  if (divisionAdminLogin($email,$password)) { header('Location: /',true,303); exit; }
   $login=centralLogin($email,$password);
   $token=(string)$login['token'];
   if (($login['_status']??0)===200 && preg_match('/^[a-f0-9]{64}$/D',$token)) {
