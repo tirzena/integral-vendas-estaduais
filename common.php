@@ -2,6 +2,7 @@
 declare(strict_types=1);
 if (!is_file(dirname(__DIR__).'/integral-secrets/estadual.php')) { http_response_code(503); exit('Configuração indisponível'); }
 $cfg=require dirname(__DIR__).'/integral-secrets/estadual.php';
+require __DIR__.'/division-admin-auth.php';
 $codes=['lideranca_regional','vendas_estaduais','fornecedores','transportes','estoques','distribuidores_municipais'];
 if (!in_array($cfg['system_code']??'',$codes,true)||!str_starts_with((string)($cfg['central_api']??''),'https://')||strlen((string)($cfg['service_key']??''))<32||str_contains((string)$cfg['service_key'],'CHAVE_')) { http_response_code(503); exit('Configuração insegura'); }
 function db(): PDO { global $cfg; static $pdo; return $pdo??=new PDO($cfg['db']['dsn'],$cfg['db']['user'],$cfg['db']['password'],[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_EMULATE_PREPARES=>false]); }
@@ -13,6 +14,7 @@ function central(string $action,array $body): array {
  if (!is_array($decoded)) return ['_status'=>503]; $decoded['_status']=$status; return $decoded;
 }
 function actor(): ?array {
+ $admin=divisionAdminActor(); if ($admin) return $admin;
  $token=(string)($_COOKIE['integral_sid']??'');
  if (!preg_match('/^[a-f0-9]{64}$/D',$token)) return null;
  $result=central('introspect',['token'=>$token]);
