@@ -27,6 +27,8 @@ function divisionAdminIdentity(string $token): ?array {
  if ($access['status']!==200||!is_array($access['data'])) return null;
  global $cfg;
  $system=(string)$cfg['system_code'];
+ $connection=divisionAuthRequest('/rest/v1/rpc/integral_is_system_active',['p_code'=>$system],$token);
+ if ($connection['status']!==200||$connection['data']!==true) return null;
  $myGrants=array_values(array_filter($access['data'],static fn($row)=>is_array($row)&&($row['system_code']??'')===$system&&(($row['can_view']??false)===true||($row['can_write']??false)===true)));
  if (!$admin&&!$myGrants) return null;
  $areas=$admin?['lideranca_regional','vendas_estaduais','fornecedores','transportes','estoques','distribuidores_municipais']:[];
@@ -63,6 +65,11 @@ function divisionAdminLogin(string $email,string $password): bool {
  global $cfg;
  $heartbeat=divisionAuthRequest('/rest/v1/rpc/integral_mark_identity_connected',['p_system_code'=>(string)$cfg['system_code']],$result['data']['access_token']);
  if ($heartbeat['status']!==200 && $heartbeat['status']!==204) error_log('Integral identity heartbeat failed for '.$cfg['system_code'].': '.$heartbeat['status']);
+ $connectionToken=getenv('INTEGRAL_CONNECTION_TOKEN');
+ if (is_string($connectionToken)&&$connectionToken!=='') {
+  $ping=divisionAuthRequest('/rest/v1/rpc/integral_connection_ping',['p_code'=>(string)$cfg['system_code'],'p_token'=>$connectionToken]);
+  if ($ping['status']!==200||$ping['data']!==true) error_log('Integral API connection verification failed for '.$cfg['system_code']);
+ }
  return true;
 }
 function divisionAdminActor(): ?array {
