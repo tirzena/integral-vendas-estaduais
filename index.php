@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__.'/common.php'; csrfSession(); $auth=actor(); if (!$auth) { require __DIR__.'/login.php'; exit; } $person=$auth['person']; $grants=$auth['grants'];
-$allowed=array_values(array_unique(array_column($grants,'territory_uf'))); $notice=($auth['supabase_admin']??false)?'Acesso administrativo de leitura. A integração dos registros operacionais ainda está em andamento.':'';
+$allowed=array_values(array_unique(array_column($grants,'territory_uf'))); $notice=($auth['supabase_admin']??false)?'Os pedidos abaixo vêm da Direção Geral. A edição e os demais módulos ainda estão em integração.':'';
 if ($_SERVER['REQUEST_METHOD']==='POST') {
  if ($auth['supabase_admin']??false) { http_response_code(403); exit('Edição indisponível até a integração dos registros operacionais.'); }
  csrfCheck(); $action=(string)($_POST['action']??'');
@@ -29,6 +29,15 @@ $name=$names[$cfg['system_code']];
 $openCount=count(array_filter($items,static fn($item)=>$item['status']==='aberto'));
 $doneCount=count(array_filter($items,static fn($item)=>$item['status']==='concluido'));
 $readOnly=(bool)($auth['supabase_admin']??false);
+$centralOrders=[]; $centralOrdersError='';
+if ($readOnly) {
+ $token=(string)($_COOKIE['integral_admin_access']??'');
+ $result=divisionAuthRequest('/rest/v1/rpc/integral_division_orders',['p_system_code'=>'vendas_estaduais','p_limit'=>100],$token);
+ if ($result['status']===200 && is_array($result['data'])) $centralOrders=$result['data'];
+ else $centralOrdersError='Não foi possível consultar os pedidos da Direção Geral.';
+}
+$ordersPaid=count(array_filter($centralOrders,static fn($o)=>($o['payment_status']??'')==='pago'));
+$ordersOpen=count($centralOrders)-$ordersPaid;
 header('Content-Type: text/html; charset=utf-8'); header('Cache-Control: no-store');
 ?><!doctype html>
 <html lang="pt-BR">
@@ -43,6 +52,7 @@ header('Content-Type: text/html; charset=utf-8'); header('Cache-Control: no-stor
   <nav class="side-nav">
     <a href="#visao-geral" class="active">▦ <span>Visão geral</span></a>
     <a href="#registros">▤ <span>Registros</span></a>
+    <?php if($readOnly): ?><a href="#pedidos-centrais">▤ <span>Pedidos da Direção Geral</span></a><?php endif ?>
     <?php if(!$readOnly): ?><a href="#novo-registro">＋ <span>Novo registro</span></a><?php endif ?>
   </nav>
   <p class="nav-caption">MINHAS ÁREAS</p>
@@ -61,14 +71,19 @@ header('Content-Type: text/html; charset=utf-8'); header('Cache-Control: no-stor
       <p class="eyebrow">PAINEL OPERACIONAL</p>
       <h1><?=e($name)?></h1>
       <p class="subtitle">Acompanhe os registros e acesse suas áreas autorizadas.</p>
-      <?php if($readOnly): ?><p class="notice">Acesso de leitura. Os registros operacionais desta divisão ainda estão sendo integrados à Direção Geral.</p><?php elseif($notice!==''): ?><p class="notice"><?=e($notice)?></p><?php endif ?>
+      <?php if($readOnly): ?><p class="notice">Pedidos em leitura na Direção Geral. Edição e demais dados ainda em integração.</p><?php elseif($notice!==''): ?><p class="notice"><?=e($notice)?></p><?php endif ?>
       <div class="metrics">
-        <article class="metric"><span>Registros visíveis</span><strong><?=count($items)?></strong><small><?= $readOnly ? 'Integração em andamento' : 'Até 100 registros recentes' ?></small></article>
-        <article class="metric"><span>Em aberto</span><strong><?=$openCount?></strong><small>Aguardando conclusão</small></article>
-        <article class="metric"><span>Concluídos</span><strong><?=$doneCount?></strong><small><?= $readOnly ? 'Integração em andamento' : 'Nos registros exibidos' ?></small></article>
+        <article class="metric"><span><?= $readOnly ? 'Pedidos centrais' : 'Registros visíveis' ?></span><strong><?= $readOnly ? count($centralOrders) : count($items) ?></strong><small><?= $readOnly ? 'Até 100 pedidos recentes' : 'Até 100 registros recentes' ?></small></article>
+        <article class="metric"><span><?= $readOnly ? 'Pagamento pendente' : 'Em aberto' ?></span><strong><?= $readOnly ? $ordersOpen : $openCount ?></strong><small><?= $readOnly ? 'Nos pedidos exibidos' : 'Aguardando conclusão' ?></small></article>
+        <article class="metric"><span><?= $readOnly ? 'Pagos' : 'Concluídos' ?></span><strong><?= $readOnly ? $ordersPaid : $doneCount ?></strong><small>Nos registros exibidos</small></article>
         <article class="metric"><span>Estados autorizados</span><strong><?=count($allowed)?></strong><small><?= !empty($auth['own_records_only']) ? 'Somente registros próprios' : e(implode(', ',array_slice($allowed,0,5))) ?></small></article>
       </div>
     </section>
+    <?php if($readOnly): ?><section id="pedidos-centrais" class="panel"><div class="panel-heading"><div><p class="eyebrow">SUPABASE · FONTE CANÔNICA</p><h2>Pedidos da Direção Geral</h2></div><span class="counter">Leitura conforme suas permissões</span></div>
+      <?php if($centralOrdersError!==''): ?><p class="error" role="alert"><?=e($centralOrdersError)?></p><?php elseif(!$centralOrders): ?><div class="empty"><strong>Sem pedidos visíveis</strong><p>Não há pedidos no seu escopo ou nenhum pedido foi registrado.</p></div><?php else: ?><div class="table-wrap"><table><thead><tr><th>Pedido</th><th>Data</th><th>Estado</th><th>Valor</th><th>Pagamento</th><th>Etapa</th></tr></thead><tbody>
+        <?php foreach($centralOrders as $order): ?><tr><td>#<?=e((string)($order['number']??''))?></td><td><?=e((string)($order['order_date']??''))?></td><td><?=e((string)($order['shipping_state']??''))?></td><td><?=e((string)($order['currency']??''))?> <?=e(number_format((float)($order['total']??0),2,',','.'))?></td><td><span class="status"><?=e((string)($order['payment_status']??''))?></span></td><td><?=e((string)($order['workflow_stage']??''))?></td></tr><?php endforeach ?>
+      </tbody></table></div><?php endif ?>
+    </section><?php endif ?>
     <section id="registros" class="panel"><div class="panel-heading"><div><p class="eyebrow">ATIVIDADE</p><h2>Registros do território</h2></div><span class="counter"><?=count($items)?> exibidos</span></div>
       <?php if(!$items): ?><div class="empty"><strong>Nenhum registro disponível</strong><p><?= $readOnly ? 'Os dados da Direção Geral ainda estão sendo integrados a este painel.' : 'Quando houver registros desta divisão e território, eles aparecerão aqui.' ?></p></div>
       <?php else: ?><div class="table-wrap"><table><thead><tr><th>ID</th><th>UF</th><th>Registro</th><th>Situação</th><th>Ação</th></tr></thead><tbody>
