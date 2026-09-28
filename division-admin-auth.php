@@ -57,6 +57,16 @@ function divisionSetAdminCookies(array $tokens): void {
  setcookie('integral_admin_refresh',$refresh,$options+['expires'=>time()+2592000]);
  $_COOKIE['integral_admin_access']=$access; $_COOKIE['integral_admin_refresh']=$refresh;
 }
+function divisionConnectionToken(): string {
+ $env=getenv('INTEGRAL_CONNECTION_TOKEN');
+ if (is_string($env)&&preg_match('/^ic_[a-f0-9]{64}$/D',$env)) return $env;
+ // PHP shared hosting: keep this file alongside public_html, never inside the public web root.
+ $file=dirname(__DIR__).'/integral-secrets.php';
+ if (!is_file($file)||!is_readable($file)) return '';
+ $config=require $file;
+ $token=is_array($config)?($config['INTEGRAL_CONNECTION_TOKEN']??''):'';
+ return is_string($token)&&preg_match('/^ic_[a-f0-9]{64}$/D',$token)?$token:'';
+}
 function divisionAdminLogin(string $email,string $password): bool {
  $result=divisionAuthRequest('/auth/v1/token?grant_type=password',['email'=>$email,'password'=>$password]);
  if ($result['status']!==200||!is_array($result['data'])||!is_string($result['data']['access_token']??null)) return false;
@@ -65,7 +75,7 @@ function divisionAdminLogin(string $email,string $password): bool {
  global $cfg;
  $heartbeat=divisionAuthRequest('/rest/v1/rpc/integral_mark_identity_connected',['p_system_code'=>(string)$cfg['system_code']],$result['data']['access_token']);
  if ($heartbeat['status']!==200 && $heartbeat['status']!==204) error_log('Integral identity heartbeat failed for '.$cfg['system_code'].': '.$heartbeat['status']);
- $connectionToken=getenv('INTEGRAL_CONNECTION_TOKEN');
+ $connectionToken=divisionConnectionToken();
  if (is_string($connectionToken)&&$connectionToken!=='') {
   $ping=divisionAuthRequest('/rest/v1/rpc/integral_connection_ping',['p_code'=>(string)$cfg['system_code'],'p_token'=>$connectionToken],$result['data']['access_token']);
   if ($ping['status']!==200||$ping['data']!==true) error_log('Integral API connection verification failed for '.$cfg['system_code']);
