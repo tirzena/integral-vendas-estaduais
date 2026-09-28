@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
  }
 }
 try { deliverEvents(); } catch(Throwable $ex) { error_log('Integral outbox delivery failed: '.$ex->getMessage()); }
-$items=[]; if ($allowed) { $in=implode(',',array_fill(0,count($allowed),'?')); $q=db()->prepare("SELECT id,territory_uf,title,details,status,created_at FROM work_items WHERE territory_uf IN ($in) ORDER BY id DESC LIMIT 100"); $q->execute($allowed); $items=$q->fetchAll(); }
+$items=[]; if ($allowed && !($auth['supabase_admin']??false)) { $in=implode(',',array_fill(0,count($allowed),'?')); $q=db()->prepare("SELECT id,territory_uf,title,details,status,created_at FROM work_items WHERE territory_uf IN ($in) ORDER BY id DESC LIMIT 100"); $q->execute($allowed); $items=$q->fetchAll(); }
 $names=['lideranca_regional'=>'Liderança Regional','vendas_estaduais'=>'Vendas Estaduais','fornecedores'=>'Fornecedores','transportes'=>'Transporte','estoques'=>'Estoque','distribuidores_municipais'=>'Distribuidores Municipais'];
 $links=['lideranca_regional'=>'regional','vendas_estaduais'=>'estadual','fornecedores'=>'fornecedor','transportes'=>'transporte','estoques'=>'estoque','distribuidores_municipais'=>'municipal'];
 $name=$names[$cfg['system_code']];
@@ -63,14 +63,14 @@ header('Content-Type: text/html; charset=utf-8'); header('Cache-Control: no-stor
       <p class="subtitle">Acompanhe os registros e acesse suas áreas autorizadas.</p>
       <?php if($readOnly): ?><p class="notice">Acesso de leitura. Os registros operacionais desta divisão ainda estão sendo integrados à Direção Geral.</p><?php elseif($notice!==''): ?><p class="notice"><?=e($notice)?></p><?php endif ?>
       <div class="metrics">
-        <article class="metric"><span>Registros visíveis</span><strong><?=count($items)?></strong><small>Até 100 registros recentes</small></article>
+        <article class="metric"><span>Registros visíveis</span><strong><?=count($items)?></strong><small><?= $readOnly ? 'Integração em andamento' : 'Até 100 registros recentes' ?></small></article>
         <article class="metric"><span>Em aberto</span><strong><?=$openCount?></strong><small>Aguardando conclusão</small></article>
-        <article class="metric"><span>Concluídos</span><strong><?=$doneCount?></strong><small>Nos registros exibidos</small></article>
-        <article class="metric"><span>Estados autorizados</span><strong><?=count($allowed)?></strong><small><?=e(implode(', ',array_slice($allowed,0,5)))?><?=count($allowed)>5?'…':''?></small></article>
+        <article class="metric"><span>Concluídos</span><strong><?=$doneCount?></strong><small><?= $readOnly ? 'Integração em andamento' : 'Nos registros exibidos' ?></small></article>
+        <article class="metric"><span>Estados autorizados</span><strong><?=count($allowed)?></strong><small><?= !empty($auth['own_records_only']) ? 'Somente registros próprios' : e(implode(', ',array_slice($allowed,0,5))) ?></small></article>
       </div>
     </section>
     <section id="registros" class="panel"><div class="panel-heading"><div><p class="eyebrow">ATIVIDADE</p><h2>Registros do território</h2></div><span class="counter"><?=count($items)?> exibidos</span></div>
-      <?php if(!$items): ?><div class="empty"><strong>Nenhum registro disponível</strong><p>Quando houver registros desta divisão e território, eles aparecerão aqui.</p></div>
+      <?php if(!$items): ?><div class="empty"><strong>Nenhum registro disponível</strong><p><?= $readOnly ? 'Os dados da Direção Geral ainda estão sendo integrados a este painel.' : 'Quando houver registros desta divisão e território, eles aparecerão aqui.' ?></p></div>
       <?php else: ?><div class="table-wrap"><table><thead><tr><th>ID</th><th>UF</th><th>Registro</th><th>Situação</th><th>Ação</th></tr></thead><tbody>
       <?php foreach($items as $item): ?><tr><td>#<?=e((string)$item['id'])?></td><td><?=e($item['territory_uf'])?></td><td><strong><?=e($item['title'])?></strong><br><small><?=e($item['details'])?></small></td><td><span class="status"><?=e($item['status'])?></span></td><td><?php if($item['status']==='aberto'&&!$readOnly): ?><form method="post" class="row-action"><input type="hidden" name="_csrf" value="<?=e($_SESSION['csrf'])?>"><input type="hidden" name="id" value="<?=e((string)$item['id'])?>"><button name="action" value="complete">Concluir</button></form><?php endif ?></td></tr><?php endforeach ?>
       </tbody></table></div><?php endif ?>
