@@ -59,7 +59,11 @@ function divisionAdminLogin(string $email,string $password): bool {
  $result=divisionAuthRequest('/auth/v1/token?grant_type=password',['email'=>$email,'password'=>$password]);
  if ($result['status']!==200||!is_array($result['data'])||!is_string($result['data']['access_token']??null)) return false;
  if (!divisionAdminIdentity($result['data']['access_token'])) return false;
- divisionSetAdminCookies($result['data']); return true;
+ divisionSetAdminCookies($result['data']);
+ global $cfg;
+ $heartbeat=divisionAuthRequest('/rest/v1/rpc/integral_mark_identity_connected',['p_system_code'=>(string)$cfg['system_code']],$result['data']['access_token']);
+ if ($heartbeat['status']!==200 && $heartbeat['status']!==204) error_log('Integral identity heartbeat failed for '.$cfg['system_code'].': '.$heartbeat['status']);
+ return true;
 }
 function divisionAdminActor(): ?array {
  $token=(string)($_COOKIE['integral_admin_access']??'');
