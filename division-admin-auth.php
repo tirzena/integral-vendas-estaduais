@@ -60,7 +60,11 @@ function divisionSetAdminCookies(array $tokens): void {
 function divisionConnectionToken(): string {
  $env=getenv('INTEGRAL_CONNECTION_TOKEN');
  if (is_string($env)&&preg_match('/^ic_[a-f0-9]{64}$/D',$env)) return $env;
- // PHP shared hosting: keep this file alongside public_html, never inside the public web root.
+ // Shared hosting: allow the token in the existing private per-division config above public_html.
+ global $cfg;
+ $token=is_array($cfg)?($cfg['connection_token']??''):'';
+ if (is_string($token)&&preg_match('/^ic_[a-f0-9]{64}$/D',$token)) return $token;
+ // Backward-compatible fallback for installations that use a separate private file.
  $file=dirname(__DIR__).'/integral-secrets.php';
  if (!is_file($file)||!is_readable($file)) return '';
  $config=require $file;
