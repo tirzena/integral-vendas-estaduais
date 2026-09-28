@@ -67,7 +67,7 @@ function divisionAdminLogin(string $email,string $password): bool {
  if ($heartbeat['status']!==200 && $heartbeat['status']!==204) error_log('Integral identity heartbeat failed for '.$cfg['system_code'].': '.$heartbeat['status']);
  $connectionToken=getenv('INTEGRAL_CONNECTION_TOKEN');
  if (is_string($connectionToken)&&$connectionToken!=='') {
-  $ping=divisionAuthRequest('/rest/v1/rpc/integral_connection_ping',['p_code'=>(string)$cfg['system_code'],'p_token'=>$connectionToken]);
+  $ping=divisionAuthRequest('/rest/v1/rpc/integral_connection_ping',['p_code'=>(string)$cfg['system_code'],'p_token'=>$connectionToken],$result['data']['access_token']);
   if ($ping['status']!==200||$ping['data']!==true) error_log('Integral API connection verification failed for '.$cfg['system_code']);
  }
  return true;
