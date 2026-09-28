@@ -19,19 +19,33 @@ function divisionAdminIdentity(string $token): ?array {
  $user=divisionAuthRequest('/auth/v1/user',null,$token);
  $id=$user['data']['id']??null;
  if ($user['status']!==200||!is_string($id)||!preg_match('/^[a-f0-9-]{36}$/D',$id)) return null;
- $roles=divisionAuthRequest('/rest/v1/user_roles?select=role&user_id=eq.'.$id,null,$token);
- if ($roles['status']!==200||!is_array($roles['data'])||!array_filter($roles['data'],static fn($r)=>is_array($r)&&in_array($r['role']??'', ['admin','superadmin'],true))) return null;
  $profiles=divisionAuthRequest('/rest/v1/profiles?select=full_name,is_active&id=eq.'.$id.'&limit=1',null,$token);
  if ($profiles['status']!==200||!is_array($profiles['data'])||($profiles['data'][0]['is_active']??false)!==true) return null;
+ $roles=divisionAuthRequest('/rest/v1/user_roles?select=role&user_id=eq.'.$id,null,$token);
+ $admin=$roles['status']===200&&is_array($roles['data'])&&array_filter($roles['data'],static fn($r)=>is_array($r)&&in_array($r['role']??'',['admin','superadmin'],true));
+ $access=divisionAuthRequest('/rest/v1/integral_division_access?select=system_code,territory_uf,region_code,can_view,can_write,own_records_only&user_id=eq.'.$id,null,$token);
+ if ($access['status']!==200||!is_array($access['data'])) return null;
  global $cfg;
- $permission=divisionAuthRequest('/rest/v1/rpc/integral_can_access',[
-  'p_system_code'=>(string)$cfg['system_code'],'p_state'=>null,'p_municipality_ibge_id'=>null,'p_product_id'=>null,'p_write'=>false
- ],$token);
- if ($permission['status']!==200||$permission['data']!==true) return null;
- return ['person'=>['id'=>0,'full_name'=>(string)($profiles['data'][0]['full_name']??$user['data']['email']??'Admin')],
-  'grants'=>array_map(static fn($uf)=>['territory_uf'=>$uf],INTEGRAL_UFS),
-  'areas'=>['lideranca_regional','vendas_estaduais','fornecedores','transportes','estoques','distribuidores_municipais','direcao_geral'],
-  'direction_url'=>'https://login.qrcodevalidacao.com/','supabase_admin'=>true];
+ $system=(string)$cfg['system_code'];
+ $myGrants=array_values(array_filter($access['data'],static fn($row)=>is_array($row)&&($row['system_code']??'')===$system&&(($row['can_view']??false)===true||($row['can_write']??false)===true)));
+ if (!$admin&&!$myGrants) return null;
+ $areas=$admin?['lideranca_regional','vendas_estaduais','fornecedores','transportes','estoques','distribuidores_municipais']:[];
+ foreach($access['data'] as $row) if(is_array($row)&&(($row['can_view']??false)===true||($row['can_write']??false)===true)&&in_array($row['system_code']??'', ['lideranca_regional','vendas_estaduais','fornecedores','transportes','estoques','distribuidores_municipais'],true)) $areas[]=$row['system_code'];
+ $regions=['norte'=>['AC','AP','AM','PA','RO','RR','TO'],'nordeste'=>['AL','BA','CE','MA','PB','PE','PI','RN','SE'],'centro_oeste'=>['DF','GO','MT','MS'],'sudeste'=>['ES','MG','RJ','SP'],'sul'=>['PR','RS','SC']];
+ $ufs=[];
+ if($admin) $ufs=INTEGRAL_UFS;
+ else foreach($myGrants as $grant) {
+  $state=strtoupper((string)($grant['territory_uf']??''));
+  if($state!==''&&in_array($state,INTEGRAL_UFS,true)) $ufs[]=$state;
+  elseif($grant['region_code']!==null) $ufs=array_merge($ufs,$regions[(string)$grant['region_code']]??[]);
+  else $ufs=array_merge($ufs,INTEGRAL_UFS);
+ }
+ $ufs=array_values(array_unique($ufs));
+ return ['person'=>['id'=>0,'full_name'=>(string)($profiles['data'][0]['full_name']??$user['data']['email']??'Membro')],
+  'grants'=>array_map(static fn($uf)=>['territory_uf'=>$uf],$ufs),
+  'areas'=>array_values(array_unique(array_merge($areas,['direcao_geral']))),
+  'direction_url'=>'https://login.qrcodevalidacao.com/','supabase_admin'=>true,
+  'own_records_only'=>!$admin&&$myGrants&&count(array_filter($myGrants,static fn($g)=>($g['own_records_only']??false)===true))===count($myGrants)];
 }
 function divisionSetAdminCookies(array $tokens): void {
  $access=(string)($tokens['access_token']??''); $refresh=(string)($tokens['refresh_token']??'');
