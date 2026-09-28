@@ -43,7 +43,7 @@ header('Content-Type: text/html; charset=utf-8'); header('Cache-Control: no-stor
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title><?=e($name)?> · Sistema Integral</title><link rel="stylesheet" href="style.css">
+<title><?=e($name)?> · Sistema Integral</title><link rel="stylesheet" href="/style.css?v=20260928b">
 </head>
 <body class="app-shell">
 <aside class="sidebar" aria-label="Menu principal">
