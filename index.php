@@ -24,5 +24,60 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
 try { deliverEvents(); } catch(Throwable $ex) { error_log('Integral outbox delivery failed: '.$ex->getMessage()); }
 $items=[]; if ($allowed) { $in=implode(',',array_fill(0,count($allowed),'?')); $q=db()->prepare("SELECT id,territory_uf,title,details,status,created_at FROM work_items WHERE territory_uf IN ($in) ORDER BY id DESC LIMIT 100"); $q->execute($allowed); $items=$q->fetchAll(); }
 $names=['lideranca_regional'=>'Liderança Regional','vendas_estaduais'=>'Vendas Estaduais','fornecedores'=>'Fornecedores','transportes'=>'Transporte','estoques'=>'Estoque','distribuidores_municipais'=>'Distribuidores Municipais'];
-$name=$names[$cfg['system_code']]; header('Content-Type: text/html; charset=utf-8'); header('Cache-Control: no-store');
-?><!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title><?=e($name)?> · Sistema Integral</title><link rel="stylesheet" href="style.css"><header><strong>Sistema Integral · <?=e($name)?></strong></header><main><nav aria-label="Minhas áreas"><?php $links=['lideranca_regional'=>'regional','vendas_estaduais'=>'estadual','fornecedores'=>'fornecedor','transportes'=>'transporte','estoques'=>'estoque','distribuidores_municipais'=>'municipal']; foreach(($auth['areas']??[]) as $area): if($area==='direcao_geral'): ?><a href="<?=e($auth['direction_url'])?>">Direção Geral</a> · <?php elseif(isset($links[$area])): ?><a href="https://<?=e($links[$area])?>.qrcodevalidacao.com/"><?=e($names[$area])?></a> · <?php endif; endforeach ?><form method="post" action="/logout.php" style="display:inline"><input type="hidden" name="_csrf" value="<?=e($_SESSION['csrf'])?>"><button type="submit">Sair</button></form></nav><h1><?=e($name)?></h1><p><?=e($person['full_name'])?> · Territórios autorizados: <?=e(implode(', ',$allowed))?></p><p><?=e($notice)?></p><?php if(!($auth['supabase_admin']??false)): ?><section><h2>Novo registro de trabalho</h2><p>Este fluxo inicial registra operações da divisão. As rotinas específicas do OS serão migradas separadamente.</p><form method="post"><input type="hidden" name="_csrf" value="<?=e($_SESSION['csrf'])?>"><label>Estado<select name="uf" required><?php foreach($allowed as $uf): ?><option value="<?=e($uf)?>"><?=e($uf)?></option><?php endforeach ?></select></label><label>Título<input name="title" minlength="3" maxlength="200" required></label><label>Detalhes<textarea name="details" maxlength="5000"></textarea></label><button name="action" value="create">Salvar</button></form></section><?php endif ?><section><h2>Registros do território</h2><table><tr><th>ID</th><th>UF</th><th>Registro</th><th>Situação</th><th>Ação</th></tr><?php foreach($items as $item): ?><tr><td><?=e((string)$item['id'])?></td><td><?=e($item['territory_uf'])?></td><td><?=e($item['title'])?><br><small><?=e($item['details'])?></small></td><td><?=e($item['status'])?></td><td><?php if($item['status']==='aberto'&&!($auth['supabase_admin']??false)): ?><form method="post"><input type="hidden" name="_csrf" value="<?=e($_SESSION['csrf'])?>"><input type="hidden" name="id" value="<?=e((string)$item['id'])?>"><button name="action" value="complete">Concluir</button></form><?php endif ?></td></tr><?php endforeach ?></table></section></main></html>
+$links=['lideranca_regional'=>'regional','vendas_estaduais'=>'estadual','fornecedores'=>'fornecedor','transportes'=>'transporte','estoques'=>'estoque','distribuidores_municipais'=>'municipal'];
+$name=$names[$cfg['system_code']];
+$openCount=count(array_filter($items,static fn($item)=>$item['status']==='aberto'));
+$doneCount=count(array_filter($items,static fn($item)=>$item['status']==='concluido'));
+$readOnly=(bool)($auth['supabase_admin']??false);
+header('Content-Type: text/html; charset=utf-8'); header('Cache-Control: no-store');
+?><!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title><?=e($name)?> · Sistema Integral</title><link rel="stylesheet" href="style.css">
+</head>
+<body class="app-shell">
+<aside class="sidebar" aria-label="Menu principal">
+  <a class="brand" href="#visao-geral"><strong>sistema<span>integral</span></strong><small>DISTRIBUIÇÃO NACIONAL</small></a>
+  <p class="nav-caption">PAINEL <?=e(mb_strtoupper($name))?></p>
+  <nav class="side-nav">
+    <a href="#visao-geral" class="active">▦ <span>Visão geral</span></a>
+    <a href="#registros">▤ <span>Registros</span></a>
+    <?php if(!$readOnly): ?><a href="#novo-registro">＋ <span>Novo registro</span></a><?php endif ?>
+  </nav>
+  <p class="nav-caption">MINHAS ÁREAS</p>
+  <nav class="side-nav" aria-label="Áreas autorizadas">
+    <?php foreach(($auth['areas']??[]) as $area): ?>
+      <?php if($area==='direcao_geral'): ?><a href="<?=e($auth['direction_url'])?>">⌂ <span>Direção Geral</span></a>
+      <?php elseif(isset($links[$area])): ?><a href="https://<?=e($links[$area])?>.qrcodevalidacao.com/">↗ <span><?=e($names[$area])?></span></a><?php endif ?>
+    <?php endforeach ?>
+  </nav>
+  <form method="post" action="/logout.php" class="logout"><input type="hidden" name="_csrf" value="<?=e($_SESSION['csrf'])?>"><button type="submit">Sair da conta</button></form>
+</aside>
+<div class="workspace">
+  <header class="topbar"><span class="mobile-brand">sistemaintegral</span><span class="topbar-title"><?=e($name)?></span><span class="user-chip"><?=e($person['full_name'])?></span></header>
+  <main>
+    <section id="visao-geral" class="overview">
+      <p class="eyebrow">PAINEL OPERACIONAL</p>
+      <h1><?=e($name)?></h1>
+      <p class="subtitle">Acompanhe os registros e acesse suas áreas autorizadas.</p>
+      <?php if($readOnly): ?><p class="notice">Acesso de leitura. Os registros operacionais desta divisão ainda estão sendo integrados à Direção Geral.</p><?php elseif($notice!==''): ?><p class="notice"><?=e($notice)?></p><?php endif ?>
+      <div class="metrics">
+        <article class="metric"><span>Registros visíveis</span><strong><?=count($items)?></strong><small>Até 100 registros recentes</small></article>
+        <article class="metric"><span>Em aberto</span><strong><?=$openCount?></strong><small>Aguardando conclusão</small></article>
+        <article class="metric"><span>Concluídos</span><strong><?=$doneCount?></strong><small>Nos registros exibidos</small></article>
+        <article class="metric"><span>Estados autorizados</span><strong><?=count($allowed)?></strong><small><?=e(implode(', ',array_slice($allowed,0,5)))?><?=count($allowed)>5?'…':''?></small></article>
+      </div>
+    </section>
+    <section id="registros" class="panel"><div class="panel-heading"><div><p class="eyebrow">ATIVIDADE</p><h2>Registros do território</h2></div><span class="counter"><?=count($items)?> exibidos</span></div>
+      <?php if(!$items): ?><div class="empty"><strong>Nenhum registro disponível</strong><p>Quando houver registros desta divisão e território, eles aparecerão aqui.</p></div>
+      <?php else: ?><div class="table-wrap"><table><thead><tr><th>ID</th><th>UF</th><th>Registro</th><th>Situação</th><th>Ação</th></tr></thead><tbody>
+      <?php foreach($items as $item): ?><tr><td>#<?=e((string)$item['id'])?></td><td><?=e($item['territory_uf'])?></td><td><strong><?=e($item['title'])?></strong><br><small><?=e($item['details'])?></small></td><td><span class="status"><?=e($item['status'])?></span></td><td><?php if($item['status']==='aberto'&&!$readOnly): ?><form method="post" class="row-action"><input type="hidden" name="_csrf" value="<?=e($_SESSION['csrf'])?>"><input type="hidden" name="id" value="<?=e((string)$item['id'])?>"><button name="action" value="complete">Concluir</button></form><?php endif ?></td></tr><?php endforeach ?>
+      </tbody></table></div><?php endif ?>
+    </section>
+    <?php if(!$readOnly): ?><section id="novo-registro" class="panel"><div class="panel-heading"><div><p class="eyebrow">OPERAÇÃO</p><h2>Novo registro de trabalho</h2></div></div><p class="muted">Registre uma atividade desta divisão. As rotinas específicas serão integradas por módulo.</p>
+      <form method="post" class="entry-form"><input type="hidden" name="_csrf" value="<?=e($_SESSION['csrf'])?>"><label>Estado<select name="uf" required><?php foreach($allowed as $uf): ?><option value="<?=e($uf)?>"><?=e($uf)?></option><?php endforeach ?></select></label><label>Título<input name="title" minlength="3" maxlength="200" required></label><label class="wide">Detalhes<textarea name="details" maxlength="5000"></textarea></label><button name="action" value="create">Salvar registro</button></form>
+    </section><?php endif ?>
+  </main>
+</div>
+</body></html>
