@@ -38,6 +38,12 @@ if ($readOnly) {
 }
 $ordersPaid=count(array_filter($centralOrders,static fn($o)=>($o['payment_status']??'')==='pago'));
 $ordersOpen=count($centralOrders)-$ordersPaid;
+$internalNotices=[];
+$noticeToken=(string)($_COOKIE['integral_admin_access']??'');
+if($noticeToken!=='') {
+ $noticeResponse=divisionAuthRequest('/rest/v1/internal_notices?select=id,title,content,is_pinned,publish_at,expires_at,target_systems&archived=eq.false&publish_at=lte.'.rawurlencode(gmdate('c')).'&order=is_pinned.desc,created_at.desc&limit=100',null,$noticeToken);
+ if($noticeResponse['status']===200&&is_array($noticeResponse['data'])) $internalNotices=array_values(array_filter($noticeResponse['data'],static fn($n)=>is_array($n)&&(!isset($n['expires_at'])||strtotime((string)$n['expires_at'])>time())&&(!($n['target_systems']??[])||in_array('vendas_estaduais',$n['target_systems'],true))));
+}
 header('Content-Type: text/html; charset=utf-8'); header('Cache-Control: no-store');
 ?><!doctype html>
 <html lang="pt-BR">
@@ -67,6 +73,8 @@ header('Content-Type: text/html; charset=utf-8'); header('Cache-Control: no-stor
 <div class="workspace">
   <header class="topbar"><span class="mobile-brand">sistemaintegral</span><span class="topbar-title"><?=e($name)?></span><span class="user-chip"><?=e($person['full_name'])?></span></header>
   <main>
+    <?php if($internalNotices): ?><section class="panel" aria-label="Avisos internos"><div class="panel-heading"><div><p class="eyebrow">COMUNICADOS</p><h2>Avisos internos</h2></div></div><?php foreach(array_slice($internalNotices,0,5) as $internalNotice): ?><article class="notice" style="margin:12px 0"><strong><?=e((string)$internalNotice['title'])?></strong><p><?=nl2br(e((string)$internalNotice['content']))?></p></article><?php endforeach ?></section><?php endif ?>
+
     <section id="visao-geral" class="overview">
       <p class="eyebrow">PAINEL OPERACIONAL</p>
       <h1><?=e($name)?></h1>
