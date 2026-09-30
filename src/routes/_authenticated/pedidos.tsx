@@ -12,6 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUser } from "@/hooks/useAuth";
+import { useEstadualAccess } from "@/hooks/useEstadualAccess";
 
 export const Route = createFileRoute("/_authenticated/pedidos")({
   head: () => ({
@@ -29,6 +30,7 @@ export const Route = createFileRoute("/_authenticated/pedidos")({
 function Pedidos() {
   const { productId } = useProductScope();
   const { userId } = useCurrentUser();
+  const estadualAccess = useEstadualAccess();
   const [tab, setTab] = useState("pedidos");
   const [draft, setDraft] = useState<PdvDraft | null>(null);
   const [cashOpen, setCashOpen] = useState(false);
@@ -127,6 +129,7 @@ function Pedidos() {
         description="Crie um pedido e acompanhe todo o histórico até o pagamento, entrega ou cancelamento."
         actions={
           <Button
+            disabled={!estadualAccess.canWrite && !cashOpen}
             onClick={() => {
               if (cashOpen) return setCashOpen(false);
               setDraft(savedDraft ? { ...savedDraft } : null);
@@ -144,6 +147,7 @@ function Pedidos() {
             <Pdv
               productId={productId}
               draft={draft}
+              readOnly={!estadualAccess.canWrite}
               onFinished={() => {
                 setDraft(null);
                 setCashOpen(false);
@@ -172,7 +176,7 @@ function Pedidos() {
           <TabsTrigger value="historico">Histórico</TabsTrigger>
         </TabsList>
         <TabsContent value="solicitacoes" className="pt-4">
-          <DocsList kind="pre_pedido" productId={productId} requestsOnly onEdit={editInPdv} />
+          <DocsList kind="pre_pedido" productId={productId} requestsOnly onEdit={estadualAccess.canWrite ? editInPdv : undefined} />
         </TabsContent>
         <TabsContent value="rascunhos" className="pt-4">
           {savedDraft ? (
@@ -186,6 +190,7 @@ function Pedidos() {
                   </p>
                 </div>
                 <Button
+                  disabled={!estadualAccess.canWrite}
                   variant="outline"
                   onClick={() => {
                     setDraft({ ...savedDraft });
@@ -217,24 +222,24 @@ function Pedidos() {
             productId={productId}
             allOrders
             excludeRequests
-            onEdit={editInPdv}
+            onEdit={estadualAccess.canWrite ? editInPdv : undefined}
           />
         </TabsContent>
         <TabsContent value="pedido_feito" className="pt-4">
-          <DocsList kind="venda" productId={productId} stage="pedido_feito" onEdit={editInPdv} />
+          <DocsList kind="venda" productId={productId} stage="pedido_feito" onEdit={estadualAccess.canWrite ? editInPdv : undefined} />
         </TabsContent>
         <TabsContent value="em_caminho" className="pt-4">
-          <DocsList kind="venda" productId={productId} stage="em_caminho" onEdit={editInPdv} />
+          <DocsList kind="venda" productId={productId} stage="em_caminho" onEdit={estadualAccess.canWrite ? editInPdv : undefined} />
         </TabsContent>
         <TabsContent value="vendido" className="pt-4">
-          <DocsList kind="venda" productId={productId} stage="vendido" onEdit={editInPdv} />
+          <DocsList kind="venda" productId={productId} stage="vendido" onEdit={estadualAccess.canWrite ? editInPdv : undefined} />
         </TabsContent>
         <TabsContent value="pagamento_parcial" className="pt-4">
           <DocsList
             kind="venda"
             productId={productId}
             stage="pagamento_parcial"
-            onEdit={editInPdv}
+            onEdit={estadualAccess.canWrite ? editInPdv : undefined}
           />
         </TabsContent>
         <TabsContent value="esperando_pagamento" className="pt-4">
@@ -242,14 +247,14 @@ function Pedidos() {
             kind="venda"
             productId={productId}
             stage="esperando_pagamento"
-            onEdit={editInPdv}
+            onEdit={estadualAccess.canWrite ? editInPdv : undefined}
           />
         </TabsContent>
         <TabsContent value="cancelado" className="pt-4">
           <DocsList kind="venda" productId={productId} stage="cancelado" />
         </TabsContent>
         <TabsContent value="perdido" className="pt-4">
-          <DocsList kind="venda" productId={productId} stage="perdido" onEdit={editInPdv} />
+          <DocsList kind="venda" productId={productId} stage="perdido" onEdit={estadualAccess.canWrite ? editInPdv : undefined} />
         </TabsContent>
         <TabsContent value="historico" className="pt-4">
           <OrderHistoryList />
