@@ -3,9 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { purchasePosition } from "./purchase-position";
 
-export const getPurchasePositions = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+export async function getPurchasePositionsForContext(context: { userId: string; supabase: any }) {
     const [active, capability] = await Promise.all([
       context.supabase.from("profiles").select("is_active").eq("id", context.userId).single(),
       context.supabase.rpc("app_has_cap", { _uid: context.userId, _cap: "company_finance" }),
@@ -47,4 +45,8 @@ export const getPurchasePositions = createServerFn({ method: "GET" })
       dueDate: purchase.due_date,
       ...purchasePosition(purchase, receipts),
     }));
-  });
+}
+
+export const getPurchasePositions = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => getPurchasePositionsForContext(context));
