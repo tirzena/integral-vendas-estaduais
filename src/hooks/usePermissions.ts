@@ -95,7 +95,15 @@ export function usePermissions() {
     staleTime: 30_000,
   });
   const legacyCaps = list.flatMap((r) => CAPS[r] ?? []);
-  const caps = new Set<Capability>(isAdmin ? ADMIN_CAPS : (dynamicCaps.data ?? legacyCaps));
+  const dynamicOrLegacy = dynamicCaps.data ?? legacyCaps;
+  // O vendedor estadual sempre precisa abrir catálogo e acompanhar as próprias entregas.
+  // Isso só controla a interface; RLS continua sendo a autoridade sobre as linhas visíveis.
+  const sellerBaseline: Capability[] = list.includes("vendedor")
+    ? ["inventory_view", "deliveries_view"]
+    : [];
+  const caps = new Set<Capability>(
+    isAdmin ? ADMIN_CAPS : [...dynamicOrLegacy, ...sellerBaseline],
+  );
 
   const can = (c: Capability) => caps.has(c);
   const canOpen = (route: string) => {
