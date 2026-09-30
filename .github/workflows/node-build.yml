@@ -21,6 +21,8 @@ jobs:
       - name: "Lint source - functional errors only"
         run: >-
           npx eslint src --quiet --rule '@typescript-eslint/no-explicit-any: off'
+      - name: Unit tests
+        run: npx vitest run
       - name: Build Hostinger Node
         run: npm run build:hostinger
       - name: Verify Node entrypoint
