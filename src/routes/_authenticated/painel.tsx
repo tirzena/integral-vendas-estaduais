@@ -62,12 +62,12 @@ import { Input } from "@/components/ui/input";
 export const Route = createFileRoute("/_authenticated/painel")({
   head: () => ({
     meta: [
-      { title: "Painel geral — OS" },
+      { title: "Painel estadual — Vendas Estaduais" },
       {
         name: "description",
         content: "Indicadores de vendas, atendimento, financeiro e estoque da sua operação.",
       },
-      { property: "og:title", content: "Painel geral — OS" },
+      { property: "og:title", content: "Painel estadual — Vendas Estaduais" },
       { property: "og:description", content: "Indicadores da sua operação em tempo real." },
     ],
   }),
@@ -240,7 +240,7 @@ function Painel() {
 
   if (isError) return (
     <div className="space-y-4">
-      <PageHeader title="Controle nacional" description="Não foi possível carregar os dados da dashboard." />
+      <PageHeader title="Controle estadual" description="Não foi possível carregar os dados da dashboard." />
       <Card><CardContent className="space-y-3 pt-6">
         <p role="alert">Falha ao consultar os pedidos. Os indicadores não serão mostrados como zero até a conexão voltar.</p>
         <p className="text-sm text-muted-foreground">{error instanceof Error ? error.message : "Erro de conexão com o banco de dados."}</p>
@@ -888,10 +888,10 @@ function Painel() {
   return (
     <div>
       <PageHeader
-        title={seesCompanySales ? "Controle nacional" : "Visão operacional"}
+        title={seesCompanySales ? "Controle estadual" : "Visão operacional"}
         description={
  seesCompanySales
-              ? "Distribuição, desempenho e continuidade operacional."
+              ? "Vendas, desempenho e operação dentro do território autorizado."
               : `Resultados de ${profile?.full_name?.split(" ")[0] ?? "seu perfil"}.`
         }
         actions={
