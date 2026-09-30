@@ -194,9 +194,8 @@ function AuthPage() {
             </form>
           ) : (
           <Tabs value={mode} onValueChange={setMode}>
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-1">
               <TabsTrigger value="entrar">Entrar</TabsTrigger>
-              <TabsTrigger value="criar">Criar conta</TabsTrigger>
             </TabsList>
 
             <TabsContent value="entrar">
@@ -253,7 +252,7 @@ function AuthPage() {
               </form>
             </TabsContent>
 
-            <TabsContent value="criar">
+            <TabsContent value="criar" className="hidden" aria-hidden="true">
               <form onSubmit={signUp} className="space-y-4 pt-6">
                 <div className="space-y-2">
                   <Label htmlFor="nome">Nome completo</Label>
