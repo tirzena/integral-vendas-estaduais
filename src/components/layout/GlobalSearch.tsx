@@ -47,7 +47,6 @@ export function GlobalSearch({
       (products.data ?? []).forEach((p) =>
         out.push({ id: p.id, label: p.name, group: "Produtos", to: "/produtos" }),
       );
-      );
       (orders.data ?? []).forEach((o) =>
         out.push({ id: o.id, label: `Pedido #${o.number}`, group: "Pedidos", to: "/pedidos" }),
       );
@@ -61,7 +60,6 @@ export function GlobalSearch({
           group: "Conversas",
           to: "/crm",
         }),
-      );
       );
       return out;
     },
