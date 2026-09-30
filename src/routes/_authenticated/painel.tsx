@@ -116,7 +116,9 @@ function Painel() {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["dashboard", seesCompanySales, seesCompanyFinance, userId],
     enabled: !!userId,
-    queryFn: async () => {
+    retry: false,
+    queryFn: async ({ signal }) => {
+      const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(20_000)]);
       const scoped = (q: any) => q;
       // Quem não vê os números da empresa enxerga apenas o próprio trabalho.
       const mine = (q: any) => (seesCompanySales || !userId ? q : q.eq("seller_id", userId));
@@ -192,9 +194,24 @@ function Painel() {
           .from("warehouse_inventory")
           .select("warehouse_id,item_id,quantity,reserved,min_quantity,location"),
         (supabase as any).from("dashboard_region_leaders").select("region,user_id"),
-        seesCompanyFinance ? getPurchasePositions() : Promise.resolve([]),
-      ]);
-      if (orders.error) throw orders.error;
+        seesCompanyFinance ? getPurchasePositions({ signal: requestSignal }) : Promise.resolve([]),
+      ].map((request: any) =>
+        typeof request.abortSignal === "function" ? request.abortSignal(requestSignal) : request,
+      ));
+      const results = [
+        ["Leads e CRM", cp], ["Pedidos", orders], ["Itens dos pedidos", orderItems],
+        ["Valores a receber", receivable], ["Atendimentos", conversations],
+        ["Estoque", inventory], ["Tarefas", tasks], ["Valores a pagar", payable],
+        ["Membros", people], ["Cargos", roles], ["Clientes", customers],
+        ["Locais de estoque", locations], ["Estoques", warehouses],
+        ["Saldos de estoque", warehouseBalances], ["Líderes regionais", regionLeaders],
+      ] as const;
+      for (const [label, result] of results) {
+        if (result.error) {
+          if (requestSignal.aborted) throw new Error("A consulta demorou mais que o esperado. Tente novamente.");
+          throw new Error(`Não foi possível carregar ${label}: ${result.error.message}`);
+        }
+      }
       const payableRows = (payable.data ?? [])
         .map((account: any) => {
           const position = purchasePositions.find((row: any) => row.accountId === account.id);
@@ -221,7 +238,16 @@ function Painel() {
     },
   });
 
-  if (products.length === 0 && !isLoading) {
+  if (isLoading) return (
+    <div className="space-y-4">
+      <PageHeader title="Controle estadual" description="Consultando os dados da operação." />
+      <Card><CardContent className="pt-6">
+        <p role="status" aria-live="polite">Carregando pedidos, clientes e estoque…</p>
+      </CardContent></Card>
+    </div>
+  );
+
+  if (products.length === 0) {
     return (
       <div>
         <PageHeader title="Painel geral" />
@@ -242,7 +268,7 @@ function Painel() {
     <div className="space-y-4">
       <PageHeader title="Controle estadual" description="Não foi possível carregar os dados da dashboard." />
       <Card><CardContent className="space-y-3 pt-6">
-        <p role="alert">Falha ao consultar os pedidos. Os indicadores não serão mostrados como zero até a conexão voltar.</p>
+        <p role="alert">Falha ao consultar os dados do painel. Os indicadores não serão mostrados como zero até a consulta funcionar.</p>
         <p className="text-sm text-muted-foreground">{error instanceof Error ? error.message : "Erro de conexão com o banco de dados."}</p>
         <Button onClick={() => void refetch()}>Tentar novamente</Button>
       </CardContent></Card>
