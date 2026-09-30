@@ -15,6 +15,7 @@ export const ESTADUAL_ROUTE_PREFIXES = [
   "/chat",
   "/configuracoes",
   "/confirmar-entrega",
+  "/sem-acesso",
 ] as const;
 
 export function isEstadualRoute(pathname: string) {
