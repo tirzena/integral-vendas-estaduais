@@ -8,9 +8,9 @@
   },
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build && node scripts/package-sites.mjs",
+    "build": "NITRO_PRESET=node_server vite build && node scripts/package-sites.mjs",
     "build:hostinger": "NITRO_PRESET=node_server vite build",
-    "start": "node hostinger-server.cjs",
+    "start": "node .output/server/index.mjs",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
