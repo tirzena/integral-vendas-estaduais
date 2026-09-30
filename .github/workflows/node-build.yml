@@ -18,6 +18,8 @@ jobs:
         run: npm ci
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
+      - name: Audit all dependencies (report only)
+        run: npm audit --audit-level=high || true
       - name: "Lint source - functional errors only"
         run: >-
           npx eslint src --quiet --rule '@typescript-eslint/no-explicit-any: off'
