@@ -7,6 +7,7 @@ import { Kanban, List, Loader2, Plus, Table2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useProductScope } from "@/hooks/useProductScope";
 import { useCurrentUser } from "@/hooks/useAuth";
+import { useEstadualAccess } from "@/hooks/useEstadualAccess";
 import { usePeople } from "@/hooks/usePeople";
 import { CURRENCIES, formatMoney, formatDate } from "@/lib/format";
 import { CurrencyValues } from "@/components/common/CurrencyValues";
@@ -66,6 +67,7 @@ type ViewMode = "kanban" | "lista" | "tabela";
 function Crm() {
   const { productId, current, products, setProductId } = useProductScope();
   const { userId, isAdmin } = useCurrentUser();
+  const estadualAccess = useEstadualAccess();
   const { options: peopleOptions, nameOf } = usePeople();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -208,6 +210,7 @@ function Crm() {
     "—";
 
   async function moveCard(cardId: string, stageId: string) {
+    if (!estadualAccess.canWrite) return;
     try {
       const result = await moveOpportunity({ data: { cardId, stageId } });
       if (result.meta?.sent) toast.success("Lead qualificado e evento enviado à Meta.");
@@ -218,6 +221,7 @@ function Crm() {
   }
 
   async function setOwner(cardId: string, ownerId: string) {
+    if (!estadualAccess.canWrite) return;
     const { error } = await supabase
       .from("customer_products")
       .update({ owner_id: ownerId === "sem" ? null : ownerId })
@@ -231,6 +235,7 @@ function Crm() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!estadualAccess.canWrite) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
     const next: Record<string, string> = {};
     if (isAll && !form.product_id) next["product_id"] = "Selecione a categoria.";
     if (mode === "existente" && !form.customer_id) next["customer_id"] = "Selecione um contato.";
@@ -357,7 +362,7 @@ function Crm() {
               </ToggleGroup>
             )}
             <PeriodFilter value={period} onChange={setPeriod} />
-            <Button onClick={() => setOpen(true)}>
+            <Button disabled={!estadualAccess.canWrite} onClick={() => setOpen(true)}>
               <Plus className="mr-2 size-4" /> Nova oportunidade
             </Button>
           </div>
@@ -429,7 +434,7 @@ function Crm() {
                       key={card.id}
                       to="/crm/$id"
                       params={{ id: card.customer_id }}
-                      draggable
+                      draggable={estadualAccess.canWrite}
                       onDragStart={() => setDragging(card.id)}
                       className="block cursor-grab rounded-lg border bg-card p-3 shadow-sm transition-shadow hover:shadow-md active:cursor-grabbing"
                     >
