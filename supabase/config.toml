@@ -1,0 +1,24 @@
+project_id = "wyutdvttldxkaqqysiuv"
+
+[auth]
+site_url = "https://tirzena.vercel.app"
+additional_redirect_urls = ["https://tirzena.vercel.app/**", "https://tirzena-*-leadinroi.vercel.app/**", "http://localhost:5173/**"]
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false
+max_frequency = "1m"
+otp_length = 8
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[functions.whatsapp-evolution]
+verify_jwt = true
+
+[functions.whatsapp-webhook]
+verify_jwt = false
+
+[functions.serper-places]
+verify_jwt = true

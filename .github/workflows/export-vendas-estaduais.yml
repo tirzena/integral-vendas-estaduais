@@ -1,0 +1,32 @@
+name: Exportar base Vendas Estaduais
+# pacote revisado 2026-09-30
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/export-vendas-estaduais.yml'
+  workflow_dispatch:
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar pacote
+        run: |
+          rm -rf .git
+          rm -rf integral-preview
+          rm -rf node_modules .output dist
+          cat > PORTAL_ESTADUAL.md <<'EOF'
+          # Base para Vendas Estaduais
+          Aplicação derivada da Direção Geral para migração ao repositório tirzena/integral-vendas-estaduais.
+          Manter aplicação, domínio e repositório independentes. Compartilhar somente o Supabase canônico.
+          Aplicar escopo de vendedor/RLS: dados próprios e concessões explícitas. Sem fornecedores, investimentos,
+          compras administrativas, equipe/admin ou governança para vendedor comum.
+          EOF
+      - name: Empacotar
+        run: zip -r vendas-estaduais-base.zip . -x "vendas-estaduais-base.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vendas-estaduais-base
+          path: vendas-estaduais-base.zip
+          retention-days: 7

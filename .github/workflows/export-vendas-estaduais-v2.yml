@@ -1,0 +1,31 @@
+name: Exportar base Vendas Estaduais V2
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/export-vendas-estaduais-v2.yml'
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar base estadual isolada
+        run: |
+          rm -rf .git integral-preview node_modules .output dist
+          rm -f .env .env.local .env.production
+          cat > PORTAL_ESTADUAL.md <<'EOF'
+          # Vendas Estaduais
+          Base de migração derivada da Direção Geral.
+          Repositório e domínio devem permanecer independentes.
+          Dados compartilhados usam o Supabase canônico e RLS.
+          Vendedor comum: próprios pedidos/vendas/clientes/CRM/financeiro e concessões explícitas.
+          Sem fornecedores, investimentos, compras administrativas, membros/administração ou governança.
+          Realtime preparado para os dados operacionais compartilhados.
+          EOF
+      - name: Gerar ZIP
+        run: zip -r vendas-estaduais-base.zip . -x "vendas-estaduais-base.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vendas-estaduais-base-v2
+          path: vendas-estaduais-base.zip
+          retention-days: 7

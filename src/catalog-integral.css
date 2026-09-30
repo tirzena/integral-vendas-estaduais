@@ -1,0 +1,112 @@
+/* Catalog uses the same dark tokens and brand accents as the Integral shell.
+   Scope portal content too, so dialogs and selects keep this identity. */
+.integral-catalog {
+  color-scheme: dark;
+  color: var(--foreground);
+  --brand-emerald: #2ce7a1;
+  --brand-magenta: #f50067;
+}
+main.integral-catalog {
+  background: radial-gradient(circle at 96% 8%, rgb(245 0 103 / 6%), transparent 28rem),
+    radial-gradient(circle at 0 0, rgb(44 231 161 / 6%), transparent 28rem), var(--background);
+}
+.integral-catalog-header {
+  position: relative;
+  background: var(--card);
+}
+.integral-catalog-header::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--brand-emerald), var(--brand-magenta));
+}
+.integral-catalog h1 {
+  font-family: Impact, "Arial Black", sans-serif;
+  letter-spacing: .01em;
+}
+.integral-catalog-brands {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.integral-catalog-brand {
+  --catalog-brand-color: var(--brand-emerald);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  min-height: 76px;
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--catalog-brand-color);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--foreground);
+  text-decoration: none;
+  transition: border-color .18s, background-color .18s;
+}
+.integral-catalog-brand--pink { --catalog-brand-color: var(--brand-magenta); }
+.integral-catalog-brand:hover { border-color: var(--catalog-brand-color); background: var(--secondary); }
+.integral-catalog-brand:focus-visible { outline: 2px solid var(--catalog-brand-color); outline-offset: 4px; }
+.integral-catalog-brand strong { display: block; font-size: 18px; letter-spacing: .04em; text-transform: uppercase; }
+.integral-catalog-brand small { display: block; margin-top: 4px; color: var(--muted-foreground); font-size: 12px; overflow-wrap: anywhere; }
+.integral-catalog-brand-action { display: flex; align-items: center; gap: 8px; flex: none; color: var(--catalog-brand-color); font-size: 12px; font-weight: 700; }
+.integral-catalog-filters { padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
+.integral-catalog-product { border-color: #425865; box-shadow: 0 10px 40px rgb(0 0 0 / 16%); }
+.integral-catalog-product:hover, .integral-catalog-product:focus-within { border-color: var(--primary); }
+.integral-catalog input, .integral-catalog textarea, .integral-catalog [data-slot="select-trigger"] { background-color: #081219; }
+@media (max-width: 560px) {
+  .integral-catalog-brands { grid-template-columns: 1fr; }
+  .integral-catalog-brand { padding: 14px 16px; }
+  .integral-catalog-filters { padding: 12px; }
+}
+
+
+/* Brilho animado dos acessos de marca no catálogo público. */
+.catalog-site-button {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 9999px;
+  color: white;
+  box-shadow: 0 0 18px rgba(255,255,255,.08), inset 0 0 14px rgba(255,255,255,.08);
+  transition: transform .2s ease, box-shadow .25s ease;
+}
+.catalog-site-button::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: -80%;
+  bottom: -80%;
+  width: 34%;
+  left: -50%;
+  transform: rotate(18deg);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.75), transparent);
+  filter: blur(3px);
+  animation: catalog-site-shine 2.8s ease-in-out infinite;
+}
+.catalog-site-button:hover { transform: translateY(-1px) scale(1.02); }
+.catalog-site-tirzena {
+  background: linear-gradient(135deg, rgba(5,150,105,.95), rgba(16,185,129,.72));
+  border-color: rgba(110,231,183,.55);
+  box-shadow: 0 0 22px rgba(16,185,129,.25), inset 0 0 16px rgba(255,255,255,.08);
+}
+.catalog-site-retrazin {
+  background: linear-gradient(135deg, rgba(225,29,72,.95), rgba(244,63,94,.72));
+  border-color: rgba(253,164,175,.55);
+  box-shadow: 0 0 22px rgba(244,63,94,.25), inset 0 0 16px rgba(255,255,255,.08);
+}
+@keyframes catalog-site-shine {
+  0%, 22% { left: -55%; opacity: 0; }
+  35% { opacity: .95; }
+  62% { left: 125%; opacity: .8; }
+  75%, 100% { left: 125%; opacity: 0; }
+}
+@media (max-width: 640px) {
+  .catalog-site-button { flex: 1 1 145px; min-width: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .catalog-site-button::after { animation: none; }
+}
