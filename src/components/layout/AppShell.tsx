@@ -143,19 +143,6 @@ function NavList({ onNavigate, collapsed }: { onNavigate?: () => void; collapsed
 
   return (
     <nav className="flex flex-col gap-3 px-2 pb-6">
-      {false && isAdmin && <Link
-        to="/sos"
-        onClick={onNavigate}
-        title="SOS de conta · conferir vínculos"
-        aria-label="SOS de conta · conferir vínculos"
-        className={cn(
-          "flex items-center gap-3 rounded-lg border border-red-500/60 bg-red-600 px-3 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-red-700",
-          collapsed && "justify-center px-2",
-        )}
-      >
-        <Siren className="size-5 shrink-0" />
-        {!collapsed && <span>SOS de conta</span>}
-      </Link>}
       {groups.map((group) => (
         <div key={group.label} className="flex flex-col gap-0.5">
           {!collapsed && (
