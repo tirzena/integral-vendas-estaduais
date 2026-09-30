@@ -10,6 +10,6 @@ export function safeReturnPath(value: unknown, fallback = "/trafego-pago"): stri
   if (path.includes("\\")) return fallback;
   if (path.includes("://")) return fallback;
   // controla caracteres de controle e tentativas de esquema colado
-  if (/[\u0000-\u001f\u007f]/.test(path)) return fallback;
+  if ([...path].some((char) => { const code = char.charCodeAt(0); return code < 32 || code === 127; })) return fallback;
   return path;
 }
