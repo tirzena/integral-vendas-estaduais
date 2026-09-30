@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { useEstadualAccess } from "@/hooks/useEstadualAccess";
 import {
   Select,
   SelectContent,
@@ -127,6 +128,8 @@ export function ResourcePage({
   expandSave,
   enabled = true,
 }: Props) {
+  const estadualAccess = useEstadualAccess();
+  const effectiveCanWrite = canWrite && estadualAccess.canWrite;
   const [term, setTerm] = useState("");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
@@ -244,7 +247,7 @@ export function ResourcePage({
         actions={
           <>
             {extraActions}
-            {canWrite && canCreate && (
+            {effectiveCanWrite && canCreate && (
               <Button onClick={openNew}>
                 <Plus className="mr-2 size-4" /> {createLabel}
               </Button>
@@ -286,7 +289,7 @@ export function ResourcePage({
             emptyDescription ?? "Cadastre o primeiro registro para começar a usar este módulo."
           }
           action={
-            canWrite && canCreate ? <Button onClick={openNew}>{createLabel}</Button> : undefined
+            effectiveCanWrite && canCreate ? <Button onClick={openNew}>{createLabel}</Button> : undefined
           }
         />
       ) : renderBody ? (
@@ -308,7 +311,7 @@ export function ResourcePage({
               {rows.map((row) => (
                 <TableRow key={row.id}>
                   {columns.map((c) => {
-                    const qf = canWrite ? quickField(c.key) : undefined;
+                    const qf = effectiveCanWrite ? quickField(c.key) : undefined;
                     return (
                       <TableCell key={c.key} className={c.className}>
                         <span className="inline-flex items-center gap-2">
@@ -343,7 +346,7 @@ export function ResourcePage({
                   })}
                   <TableCell className="text-right whitespace-nowrap">
                     {rowActions?.(row)}
-                    {canWrite && (
+                    {effectiveCanWrite && (
                       <>
                         <Button
                           variant="ghost"
