@@ -39,5 +39,5 @@ O erro emitido por chrome-extension:// no navegador foi separado dos erros da ap
 - O Opera local solicitado pelo usuário não aparece no inventário de controle; apenas Chrome remoto está disponível. Sessões não são compartilhadas.
 - Relatórios implementado em src/routes/_authenticated/relatorios.tsx; commits 618399d011e854a1c6dda8b1d79e15fc93764df8 e 0467e13e812ec0b9f348b8d1f7541af70cba39ee.
 - Consulta de metadados confirmou as colunas usadas em public.orders, inclusive amount_paid. Tipos gerados estavam desatualizados; a nova consulta usa tipagem explícita alinhada à coluna confirmada.
-- Build após ambos os conjuntos passou. A primeira execução de tsc --noEmit encontrou erros amplos no repositório; validação de tipos da nova tela em andamento. Build não equivale a auditoria funcional concluída.
+- Build após ambos os conjuntos passou. tsc --noEmit continua reprovado por erros em outros arquivos do repositório; a execução final não apontou erros em relatorios.tsx. Build não equivale a auditoria funcional concluída.
 - Nenhum dado real foi alterado. Ainda falta confirmar a publicação dessas correções no ambiente temporário e realizar todos os testes autenticados.
