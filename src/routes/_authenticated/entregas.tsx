@@ -20,6 +20,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useEstadualAccess } from "@/hooks/useEstadualAccess";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { formatCep } from "@/lib/cep";
 import { orderNumber } from "@/lib/sales";
@@ -123,7 +124,8 @@ function logisticsStage(order: any): LogisticsStage {
 function Entregas() {
   const { isAdmin } = useCurrentUser();
   const { can, loading: permissionsLoading } = usePermissions();
-  const canManage = can("deliveries_manage");
+  const estadualAccess = useEstadualAccess();
+  const canManage = can("deliveries_manage") && estadualAccess.canWrite;
   const loadManagedDeliveries = useServerFn(getManagedDeliveries);
   const loadDeliverySeller = useServerFn(getDeliverySeller);
   const queryClient = useQueryClient();
