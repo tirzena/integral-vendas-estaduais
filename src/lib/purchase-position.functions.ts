@@ -12,8 +12,9 @@ export const getPurchasePositions = createServerFn({ method: "GET" })
     ]);
     if (active.error || !active.data?.is_active || capability.error || !capability.data)
       throw new Error("Sem permissão para consultar custos financeiros.");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const db = supabaseAdmin as any;
+    // This is a read for the authenticated member. Keep the financial
+    // capability check above and let RLS enforce the permitted rows.
+    const db = context.supabase as any;
     const all = async (query: any) => {
       const rows: any[] = [];
       for (let offset = 0; ; offset += 500) {
