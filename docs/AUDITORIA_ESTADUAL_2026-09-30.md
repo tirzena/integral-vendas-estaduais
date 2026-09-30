@@ -13,7 +13,7 @@
 | ID | Problema / observação | Evidência | Estado |
 | --- | --- | --- | --- |
 | AUD-001 | Erro de hidratação React no acesso inicial pela raiz | Console do navegador: Minified React error #418, após / → /auth. Acesso direto a /auth não apresentou esse erro nesta observação. | Investigar e reproduzir; ainda sem correção confirmada |
-| AUD-002 | Menu Relatórios não abre módulo de relatórios | src/routes/_authenticated/relatorios.tsx executa redirect para /painel e component retorna null. | Confirmado por código; implementação e teste pendentes |
+| AUD-002 | Menu Relatórios não abre módulo de relatórios | src/routes/_authenticated/relatorios.tsx executa redirect para /painel e component retorna null. | Corrigido no repositório: tela própria, filtros, consulta paginada no escopo existente e exportação; build Node 24 passou. Teste autenticado pendente |
 | AUD-003 | Auditoria autenticada bloqueada por verificação do Google | Login OAuth chega a “Confirme que é você”, com reCAPTCHA. | Aguardando conclusão segura do login; não é falha confirmada do sistema |
 | ENV-001 | Build de referência | npm ci concluído e npm run build:hostinger passou em Node v24.19.0. | Validado, antes de correções |
 
@@ -32,3 +32,12 @@ O erro emitido por chrome-extension:// no navegador foi separado dos erros da ap
 2. Testar os 14 módulos com registros de teste identificados, preservando registros reais.
 3. Corrigir achados por conjunto; validar build a cada conjunto.
 4. Retestar no ambiente temporário e atualizar este registro com evidências e limitações.
+
+## Atualização após a tentativa de login
+- OAuth Google retornou para tirzena.vercel.app/auth e, na segunda tentativa, para tirzena.vercel.app/painel. O ambiente estadual continuou sem sessão. O código envia redirectTo para a origem temporária; conferir a lista de Redirect URLs no Supabase antes de atribuir causa definitiva.
+- O painel Supabase foi aberto na página URL Configuration, mas está sem autenticação. A revisão automática bloqueou a solicitação de login por exigir autorização explícita para acesso ao dashboard.
+- O Opera local solicitado pelo usuário não aparece no inventário de controle; apenas Chrome remoto está disponível. Sessões não são compartilhadas.
+- Relatórios implementado em src/routes/_authenticated/relatorios.tsx; commits 618399d011e854a1c6dda8b1d79e15fc93764df8 e 0467e13e812ec0b9f348b8d1f7541af70cba39ee.
+- Consulta de metadados confirmou as colunas usadas em public.orders, inclusive amount_paid. Tipos gerados estavam desatualizados; a nova consulta usa tipagem explícita alinhada à coluna confirmada.
+- Build após ambos os conjuntos passou. A primeira execução de tsc --noEmit encontrou erros amplos no repositório; validação de tipos da nova tela em andamento. Build não equivale a auditoria funcional concluída.
+- Nenhum dado real foi alterado. Ainda falta confirmar a publicação dessas correções no ambiente temporário e realizar todos os testes autenticados.
