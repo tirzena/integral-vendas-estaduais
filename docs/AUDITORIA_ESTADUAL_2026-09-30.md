@@ -41,3 +41,12 @@ O erro emitido por chrome-extension:// no navegador foi separado dos erros da ap
 - Consulta de metadados confirmou as colunas usadas em public.orders, inclusive amount_paid. Tipos gerados estavam desatualizados; a nova consulta usa tipagem explícita alinhada à coluna confirmada.
 - Build após ambos os conjuntos passou. tsc --noEmit continua reprovado por erros em outros arquivos do repositório; a execução final não apontou erros em relatorios.tsx. Build não equivale a auditoria funcional concluída.
 - Nenhum dado real foi alterado. Ainda falta confirmar a publicação dessas correções no ambiente temporário e realizar todos os testes autenticados.
+
+## Incidente de indisponibilidade — 2026-09-30
+- Captura do painel estadual: Missing Supabase environment variable(s): SUPABASE_SERVICE_ROLE_KEY. A consulta getPurchasePositions usava cliente administrativo e fazia o dashboard inteiro falhar.
+- Correção: leitura com context.supabase, mantendo perfil ativo, capability company_finance e RLS. Políticas SELECT de purchase_orders, purchase_order_items, stock_lot_receipts e stock_lot_movements consultadas no banco antes da alteração.
+- Build estadual passou; quatro testes de regressão passaram: membro autorizado sem cliente service-role, membro inativo, ausência de permissão financeira e falha de leitura sem mascarar como zero. Comando: npx vitest run --config vitest.server.config.mts.
+- Correção também aplicada ao trecho idêntico da Direção Geral no commit 7385aa5eef64c2b41c568d65936c2fb414e4e4d2; build completo desse repositório não executado nesta sessão.
+- Checagem pública: temporário estadual, estoque, transporte, regional, municipal e captação retornaram HTTP 200; estadual.qrcodevalidacao.com retornou HTTP 403; login.qrcodevalidacao.com e fornecedor.qrcodevalidacao.com excederam tempo de resposta. Isso não confirma a causa dos 403/503 intermitentes.
+- Screenshot da Hostinger: commit d82687d0 marcado Atual/Concluído; commit 0467e13e anterior Falha na construção, seguido por implantações concluídas. Logs dessa falha não disponíveis nesta sessão.
+- Nenhuma alteração de chave, domínio, DNS ou dados operacionais. Ainda é necessário verificar implantação, logs de execução e teste autenticado após a correção.
