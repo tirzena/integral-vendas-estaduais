@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import { useVisibleProductIds } from "@/hooks/useProductScope";
 import {
   CommandDialog,
   CommandEmpty,
@@ -22,22 +23,30 @@ export function GlobalSearch({
 }) {
   const [term, setTerm] = useState("");
   const navigate = useNavigate();
+  const productIds = useVisibleProductIds();
 
   const { data, isFetching } = useQuery({
-    queryKey: ["global-search", term],
+    queryKey: ["global-search", term, productIds.join(",")],
     enabled: open && term.trim().length >= 2,
     queryFn: async (): Promise<Result[]> => {
       const like = `%${term.trim()}%`;
       const [customers, products, orders, quotes, conversations] = await Promise.all([
           supabase.from("customers").select("id,name").ilike("name", like).limit(5),
-          supabase.from("products").select("id,name").ilike("name", like).limit(5),
-          supabase.from("orders").select("id,number,status").limit(5),
+          productIds.length
+            ? supabase.from("products").select("id,name").in("id", productIds).ilike("name", like).limit(5)
+            : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+          productIds.length
+            ? supabase.from("orders").select("id,number,status").in("product_id", productIds).limit(5)
+            : Promise.resolve({ data: [] as { id: string; number: number; status: string }[] }),
           supabase.from("quotes").select("id,number,status").limit(5),
-          supabase
+          productIds.length
+            ? supabase
             .from("whatsapp_conversations")
             .select("id,contact_name,contact_phone")
             .ilike("contact_name", like)
-            .limit(5),
+            .in("product_id", productIds)
+            .limit(5)
+            : Promise.resolve({ data: [] as { id: string; contact_name: string | null; contact_phone: string }[] }),
         ]);
 
       const out: Result[] = [];
