@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUser } from "@/hooks/useAuth";
+import { useEstadualAccess } from "@/hooks/useEstadualAccess";
 
 export type Product = {
   id: string;
@@ -30,6 +31,7 @@ const UUID_PATTERN =
 
 export function ProductScopeProvider({ children }: { children: ReactNode }) {
   const { userId, isAdmin: isAdminRole, roles, loading: userLoading } = useCurrentUser();
+  const estadualAccess = useEstadualAccess();
   // Gestores e time de estoque também administram todas as categorias.
   const isAdmin = isAdminRole || roles.includes("gestor") || roles.includes("estoque");
   const [productId, setProductIdState] = useState<string | "todos">("todos");
@@ -46,7 +48,7 @@ export function ProductScopeProvider({ children }: { children: ReactNode }) {
   };
 
   const { data, isLoading } = useQuery({
-    queryKey: ["scope-products", userId, isAdmin],
+    queryKey: ["scope-products", userId, isAdmin, estadualAccess.grants],
     enabled: !!userId && !userLoading,
     queryFn: async () => {
       const { data: products, error } = await supabase
@@ -61,7 +63,13 @@ export function ProductScopeProvider({ children }: { children: ReactNode }) {
         .select("product_id")
         .eq("user_id", userId!);
       const allowed = new Set((links ?? []).map((l) => l.product_id));
-      return ((products ?? []) as Product[]).filter((p) => allowed.has(p.id));
+      const grantProductIds = new Set(
+        estadualAccess.grants.map((grant) => grant.product_id).filter(Boolean) as string[],
+      );
+      const grantAllowsAllProducts = estadualAccess.grants.some((grant) => !grant.product_id);
+      return ((products ?? []) as Product[]).filter(
+        (p) => allowed.has(p.id) && (grantAllowsAllProducts || grantProductIds.has(p.id)),
+      );
     },
   });
 
