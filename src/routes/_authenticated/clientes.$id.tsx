@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUser } from "@/hooks/useAuth";
+import { useEstadualAccess } from "@/hooks/useEstadualAccess";
 import { formatDate, formatDateTime, formatMoney } from "@/lib/format";
 import { deliveryState, delayDays, DELIVERY_LABEL, stateTone } from "@/lib/delivery";
 import { CurrencyValues } from "@/components/common/CurrencyValues";
@@ -67,6 +68,7 @@ function MoneyList({ map, empty = "—" }: { map: Record<string, number>; empty?
 function ClienteDetalhe() {
   const { id } = Route.useParams();
   const { userId } = useCurrentUser();
+  const estadualAccess = useEstadualAccess();
   const queryClient = useQueryClient();
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
@@ -263,6 +265,7 @@ function ClienteDetalhe() {
   }, [data, allMoney]);
 
   async function addNote() {
+    if (!estadualAccess.canWrite) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
     if (!note.trim()) {
       toast.error("Escreva a anotação antes de salvar.");
       return;
@@ -396,10 +399,11 @@ function ClienteDetalhe() {
             <CardContent className="space-y-3">
               <Textarea
                 value={note}
+                disabled={!estadualAccess.canWrite}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="Registre o que foi conversado com o cliente…"
               />
-              <Button onClick={addNote} disabled={saving}>
+              <Button onClick={addNote} disabled={saving || !estadualAccess.canWrite}>
                 {saving && <Loader2 className="mr-2 size-4 animate-spin" />} Salvar anotação
               </Button>
             </CardContent>
