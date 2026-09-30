@@ -18,6 +18,13 @@ export const Route = createFileRoute("/_authenticated/relatorios")({
   component: ReportsPage,
 });
 
+// The live schema contains amount_paid; generated types predate that column.
+type ReportOrder = {
+  id: string; number: number; created_at: string; status: string;
+  total: number; amount_paid: number; currency: Currency;
+  product_id: string; seller_id: string | null;
+};
+
 function ReportsPage() {
   const { userId, loading: permissionsLoading, canOpen, seesCompanySales } = usePermissions();
   const { productId, products, loading: scopeLoading } = useProductScope();
@@ -32,7 +39,7 @@ function ReportsPage() {
     enabled: Boolean(userId && permitted && !permissionsLoading && !scopeLoading && !invalidRange),
     queryFn: async () => {
       if (!scopeIds.length) return [];
-      const rows = [];
+      const rows: ReportOrder[] = [];
       for (let offset = 0; ; offset += 500) {
         let query = supabase.from("orders")
           .select("id,number,created_at,status,total,amount_paid,currency,product_id,seller_id")
@@ -46,7 +53,7 @@ function ReportsPage() {
           end.setDate(end.getDate() + 1);
           query = query.lt("created_at", end.toISOString());
         }
-        const { data, error } = await query;
+        const { data, error } = await query.returns<ReportOrder[]>();
         if (error) throw error;
         rows.push(...(data ?? []));
         if (!data || data.length < 500) break;
@@ -89,8 +96,8 @@ function ReportsPage() {
           </div>
           {!rows.length ? <EmptyState title="Nenhum pedido encontrado" description="Ajuste o período, a situação ou a categoria selecionada." />
             : <Table><TableHeader><TableRow>{headers.map((header) => <TableHead key={header}>{header}</TableHead>)}</TableRow></TableHeader>
-              <TableBody>{rows.map((order, index) => <TableRow key={order.id}>
-                <TableCell>{order.number}</TableCell><TableCell>{reportRows[index][1]}</TableCell><TableCell>{reportRows[index][2]}</TableCell>
+              <TableBody>{rows.map((order) => <TableRow key={order.id}>
+                <TableCell>{order.number}</TableCell><TableCell>{formatDate(order.created_at)}</TableCell><TableCell>{products.find((product) => product.id === order.product_id)?.name ?? "—"}</TableCell>
                 <TableCell>{order.status}</TableCell><TableCell>{order.currency}</TableCell>
                 <TableCell>{formatMoney(order.total, order.currency as Currency)}</TableCell>
                 <TableCell>{formatMoney(order.amount_paid, order.currency as Currency)}</TableCell>
