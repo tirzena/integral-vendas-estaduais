@@ -13,10 +13,10 @@ import { LoginNoticesCard } from "@/components/auth/LoginNoticesCard";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Entrar — OS" },
-      { name: "description", content: "Acesse a plataforma de gestão empresarial OS." },
-      { property: "og:title", content: "Entrar — OS" },
-      { property: "og:description", content: "Acesse a plataforma de gestão empresarial." },
+      { title: "Entrar — Vendas Estaduais" },
+      { name: "description", content: "Acesse o portal de Vendas Estaduais do Sistema Integral." },
+      { property: "og:title", content: "Entrar — Vendas Estaduais" },
+      { property: "og:description", content: "Acesse o portal de Vendas Estaduais do Sistema Integral." },
     ],
   }),
   component: AuthPage,
@@ -151,19 +151,19 @@ function AuthPage() {
           <div>
             <p className="integral-brand-word">sistemaintegral</p>
             <span className="integral-brand-rule" />
-            <p className="integral-brand-subtitle">Distribuição nacional</p>
+            <p className="integral-brand-subtitle">Vendas Estaduais</p>
           </div>
         </div>
         <div className="max-w-md space-y-4">
           <h1 className="font-display text-4xl leading-tight font-semibold">
-            Uma operação. Todos os seus sistemas.
+            Sua operação comercial estadual, integrada.
           </h1>
           <p className="opacity-80">
-            Centralize clientes, vendas, atendimento, tarefas e resultados em um único sistema.
+            Gerencie vendedores, clientes, CRM, catálogo, pedidos, entregas, metas e resultados dentro dos territórios autorizados.
           </p>
         </div>
         <p className="text-xs opacity-60">
-          Dados de demonstração ficam identificados como fictícios.
+          Os dados e permissões são sincronizados com o Sistema Integral.
         </p>
       </section>
 
@@ -175,7 +175,7 @@ function AuthPage() {
           <div className="mb-8 lg:hidden">
             <p className="integral-brand-word">sistemaintegral</p>
             <span className="integral-brand-rule" />
-            <p className="integral-brand-subtitle">Distribuição nacional</p>
+            <p className="integral-brand-subtitle">Vendas Estaduais</p>
           </div>
 
           {mode === "recuperar" ? (
