@@ -1,8 +1,19 @@
 project_id = "wyutdvttldxkaqqysiuv"
 
 [auth]
-site_url = "https://tirzena.vercel.app"
-additional_redirect_urls = ["https://tirzena.vercel.app/**", "https://tirzena-*-leadinroi.vercel.app/**", "http://localhost:5173/**"]
+site_url = "https://login.qrcodevalidacao.com"
+additional_redirect_urls = [
+  "https://login.qrcodevalidacao.com/**",
+  "https://regional.qrcodevalidacao.com/**",
+  "https://estadual.qrcodevalidacao.com/**",
+  "https://fornecedor.qrcodevalidacao.com/**",
+  "https://transporte.qrcodevalidacao.com/**",
+  "https://estoque.qrcodevalidacao.com/**",
+  "https://municipal.qrcodevalidacao.com/**",
+  "https://captacao.qrcodevalidacao.com/**",
+  "https://mediumvioletred-penguin-501833.hostingersite.com/**",
+  "http://localhost:5173/**",
+]
 
 [auth.email]
 enable_signup = true
