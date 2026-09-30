@@ -27,7 +27,6 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
   const [mode, setMode] = useState("entrar");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -69,40 +68,6 @@ function AuthPage() {
       .update({ last_access: new Date().toISOString() })
       .eq("email", normalizedEmail);
     navigate({ to: "/painel" });
-  }
-
-  async function signUp(e: React.FormEvent) {
-    e.preventDefault();
-    if (password.length < 6) {
-      toast.error("A senha precisa ter ao menos 6 caracteres.");
-      return;
-    }
-    setLoading(true);
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: window.location.origin,
-        data: { full_name: fullName },
-      },
-    });
-    setLoading(false);
-    if (error) {
-      toast.error(
-        error.message.includes("already")
-          ? "Este e-mail já está cadastrado."
-          : "Não foi possível criar a conta: " + error.message,
-      );
-      return;
-    }
-    const { data: sessionData } = await supabase.auth.getSession();
-    if (sessionData.session) {
-      toast.success("Conta criada. Bem-vindo!");
-      navigate({ to: "/painel" });
-    } else {
-      toast.success("Conta criada. Confirme o link enviado ao seu e-mail para entrar.");
-      setMode("entrar");
-    }
   }
 
   async function signInWithGoogle() {
@@ -252,47 +217,6 @@ function AuthPage() {
               </form>
             </TabsContent>
 
-            <TabsContent value="criar" className="hidden" aria-hidden="true">
-              <form onSubmit={signUp} className="space-y-4 pt-6">
-                <div className="space-y-2">
-                  <Label htmlFor="nome">Nome completo</Label>
-                  <Input
-                    id="nome"
-                    required
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email2">E-mail</Label>
-                  <Input
-                    id="email2"
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="senha2">Senha</Label>
-                  <Input
-                    id="senha2"
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading && <Loader2 className="mr-2 size-4 animate-spin" />}
-                  Criar conta
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  A primeira conta criada recebe o perfil de Superadministrador. As demais entram
-                  como Vendedor até que um administrador altere o perfil.
-                </p>
-              </form>
-            </TabsContent>
           </Tabs>
           )}
           <LoginNoticesCard />
