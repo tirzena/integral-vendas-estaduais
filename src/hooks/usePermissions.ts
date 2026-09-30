@@ -65,7 +65,6 @@ const CAPS: Record<AppRole, Capability[]> = {
 /** Rotas que exigem uma permissão específica. */
 export const ROUTE_CAPABILITY: Record<string, Capability> = {
   "/investimentos": "company_finance",
-  "/relatorios": "company_sales",
   "/trafego-pago": "marketing",
   "/fornecedores": "manage_suppliers",
   "/equipe": "manage_team",
