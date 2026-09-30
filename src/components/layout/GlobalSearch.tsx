@@ -28,11 +28,9 @@ export function GlobalSearch({
     enabled: open && term.trim().length >= 2,
     queryFn: async (): Promise<Result[]> => {
       const like = `%${term.trim()}%`;
-      const [customers, products, suppliers, orders, quotes, conversations, catalogs] =
-        await Promise.all([
+      const [customers, products, orders, quotes, conversations] = await Promise.all([
           supabase.from("customers").select("id,name").ilike("name", like).limit(5),
           supabase.from("products").select("id,name").ilike("name", like).limit(5),
-          supabase.from("suppliers").select("id,name").ilike("name", like).limit(5),
           supabase.from("orders").select("id,number,status").limit(5),
           supabase.from("quotes").select("id,number,status").limit(5),
           supabase
@@ -40,7 +38,6 @@ export function GlobalSearch({
             .select("id,contact_name,contact_phone")
             .ilike("contact_name", like)
             .limit(5),
-          supabase.from("catalogs").select("id,title").ilike("title", like).limit(5),
         ]);
 
       const out: Result[] = [];
@@ -50,8 +47,6 @@ export function GlobalSearch({
       (products.data ?? []).forEach((p) =>
         out.push({ id: p.id, label: p.name, group: "Produtos", to: "/produtos" }),
       );
-      (suppliers.data ?? []).forEach((s) =>
-        out.push({ id: s.id, label: s.name, group: "Fornecedores", to: "/fornecedores" }),
       );
       (orders.data ?? []).forEach((o) =>
         out.push({ id: o.id, label: `Pedido #${o.number}`, group: "Pedidos", to: "/pedidos" }),
@@ -64,11 +59,9 @@ export function GlobalSearch({
           id: c.id,
           label: c.contact_name || c.contact_phone,
           group: "Conversas",
-          to: "/atendimentos",
+          to: "/crm",
         }),
       );
-      (catalogs.data ?? []).forEach((c) =>
-        out.push({ id: c.id, label: c.title, group: "Documentos", to: "/biblioteca" }),
       );
       return out;
     },
