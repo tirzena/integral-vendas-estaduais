@@ -49,4 +49,8 @@ export default tseslint.config(
     },
   },
   eslintPluginPrettier,
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    rules: { "prettier/prettier": "off" },
+  },
 );
