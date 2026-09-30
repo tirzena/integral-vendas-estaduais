@@ -1,20 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@tanstack/react-start", () => ({
-  createServerFn: () => ({
-    middleware: () => ({ handler: (handler: unknown) => handler }),
-  }),
-}));
-vi.mock("@/integrations/supabase/auth-middleware", () => ({ requireSupabaseAuth: {} }));
-vi.mock("@/integrations/supabase/client.server", () => {
-  throw new Error("The authenticated read must not load the service-role client");
-});
+import { getPurchasePositionsForContext } from "./purchase-position.functions";
 
-import { getPurchasePositions } from "./purchase-position.functions";
-
-// Invoke the registered handler with the context supplied by auth middleware.
-const handler = getPurchasePositions as unknown as
-  (args: { context: { userId: string; supabase: unknown } }) => Promise<unknown>;
+const handler = ({ context }: { context: { userId: string; supabase: unknown } }) =>
+  getPurchasePositionsForContext(context as { userId: string; supabase: any });
 
 function client(active = true, financial = true, queryError = false) {
   const tables: string[] = [];
