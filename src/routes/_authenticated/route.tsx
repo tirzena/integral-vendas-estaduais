@@ -13,6 +13,23 @@ export const Route = createFileRoute("/_authenticated")({
     const { data, error } = await supabase.auth.getUser();
     if (error || !data.user) throw redirect({ to: "/auth" });
     if (!isEstadualRoute(location.pathname)) throw redirect({ to: "/painel" });
+
+    const [{ data: roles }, { data: grants, error: grantsError }] = await Promise.all([
+      supabase.from("user_roles").select("role").eq("user_id", data.user.id),
+      (supabase as any)
+        .from("integral_division_access")
+        .select("can_view,can_write")
+        .eq("user_id", data.user.id)
+        .eq("system_code", "vendas_estaduais"),
+    ]);
+    const admin = (roles ?? []).some((row) => row.role === "admin" || row.role === "superadmin");
+    const hasGrant = !grantsError && (grants ?? []).some((grant: any) => grant.can_view || grant.can_write);
+    if (!admin && !hasGrant && location.pathname !== "/sem-acesso") {
+      throw redirect({ to: "/sem-acesso" });
+    }
+    if ((admin || hasGrant) && location.pathname === "/sem-acesso") {
+      throw redirect({ to: "/painel" });
+    }
     return { user: data.user };
   },
   component: AuthenticatedLayout,
