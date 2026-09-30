@@ -17,7 +17,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: "Lint source - functional errors only"
-        run: npx eslint src --quiet --rule "prettier/prettier=off"
+        run: npx eslint src --quiet
       - name: Build Hostinger Node
         run: npm run build:hostinger
       - name: Verify Node entrypoint
