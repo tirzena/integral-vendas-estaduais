@@ -588,7 +588,6 @@ function PublicCatalogPage() {
       </div>
 
         </div>
-      </div>
 
       <footer className="text-muted-foreground border-t px-5 py-8 text-center text-xs">
         <div className="mb-2 space-x-3">
