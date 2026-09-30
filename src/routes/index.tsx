@@ -1,17 +1,11 @@
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { PublicEntry } from "@/components/public/PublicEntry";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
   ssr: false,
   beforeLoad: async () => {
     const { supabase } = await import("@/integrations/supabase/client");
     const { data } = await supabase.auth.getUser();
-    if (data.user) throw redirect({ to: "/painel" });
+    throw redirect({ to: data.user ? "/painel" : "/auth" });
   },
-  component: IntegralHome,
+  component: () => null,
 });
-
-function IntegralHome() {
-  const navigate = useNavigate();
-  return <PublicEntry onLogin={() => navigate({ to: "/auth" })} />;
-}
