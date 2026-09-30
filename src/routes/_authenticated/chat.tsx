@@ -270,7 +270,7 @@ function Chat() {
     setUploading(true);
     try {
       const { client } = await authenticatedFileClient();
-      const safe = (name ?? file.name).replace(/[^\w.\-]+/g, "_");
+      const safe = (name ?? file.name).replace(/[^\w.-]+/g, "_");
       const path = `${userId}/${selected}/${Date.now()}-${safe}`;
       const { error: upErr } = await client.storage
         .from(CHAT_BUCKET)
