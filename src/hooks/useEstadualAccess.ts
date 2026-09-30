@@ -19,7 +19,7 @@ export function useEstadualAccess() {
     enabled: Boolean(userId && !isAdmin && !userLoading),
     retry: false,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("integral_division_access")
         .select(
           "can_view,can_write,own_records_only,region_code,territory_uf,municipality_ibge_id,product_id",
