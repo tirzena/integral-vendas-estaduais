@@ -6,6 +6,7 @@ import { CalendarClock, Plus, Sparkles, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUser } from "@/hooks/useAuth";
+import { useEstadualAccess } from "@/hooks/useEstadualAccess";
 import { PageHeader } from "@/components/common/PageHeader";
 import { CurrencyValues } from "@/components/common/CurrencyValues";
 import { Badge } from "@/components/ui/badge";
@@ -89,6 +90,7 @@ const blankForm = () => {
 
 function PromotionsPage() {
   const { roles, isAdmin, loading } = useCurrentUser();
+  const estadualAccess = useEstadualAccess();
   const mode: Mode = isAdmin
     ? "admin"
     : roles.includes("fornecedor")
@@ -179,6 +181,7 @@ function PromotionsPage() {
 
   const save = useMutation({
     mutationFn: async () => {
+      if (!estadualAccess.canWrite) throw new Error("Seu acesso ao Vendas Estaduais é somente leitura.");
       if (!form.title.trim() || !form.itemId) throw new Error("Informe o título e o produto.");
       const promotionalSalePrice =
         form.promotionalSalePrice.trim() === "" ? null : parseDecimal(form.promotionalSalePrice);
@@ -229,6 +232,7 @@ function PromotionsPage() {
 
   const cancel = useMutation({
     mutationFn: async (id: string) => {
+      if (!estadualAccess.canWrite) throw new Error("Seu acesso ao Vendas Estaduais é somente leitura.");
       const { error } = await (supabase as any).rpc("promotion_cancel", { p_id: id });
       if (error) throw error;
     },
@@ -264,6 +268,7 @@ function PromotionsPage() {
         description={roleHelp}
         actions={
           <Button
+            disabled={!estadualAccess.canWrite}
             onClick={() => {
               setForm(blankForm());
               setOpen(true);
@@ -354,6 +359,7 @@ function PromotionsPage() {
                   <Button
                     variant="outline"
                     size="sm"
+                    disabled={!estadualAccess.canWrite}
                     onClick={() => cancel.mutate(promotion.id)}
                     disabled={cancel.isPending}
                   >
