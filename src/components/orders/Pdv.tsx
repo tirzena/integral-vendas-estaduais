@@ -165,10 +165,12 @@ export function Pdv({
   productId,
   draft,
   onFinished,
+  readOnly = false,
 }: {
   productId: string;
   draft?: PdvDraft | null;
   onFinished?: () => void;
+  readOnly?: boolean;
 }) {
   const calculateShipping = useServerFn(calculateOrderShipping);
   const { userId } = useCurrentUser();
@@ -996,6 +998,7 @@ export function Pdv({
   }
 
   async function createCustomer() {
+    if (readOnly) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
     const name = nc.name.trim();
     if (!name) return void toast.error("Informe o nome do cliente.");
     const dupe = customers.find((c: any) => {
@@ -1064,6 +1067,7 @@ export function Pdv({
   }
 
   async function finalize(kind: SaleKind) {
+    if (readOnly) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
     if (useCustomerCredit && (
       !customerId || Boolean(sourceOrderId) || kind === "orcamento" ||
       payments.length > 0 || !(creditToUse > 0) ||
@@ -2182,7 +2186,7 @@ export function Pdv({
               </div>
 
               <div className="flex justify-end">
-                <Button type="button" onClick={() => finalize("pre_pedido")} disabled={saving}>
+                <Button type="button" onClick={() => finalize("pre_pedido")} disabled={saving || readOnly}>
                   {saving ? (
                     <Loader2 className="mr-1 h-4 w-4 animate-spin" />
                   ) : (
