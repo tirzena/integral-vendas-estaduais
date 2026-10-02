@@ -194,7 +194,15 @@ function Painel() {
           .from("warehouse_inventory")
           .select("warehouse_id,item_id,quantity,reserved,min_quantity,location"),
         (supabase as any).from("dashboard_region_leaders").select("region,user_id"),
-        seesCompanyFinance\n          ? getPurchasePositions({ signal: requestSignal }).catch((positionError) => {\n              console.warn("[dashboard] custos faturados indisponíveis; usando contas a pagar sem rateio", positionError);\n              return [];\n            })\n          : Promise.resolve([]),
+        seesCompanyFinance
+          ? getPurchasePositions({ signal: requestSignal }).catch((positionError) => {
+              console.warn(
+                "[dashboard] custos faturados indisponíveis; usando contas a pagar sem rateio",
+                positionError,
+              );
+              return [];
+            })
+          : Promise.resolve([]),
       ].map((request: any) =>
         typeof request.abortSignal === "function" ? request.abortSignal(requestSignal) : request,
       ));
