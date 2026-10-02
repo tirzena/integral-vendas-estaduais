@@ -23,6 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { authenticatedFileClient } from "@/lib/authenticated-storage";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { usePeople } from "@/hooks/usePeople";
+import { useEstadualAccess } from "@/hooks/useEstadualAccess";
 import { initials } from "@/lib/format";
 import { PageHeader, EmptyState } from "@/components/common/PageHeader";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -66,6 +67,7 @@ function timeLabel(iso?: string | null) {
 function Chat() {
   const { userId } = useCurrentUser();
   const { people, nameOf } = usePeople();
+  const { canWrite } = useEstadualAccess();
   const queryClient = useQueryClient();
 
   const [selected, setSelected] = useState<string | null>(null);
@@ -173,6 +175,7 @@ function Chat() {
   }, [messages, selected]);
 
   async function openDirect(personId: string) {
+    if (!canWrite) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
     const existing = list.find(
       (c: any) =>
         c.conversation_type === "direta" &&
@@ -204,6 +207,7 @@ function Chat() {
   }
 
   async function createGroup() {
+    if (!canWrite) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
     if (!groupName.trim()) {
       toast.error("Dê um nome para o grupo.");
       return;
@@ -229,6 +233,7 @@ function Chat() {
   }
 
   async function send(e: React.FormEvent) {
+    if (!canWrite) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
     e.preventDefault();
     if (!text.trim() || !selected) return;
     const body = text.trim();
@@ -262,6 +267,7 @@ function Chat() {
 
   /* Envia imagem, áudio, vídeo ou documento como mensagem. */
   async function sendFile(file: File, name?: string) {
+    if (!canWrite) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
     if (!selected || !userId) return;
     if (file.size > 20 * 1024 * 1024) {
       toast.error("O arquivo precisa ter no máximo 20 MB.");
@@ -307,6 +313,7 @@ function Chat() {
 
   /* Grava um áudio pelo microfone e envia ao parar. */
   async function toggleRecording() {
+    if (!canWrite) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
     if (recording) {
       recorderRef.current?.stop();
       return;
@@ -336,6 +343,7 @@ function Chat() {
 
 
   async function removeMessage(id: string) {
+    if (!canWrite) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
     const { error } = await supabase
       .from("internal_messages")
       .update({ deleted_at: new Date().toISOString(), body: null })
@@ -352,7 +360,7 @@ function Chat() {
         title="Chat interno"
         description="Converse com a equipe em tempo real, individualmente ou em grupos."
         actions={
-          <Button onClick={() => setOpen(true)}>
+          <Button onClick={() => setOpen(true)} disabled={!canWrite} title={!canWrite ? "Acesso somente leitura" : undefined}>
             <Plus className="mr-2 size-4" /> Nova conversa
           </Button>
         }
@@ -581,7 +589,7 @@ function Chat() {
                   variant="ghost"
                   size="icon"
                   aria-label="Enviar imagem ou vídeo"
-                  disabled={uploading || recording}
+                  disabled={!canWrite || uploading || recording}
                   onClick={() => imageInputRef.current?.click()}
                 >
                   <ImageIcon className="size-4" />
@@ -601,7 +609,7 @@ function Chat() {
                   variant={recording ? "destructive" : "ghost"}
                   size="icon"
                   aria-label={recording ? "Parar gravação" : "Gravar áudio"}
-                  disabled={uploading}
+                  disabled={!canWrite || uploading}
                   onClick={() => void toggleRecording()}
                 >
                   {recording ? <Square className="size-4" /> : <Mic className="size-4" />}
@@ -609,7 +617,7 @@ function Chat() {
                 <Input
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  disabled={recording}
+                  disabled={!canWrite || recording}
                   placeholder={
                     recording
                       ? "Gravando áudio… toque no quadrado para enviar"
@@ -618,7 +626,7 @@ function Chat() {
                         : "Escreva uma mensagem ou cole um link…"
                   }
                 />
-                <Button type="submit" aria-label="Enviar" disabled={uploading || recording}>
+                <Button type="submit" aria-label="Enviar" disabled={!canWrite || uploading || recording}>
                   <Send className="size-4" />
                 </Button>
               </form>
@@ -705,7 +713,7 @@ function Chat() {
                 <Button variant="outline" onClick={() => setOpen(false)}>
                   Cancelar
                 </Button>
-                <Button onClick={createGroup}>Criar grupo</Button>
+                <Button onClick={createGroup} disabled={!canWrite}>Criar grupo</Button>
               </DialogFooter>
             </TabsContent>
           </Tabs>
