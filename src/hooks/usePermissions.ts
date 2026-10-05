@@ -74,7 +74,8 @@ export const ROUTE_CAPABILITY: Record<string, Capability> = {
   "/acessos": "manage_access_vault",
   "/entregas": "deliveries_view",
   "/produtos": "inventory_view",
-  "/estoque": "inventory_view",
+  "/categorias": "inventory_manage",
+  "/estoque": "inventory_manage",
 };
 
 export function usePermissions() {
