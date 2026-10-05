@@ -50,7 +50,7 @@ import { formatMoney, formatNumber } from "@/lib/format";
 import { getLiveRates, type Currency } from "@/lib/rates.functions";
 import { useProductScope } from "@/hooks/useProductScope";
 import { useCurrentUser } from "@/hooks/useAuth";
-import { useEstadualAccess } from "@/hooks/useEstadualAccess";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { SupplierStockLots } from "@/components/inventory/SupplierStockLots";
@@ -118,8 +118,8 @@ const ITEM_FIELDS: { name: string; label: string; type?: string; placeholder?: s
 ];
 
 export function Catalogo({ section = "catalogo" }: { section?: "catalogo" | "categorias" | "estoque" }) {
-  const estadualAccess = useEstadualAccess();
-  const canWrite = estadualAccess.canWrite;
+  const { can } = usePermissions();
+  const canManageCatalog = can("inventory_manage");
   const { products, productId } = useProductScope();
   const queryClient = useQueryClient();
   const [macroId, setMacroId] = useState<string | null>(null);
@@ -262,7 +262,7 @@ export function Catalogo({ section = "catalogo" }: { section?: "catalogo" | "cat
 
   /** Salva a categoria e sincroniza quais membros têm acesso a ela. */
   async function saveMacroWithMembers() {
-    if (!canWrite) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
+    if (!canManageCatalog) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
     const form = macroForm;
     if (!form?.name) return;
     const payload: any = { name: form.name, description: form.description ?? null };
@@ -302,7 +302,7 @@ export function Catalogo({ section = "catalogo" }: { section?: "catalogo" | "cat
   const deleteItem = useDeleteRow("inventory_items");
 
   async function uploadFormImage(file: File, target: "sub" | "item") {
-    if (!canWrite) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
+    if (!canManageCatalog) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
     if (!file.type.startsWith("image/")) return void toast.error("Escolha um arquivo de imagem.");
     if (file.size > 10 * 1024 * 1024) return void toast.error("A foto deve ter no máximo 10 MB.");
     try {
@@ -316,7 +316,7 @@ export function Catalogo({ section = "catalogo" }: { section?: "catalogo" | "cat
   }
 
   async function removeMacro(m: Macro) {
-    if (!canWrite) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
+    if (!canManageCatalog) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
     const count = allSubs.filter((s) => s.product_id === m.id).length;
     const itemCount = allItemsEverywhere.filter((i: any) => i["product_id"] === m.id).length;
     if (
@@ -351,7 +351,7 @@ export function Catalogo({ section = "catalogo" }: { section?: "catalogo" | "cat
   }
 
   async function moveItem() {
-    if (!canWrite) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
+    if (!canManageCatalog) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
     if (!moveForm?.id || !moveForm.product_id) return;
     const { error } = await supabase
       .from("inventory_items")
@@ -396,17 +396,17 @@ export function Catalogo({ section = "catalogo" }: { section?: "catalogo" | "cat
                 <SelectItem value="PYG">Ver em ₲</SelectItem>
               </SelectContent>
             </Select>
-          </> : section === "categorias" ? <Button disabled={!canWrite} onClick={() => openMacroForm()}><Plus className="mr-1 size-4" /> Nova categoria</Button> : undefined
+          </> : section === "categorias" ? <Button disabled={!canManageCatalog} onClick={() => openMacroForm()}><Plus className="mr-1 size-4" /> Nova categoria</Button> : undefined
         }
       />
 
       {section === "categorias" && (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {macros.map((m) => <section key={m.id} className="rounded-xl border bg-card p-4">
-            <div className="flex items-center justify-between gap-2"><h2 className="font-semibold">{m.name}</h2><div className="flex gap-1"><Button size="sm" variant="ghost" disabled={!canWrite} onClick={() => openMacroForm(m)}>Editar</Button><Button size="sm" variant="ghost" disabled={!canWrite} onClick={() => void removeMacro(m)}>Excluir</Button></div></div>
+            <div className="flex items-center justify-between gap-2"><h2 className="font-semibold">{m.name}</h2><div className="flex gap-1"><Button size="sm" variant="ghost" disabled={!canManageCatalog} onClick={() => openMacroForm(m)}>Editar</Button><Button size="sm" variant="ghost" disabled={!canManageCatalog} onClick={() => void removeMacro(m)}>Excluir</Button></div></div>
             <p className="mt-1 text-xs text-muted-foreground">{subsFor(m.id).length} subcategoria(s) · {allItemsEverywhere.filter((i: any) => i.product_id === m.id).length} produto(s)</p>
-            <div className="mt-3 space-y-2">{subsFor(m.id).map((s) => <div key={s.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"><span>{s.name}</span><div className="flex gap-1"><Button size="sm" variant="ghost" disabled={!canWrite} onClick={() => setSubForm({ ...s })}>Editar</Button><Button size="sm" variant="ghost" onClick={() => { if (canWrite && confirm(`Excluir a subcategoria "${s.name}"?`)) deleteSub.mutate(s.id); }}>Excluir</Button></div></div>)}</div>
-            <Button className="mt-3" size="sm" variant="outline" disabled={!canWrite} onClick={() => setSubForm(newSubForm(m.id))}><Plus className="mr-1 size-4" /> Subcategoria</Button>
+            <div className="mt-3 space-y-2">{subsFor(m.id).map((s) => <div key={s.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"><span>{s.name}</span><div className="flex gap-1"><Button size="sm" variant="ghost" disabled={!canManageCatalog} onClick={() => setSubForm({ ...s })}>Editar</Button><Button size="sm" variant="ghost" onClick={() => { if (canManageCatalog && confirm(`Excluir a subcategoria "${s.name}"?`)) deleteSub.mutate(s.id); }}>Excluir</Button></div></div>)}</div>
+            <Button className="mt-3" size="sm" variant="outline" disabled={!canManageCatalog} onClick={() => setSubForm(newSubForm(m.id))}><Plus className="mr-1 size-4" /> Subcategoria</Button>
           </section>)}
           {macros.length === 0 && <EmptyState title="Nenhuma categoria" description="Crie a primeira categoria para organizar seus produtos." />}
         </div>
@@ -495,9 +495,9 @@ export function Catalogo({ section = "catalogo" }: { section?: "catalogo" | "cat
                     >
                       Abrir
                     </Button>
-                    <Button className="flex-1" disabled={!canWrite} onClick={() => setItemForm(newItemForm(m.id))}>
+                    {canManageCatalog && <Button className="flex-1" onClick={() => setItemForm(newItemForm(m.id))}>
                       <Plus className="mr-1 size-4" /> Novo produto
-                    </Button>
+                    </Button>}
                   </div>
                 </div>
               );
@@ -518,9 +518,9 @@ export function Catalogo({ section = "catalogo" }: { section?: "catalogo" | "cat
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button size="sm" disabled={!canWrite} onClick={() => setItemForm(newItemForm(activeMacro.id))}>
+              {canManageCatalog && <Button size="sm" onClick={() => setItemForm(newItemForm(activeMacro.id))}>
                 <Plus className="mr-1 size-4" /> Novo produto
-              </Button>
+              </Button>}
             </div>
           </div>
 
@@ -617,7 +617,7 @@ export function Catalogo({ section = "catalogo" }: { section?: "catalogo" | "cat
                     size="sm"
                     variant="ghost"
                     className="mt-3 w-full justify-start"
-                    disabled={!canWrite} onClick={() => setItemForm(newItemForm(activeMacro.id, s.id))}
+                    disabled={!canManageCatalog} onClick={() => setItemForm(newItemForm(activeMacro.id, s.id))}
                   >
                     <Plus className="mr-1 size-3.5" /> Produto em {s.name}
                   </Button>
@@ -749,14 +749,16 @@ export function Catalogo({ section = "catalogo" }: { section?: "catalogo" | "cat
                   className="pl-9"
                 />
               </div>
-              <Button
-                disabled={!activeMacro}
-                onClick={() =>
-                  setItemForm(newItemForm(activeMacro?.id, subId === "todas" ? null : subId))
-                }
-              >
-                <Plus className="mr-1 size-4" /> Novo produto
-              </Button>
+              {canManageCatalog && (
+                <Button
+                  disabled={!activeMacro}
+                  onClick={() =>
+                    setItemForm(newItemForm(activeMacro?.id, subId === "todas" ? null : subId))
+                  }
+                >
+                  <Plus className="mr-1 size-4" /> Novo produto
+                </Button>
+              )}
             </div>
 
             {visibleItems.length === 0 ? (
@@ -850,7 +852,7 @@ export function Catalogo({ section = "catalogo" }: { section?: "catalogo" | "cat
                             <Button
                               size="icon"
                               variant="ghost"
-                              disabled={!canWrite} onClick={() => setItemForm({ ...i })}
+                              disabled={!canManageCatalog} onClick={() => setItemForm({ ...i })}
                             >
                               <Pencil className="size-4" />
                             </Button>
@@ -858,7 +860,7 @@ export function Catalogo({ section = "catalogo" }: { section?: "catalogo" | "cat
                               size="icon"
                               variant="ghost"
                               onClick={() => {
-                                if (canWrite && confirm(`Excluir "${i["name"]}"?`)) {
+                                if (canManageCatalog && confirm(`Excluir "${i["name"]}"?`)) {
                                   void logAudit("inventory_items", "delete", i["id"], {
                                     nome: i["name"],
                                   });
@@ -1034,7 +1036,7 @@ export function Catalogo({ section = "catalogo" }: { section?: "catalogo" | "cat
                       type="button"
                       size="sm"
                       variant="ghost"
-                      disabled={!canWrite} onClick={() => setSubForm({ ...subForm, image_url: null })}
+                      disabled={!canManageCatalog} onClick={() => setSubForm({ ...subForm, image_url: null })}
                     >
                       Remover foto
                     </Button>
@@ -1059,7 +1061,7 @@ export function Catalogo({ section = "catalogo" }: { section?: "catalogo" | "cat
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" disabled={!canWrite} onClick={() => setSubForm(null)}>
+            <Button variant="outline" disabled={!canManageCatalog} onClick={() => setSubForm(null)}>
               Cancelar
             </Button>
             <Button
@@ -1116,7 +1118,7 @@ export function Catalogo({ section = "catalogo" }: { section?: "catalogo" | "cat
                       type="button"
                       size="sm"
                       variant="ghost"
-                      disabled={!canWrite} onClick={() => setItemForm({ ...itemForm, image_url: null })}
+                      disabled={!canManageCatalog} onClick={() => setItemForm({ ...itemForm, image_url: null })}
                     >
                       Remover foto
                     </Button>
@@ -1304,7 +1306,7 @@ export function Catalogo({ section = "catalogo" }: { section?: "catalogo" | "cat
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" disabled={!canWrite} onClick={() => setItemForm(null)}>
+            <Button variant="outline" disabled={!canManageCatalog} onClick={() => setItemForm(null)}>
               Cancelar
             </Button>
             <Button
@@ -1412,7 +1414,7 @@ export function Catalogo({ section = "catalogo" }: { section?: "catalogo" | "cat
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" disabled={!canWrite} onClick={() => setMoveForm(null)}>
+            <Button variant="outline" disabled={!canManageCatalog} onClick={() => setMoveForm(null)}>
               Cancelar
             </Button>
             <Button onClick={() => void moveItem()}>Mover</Button>
