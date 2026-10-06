@@ -66,13 +66,13 @@ import { uploadProductImage, useProductImages } from "@/lib/storage";
 export const Route = createFileRoute("/_authenticated/produtos")({
   head: () => ({
     meta: [
-      { title: "Catálogo de produtos — OS" },
+      { title: "Catálogo e preços — Vendas Estaduais" },
       {
         name: "description",
         content:
           "Produtos, catálogos e preços cadastrados.",
       },
-      { property: "og:title", content: "Catálogo de produtos — OS" },
+      { property: "og:title", content: "Catálogo e preços — Vendas Estaduais" },
       {
         property: "og:description",
         content: "Consulte produtos, catálogos e listas de preços.",
@@ -613,14 +613,16 @@ export function Catalogo({ section = "catalogo" }: { section?: "catalogo" | "cat
                       </button>
                     ))}
                   </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="mt-3 w-full justify-start"
-                    disabled={!canManageCatalog} onClick={() => setItemForm(newItemForm(activeMacro.id, s.id))}
-                  >
-                    <Plus className="mr-1 size-3.5" /> Produto em {s.name}
-                  </Button>
+                  {canManageCatalog && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="mt-3 w-full justify-start"
+                      onClick={() => setItemForm(newItemForm(activeMacro.id, s.id))}
+                    >
+                      <Plus className="mr-1 size-3.5" /> Produto em {s.name}
+                    </Button>
+                  )}
                 </div>
               );
             })}
