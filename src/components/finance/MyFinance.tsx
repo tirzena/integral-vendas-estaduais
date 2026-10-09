@@ -81,7 +81,7 @@ export function MyFinance({ userId, period, dateRange }: Props) {
         supabase.from("member_compensations").select("*").eq("user_id", uid),
         supabase
           .from("orders")
-          .select("id,number,total,currency,status,workflow_stage,order_date,created_at,customer_id,amount_paid,amount_receivable,payment_status,customers(name)")
+          .select("id,number,total,currency,status,workflow_stage,order_date,created_at,customer_id,amount_paid,amount_receivable,commission_total,payment_status,customers(name)")
           .eq("seller_id", uid)
           // Only the canonical, current revision of each order is a financial sale.
           // Historical revisions remain available in the order history, not in totals.
@@ -160,6 +160,12 @@ export function MyFinance({ userId, period, dateRange }: Props) {
         sum + (convert(outstanding(o), (o.currency ?? "USD") as Currency, "USD") ?? 0),
       0,
     );
+    // This is an order-level estimate, not a payable commission or a payroll entry.
+    const orderCommissionValue = orders.reduce(
+      (sum: number, o: any) =>
+        sum + (convert(Number(o.commission_total ?? 0), (o.currency ?? "USD") as Currency, "USD") ?? 0),
+      0,
+    );
 
     return {
       payroll,
@@ -171,6 +177,7 @@ export function MyFinance({ userId, period, dateRange }: Props) {
       soldCount: soldOrders.length,
       paidOrdersValue,
       openOrdersValue,
+      orderCommissionValue,
       openOrders,
       commission: sum(payroll, (r) => r.entry_type === "comissao"),
       received: sum(payroll, (r) => r.status === "pago") + sum(bonuses, (r) => r.status === "pago"),
@@ -187,7 +194,8 @@ export function MyFinance({ userId, period, dateRange }: Props) {
     { label: "Minhas vendas", value: view.sales, hint: `${view.orders.length} pedido(s) vigente(s)` },
     { label: "Recebido nos pedidos", value: view.paidOrdersValue, hint: "Somente versões vigentes" },
     { label: "A receber dos pedidos", value: view.openOrdersValue, hint: "Saldo dos pedidos vigentes" },
-    { label: "Comissões", value: view.commission, hint: "Lançadas na folha, não estimativas" },
+    { label: "Comissões dos pedidos", value: view.orderCommissionValue, hint: "Informativo; não equivale a comissão devida" },
+    { label: "Comissões na folha", value: view.commission, hint: "Somente lançamentos efetivos" },
     { label: "Bonificações", value: view.bonusTotal, hint: "Prêmios do período" },
     { label: "Já recebi", value: view.received, hint: "Pagamentos quitados" },
     { label: "A receber", value: view.pending, hint: "Ainda em aberto" },
