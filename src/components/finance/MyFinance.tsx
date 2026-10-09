@@ -81,7 +81,7 @@ export function MyFinance({ userId, period, dateRange }: Props) {
         supabase.from("member_compensations").select("*").eq("user_id", uid),
         supabase
           .from("orders")
-          .select("id,number,total,currency,status,workflow_stage,order_date,created_at,customer_id,amount_paid,amount_receivable,customers(name)")
+          .select("id,number,total,currency,status,workflow_stage,order_date,created_at,customer_id,amount_paid,amount_receivable,payment_status,customers(name)")
           .eq("seller_id", uid)
           // Only the canonical, current revision of each order is a financial sale.
           // Historical revisions remain available in the order history, not in totals.
