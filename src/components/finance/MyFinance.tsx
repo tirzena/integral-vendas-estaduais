@@ -81,23 +81,34 @@ export function MyFinance({ userId, period, dateRange }: Props) {
         supabase.from("member_compensations").select("*").eq("user_id", uid),
         supabase
           .from("orders")
-          .select("id,number,total,currency,status,created_at,customer_id,customers(name)")
+          .select("id,number,total,currency,status,workflow_stage,order_date,created_at,customer_id,amount_paid,amount_receivable,customers(name)")
           .eq("seller_id", uid)
-          .order("created_at", { ascending: false }),
+          // Only the canonical, current revision of each order is a financial sale.
+          // Historical revisions remain available in the order history, not in totals.
+          .is("deleted_at", null)
+          .is("superseded_at", null)
+          .order("order_date", { ascending: false }),
       ]);
-      const orderIds = (orders.data ?? []).map((o: any) => o.id);
+      for (const result of [payroll, bonuses, comps, orders]) {
+        if (result.error) throw result.error;
+      }
+      const currentOrders = (orders.data ?? []).filter(
+        (order: any) => order.status !== "cancelado" && order.workflow_stage !== "cancelado",
+      );
+      const orderIds = currentOrders.map((o: any) => o.id);
       const receivable = orderIds.length
         ? await supabase
             .from("accounts_receivable")
             .select("*")
             .in("order_id", orderIds)
             .order("due_date", { ascending: true })
-        : { data: [] as any[] };
+        : { data: [] as any[], error: null };
+      if (receivable.error) throw receivable.error;
       return {
         payroll: payroll.data ?? [],
         bonuses: bonuses.data ?? [],
         comps: comps.data ?? [],
-        orders: orders.data ?? [],
+        orders: currentOrders,
         receivable: receivable.data ?? [],
       };
     },
@@ -118,7 +129,7 @@ export function MyFinance({ userId, period, dateRange }: Props) {
     const bonuses = (data?.bonuses ?? []).filter((r: any) =>
       inPeriod(r.period_end ?? r.created_at),
     );
-    const orders = (data?.orders ?? []).filter((r: any) => inPeriod(r.created_at));
+    const orders = (data?.orders ?? []).filter((r: any) => inPeriod(r.order_date ?? r.created_at));
     const receivable = (data?.receivable ?? []).filter((r: any) =>
       inPeriod(r.paid_at ?? r.due_date ?? r.created_at),
     );
@@ -134,6 +145,21 @@ export function MyFinance({ userId, period, dateRange }: Props) {
         0,
       );
     const soldOrders = orders.filter((o: any) => SOLD_STATUSES.includes(o.status));
+    const outstanding = (o: any) => Math.max(
+      0,
+      Number(o.amount_receivable ?? (Number(o.total ?? 0) - Number(o.amount_paid ?? 0))),
+    );
+    const openOrders = orders.filter((o: any) => outstanding(o) > 0.01);
+    const paidOrdersValue = orders.reduce(
+      (sum: number, o: any) =>
+        sum + (convert(Number(o.amount_paid ?? 0), (o.currency ?? "USD") as Currency, "USD") ?? 0),
+      0,
+    );
+    const openOrdersValue = openOrders.reduce(
+      (sum: number, o: any) =>
+        sum + (convert(outstanding(o), (o.currency ?? "USD") as Currency, "USD") ?? 0),
+      0,
+    );
 
     return {
       payroll,
@@ -143,27 +169,29 @@ export function MyFinance({ userId, period, dateRange }: Props) {
       comps: data?.comps ?? [],
       sales,
       soldCount: soldOrders.length,
+      paidOrdersValue,
+      openOrdersValue,
+      openOrders,
       commission: sum(payroll, (r) => r.entry_type === "comissao"),
       received: sum(payroll, (r) => r.status === "pago") + sum(bonuses, (r) => r.status === "pago"),
       pending: sum(payroll, (r) => r.status !== "pago") + sum(bonuses, (r) => r.status !== "pago"),
       bonusTotal: sum(bonuses),
-      openCharges: sum(receivable, (r) => r.status !== "pago"),
+      openCharges: openOrdersValue,
     };
   }, [data, period, dateRange?.from?.getTime(), dateRange?.through.getTime(), convert]);
 
   if (query.isLoading) return <Empty text="Carregando seus valores…" />;
+  if (query.error) return <Empty text="Não foi possível consultar os dados financeiros. Tente novamente." />;
 
   const cards = [
-    { label: "Minhas vendas", value: view.sales, hint: `${view.soldCount} pedido(s) concluído(s)` },
-    { label: "Comissões", value: view.commission, hint: "Lançadas na folha" },
+    { label: "Minhas vendas", value: view.sales, hint: `${view.orders.length} pedido(s) vigente(s)` },
+    { label: "Recebido nos pedidos", value: view.paidOrdersValue, hint: "Somente versões vigentes" },
+    { label: "A receber dos pedidos", value: view.openOrdersValue, hint: "Saldo dos pedidos vigentes" },
+    { label: "Comissões", value: view.commission, hint: "Lançadas na folha, não estimativas" },
     { label: "Bonificações", value: view.bonusTotal, hint: "Prêmios do período" },
     { label: "Já recebi", value: view.received, hint: "Pagamentos quitados" },
     { label: "A receber", value: view.pending, hint: "Ainda em aberto" },
-    {
-      label: "Cobranças dos meus pedidos",
-      value: view.openCharges,
-      hint: "Clientes que ainda não pagaram",
-    },
+
   ];
 
   return (
@@ -233,24 +261,25 @@ export function MyFinance({ userId, period, dateRange }: Props) {
               r.customers?.name ?? "—",
               <CurrencyValues value={r.total} currency={r.currency} />,
               <Badge variant="secondary">{r.status ?? "—"}</Badge>,
-              formatDate(r.created_at),
+              formatDate(r.order_date ?? r.created_at),
             ]}
           />
         </TabsContent>
 
         <TabsContent value="cobrancas" className="pt-4">
           <Table
-            rows={view.receivable}
-            headers={["Descrição", "Valor", "Vencimento", "Pagamento", "Situação"]}
-            empty="Nenhuma cobrança ligada aos seus pedidos."
+            rows={view.openOrders}
+            headers={["Pedido vigente", "Cliente", "Valor a receber", "Situação", "Data do pedido"]}
+            empty="Nenhum saldo a receber nos pedidos vigentes."
             render={(r) => [
-              r.description ?? "—",
-              <CurrencyValues value={r.amount} currency={r.currency} />,
-              formatDate(r.due_date),
-              formatDate(r.paid_at),
-              <Badge variant={r.status === "pago" ? "default" : "secondary"}>
-                {r.status === "pago" ? "Pago" : "Em aberto"}
-              </Badge>,
+              `#${r.number ?? "—"}`,
+              r.customers?.name ?? "—",
+              <CurrencyValues
+                value={Math.max(0, Number(r.amount_receivable ?? (Number(r.total ?? 0) - Number(r.amount_paid ?? 0))))}
+                currency={r.currency}
+              />,
+              <Badge variant="secondary">{r.payment_status ?? "Em aberto"}</Badge>,
+              formatDate(r.order_date ?? r.created_at),
             ]}
           />
         </TabsContent>
