@@ -1,3 +1,4 @@
+import { activeRankingSellerIds, rankingOrderScope } from "@/lib/ranking-scope";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -73,7 +74,7 @@ export function useRanking(
         .is("deleted_at", null)
         .is("superseded_at", null)
         .limit(3000);
-      if (pid) ordersQuery = ordersQuery.eq("product_id", pid);
+      // Category filtering uses the lines of mixed orders, not just the header.
       const [ordersResult, profilesResult, awardsResult, rolesResult] = await Promise.all([
         ordersQuery,
         supabase.from("profiles").select("id,full_name,email,is_active"),
@@ -87,12 +88,20 @@ export function useRanking(
       for (let offset = 0; offset < ids.length; offset += 200) {
         const { data, error } = await supabase
           .from("order_items")
-          .select("id,order_id,item_id,description,quantity")
+          .select("id,order_id,item_id,description,quantity,total")
           .in("order_id", ids.slice(offset, offset + 200));
         if (error) throw error;
         items.push(...(data ?? []));
       }
+      const itemIds = [...new Set(items.map((item: any) => item.item_id).filter(Boolean))] as string[];
+      const inventory: { id: string; product_id: string | null }[] = [];
+      if (pid) for (let offset = 0; offset < itemIds.length; offset += 200) {
+        const { data, error } = await supabase.from("inventory_items").select("id,product_id").in("id", itemIds.slice(offset, offset + 200));
+        if (error) throw error;
+        inventory.push(...(data ?? []));
+      }
       return {
+        inventory,
         orders: orders ?? [],
         profiles: profiles ?? [],
         awards: awards ?? [],
@@ -141,18 +150,21 @@ export function useRanking(
       return map.get(id)!;
     };
 
-    const sellerIds = new Set(data.sellers.map((role: any) => role.user_id));
+    const sellerIds = activeRankingSellerIds(data.sellers, data.profiles);
+    const categories = new Map<string, string | null>(data.inventory.map(item => [item.id, item.product_id]));
     for (const id of sellerIds) ensure(id as string);
 
     for (const o of data.orders as any[]) {
       if (!o.seller_id || !sellerIds.has(o.seller_id) || !inPeriod(o.order_date ?? o.created_at) || o.status === "cancelado" || o.workflow_stage === "cancelado") continue;
+      const scoped = rankingOrderScope(o, itemsByOrder.get(o.id) ?? [], productId, categories);
+      if (!scoped.matches) continue;
       const row = ensure(o.seller_id);
       row.orders += 1;
       if (SOLD_STATUSES.includes(String(o.status))) {
         row.sales += 1;
-        const value = convert(Number(o.total ?? 0), (o.currency ?? "USD") as Currency, display);
+        const value = convert(scoped.total, (o.currency ?? "USD") as Currency, display);
         row.revenue += value ?? 0;
-        const orderItems = itemsByOrder.get(o.id) ?? [];
+        const orderItems = scoped.lines;
         const units = orderItems.reduce((sum, item) => sum + Number(item.quantity ?? 0), 0);
         row.units += units;
         for (const item of orderItems) {
@@ -187,7 +199,7 @@ export function useRanking(
         products: [...r.products].sort((a, b) => b.units - a.units || b.sales - a.sales),
       }))
       .sort((a, b) => b.units - a.units || b.sales - a.sales || b.revenue - a.revenue);
-  }, [query.data, period, display, convert]);
+  }, [query.data, period, productId, display, convert]);
 
   return { rows, loading: query.isLoading, error: query.error, ratesReady: ready };
 }
