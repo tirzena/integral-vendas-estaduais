@@ -1,3 +1,4 @@
+import { scopeOrdersByProduct } from "@/lib/order-product-scope";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
@@ -74,17 +75,14 @@ function Pedidos() {
   }, []);
 
   const { data: counts = {} } = useQuery({
-    queryKey: ["sales-stage-counts", productId],
+    queryKey: ["sales-stage-counts", userId, productId],
     queryFn: async () => {
       let ordersQuery = (supabase as any)
         .from("orders")
         .select("workflow_stage,status,product_id,origin,kind,stock_state")
         .is("deleted_at", null)
         .is("superseded_at", null);
-      if (productId !== "todos") {
-        ordersQuery = ordersQuery.eq("product_id", productId);
-      }
-      const { data: orders, error: ordersError } = await ordersQuery;
+      const { data: orders, error: ordersError } = await scopeOrdersByProduct(supabase, ordersQuery, productId);
       if (ordersError) throw ordersError;
 
       const next: Record<string, number> = {
