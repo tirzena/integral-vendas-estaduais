@@ -85,37 +85,38 @@ function Crm() {
   const productIds = isAll ? products.map((p) => p.id) : [productId];
 
   const { data, isLoading } = useQuery({
-    queryKey: ["crm", productId, productIds.join(",")],
-    enabled: !isAll || productIds.length > 0,
+    queryKey: ["crm", productId, productIds.join(","), userId, isAdmin],
+    enabled: Boolean(userId) && (!isAll || productIds.length > 0),
     queryFn: async () => {
-      const { data: pipelines } = await supabase
-        .from("pipelines")
-        .select("id,name,product_id")
-        .in("product_id", productIds)
-        .eq("is_default", true);
-
+      if (!isAdmin) {
+        const { data: scoped, error } = await (supabase as any).rpc("estadual_seller_crm_data");
+        if (error) throw error;
+        const allowed = new Set(productIds);
+        return {
+          pipelines: (scoped?.pipelines ?? []).filter((p: any) => allowed.has(p.product_id)),
+          stages: (scoped?.stages ?? []).filter((s: any) => allowed.has(s.pipelines?.product_id)),
+          cards: (scoped?.cards ?? []).filter((c: any) => allowed.has(c.product_id)),
+          customers: scoped?.customers ?? [],
+        };
+      }
+      const { data: pipelines, error: pipelineError } = await supabase
+        .from("pipelines").select("id,name,product_id")
+        .in("product_id", productIds).eq("is_default", true);
+      if (pipelineError) throw pipelineError;
       const pipelineIds = (pipelines ?? []).map((p) => p.id);
-
       const [stagesRes, cardsRes, customersRes] = await Promise.all([
         pipelineIds.length
-          ? supabase
-              .from("pipeline_stages")
-              .select("*, pipelines(product_id)")
-              .in("pipeline_id", pipelineIds)
-              .order("position")
-          : Promise.resolve({ data: [] as any[] }),
-        supabase
-          .from("customer_products")
+          ? supabase.from("pipeline_stages").select("*, pipelines(product_id)")
+              .in("pipeline_id", pipelineIds).order("position")
+          : Promise.resolve({ data: [] as any[], error: null }),
+        supabase.from("customer_products")
           .select("*, customers(name, phone), products(name, main_currency)")
           .in("product_id", productIds),
-        supabase
-          .from("customers")
-          .select("id,name")
-          .is("deleted_at", null)
-          .order("name")
-          .limit(500),
+        supabase.from("customers").select("id,name")
+          .is("deleted_at", null).order("name").limit(500),
       ]);
-
+      if (stagesRes.error || cardsRes.error || customersRes.error)
+        throw stagesRes.error ?? cardsRes.error ?? customersRes.error;
       return {
         pipelines: pipelines ?? [],
         stages: stagesRes.data ?? [],
@@ -237,7 +238,7 @@ function Crm() {
     e.preventDefault();
     if (!estadualAccess.canWrite) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
     const next: Record<string, string> = {};
-    if (isAll && !form.product_id) next["product_id"] = "Selecione a categoria.";
+    if (!form.product_id && isAll) next["product_id"] = "Selecione a categoria.";
     if (mode === "existente" && !form.customer_id) next["customer_id"] = "Selecione um contato.";
     if (mode === "novo" && !form.name?.trim()) next["name"] = "Informe o nome do contato.";
     if (form.potential_value && isNaN(Number(form.potential_value)))
@@ -245,69 +246,68 @@ function Crm() {
     setErrors(next);
     if (Object.keys(next).length) return;
 
-    const targetProductId = isAll ? form.product_id : productId;
-    const pipeline = data?.pipelines.find((p: any) => p.product_id === targetProductId);
-    const firstStage = pipeline
-      ? (stages.find((s: any) => s.pipeline_id === pipeline.id)?.id ?? null)
-      : null;
-
-    if (!firstStage) {
-      toast.error("A categoria selecionada ainda não tem etapas de funil.");
+    const targetProductId = form.product_id || (isAll ? "" : productId);
+    if (!products.some((p) => p.id === targetProductId)) {
+      toast.error("Selecione uma categoria concedida ao seu perfil.");
       return;
     }
-
     setSaving(true);
-    let customerId = form.customer_id as string | undefined;
-
-    if (mode === "novo") {
-      const { data: created, error: cErr } = await supabase
-        .from("customers")
-        .insert({
-          name: form.name.trim(),
-          phone: form.phone || null,
-          whatsapp: form.phone || null,
-          email: form.email || null,
-          document: form.document || null,
-          city: form.city || null,
-          origin: form.lead_origin || null,
-          created_by: userId ?? null,
-        })
-        .select("id")
-        .single();
-      if (cErr || !created) {
-        setSaving(false);
-        toast.error("Não foi possível cadastrar o contato.");
-        return;
+    try {
+      if (!isAdmin) {
+        const { error } = await (supabase as any).rpc("estadual_seller_crm_create", {
+          p_request: {
+            product_id: targetProductId,
+            customer_id: mode === "existente" ? form.customer_id : undefined,
+            name: mode === "novo" ? form.name?.trim() : undefined,
+            phone: form.phone || null,
+            email: form.email || null,
+            document: form.document || null,
+            city: form.city || null,
+            lead_origin: form.lead_origin || null,
+            potential_value: form.potential_value ? Number(form.potential_value) : null,
+            currency: form.currency ?? "BRL",
+            notes: form.notes || null,
+          },
+        });
+        if (error) throw error;
+      } else {
+        const pipeline = data?.pipelines.find((p: any) => p.product_id === targetProductId);
+        const firstStage = pipeline
+          ? (stages.find((stage: any) => stage.pipeline_id === pipeline.id)?.id ?? null)
+          : null;
+        if (!firstStage) throw new Error("A categoria ainda não tem etapas de funil.");
+        let customerId = form.customer_id as string | undefined;
+        if (mode === "novo") {
+          const { data: created, error } = await supabase.from("customers").insert({
+            name: form.name.trim(), phone: form.phone || null,
+            whatsapp: form.phone || null, email: form.email || null,
+            document: form.document || null, city: form.city || null,
+            origin: form.lead_origin || null, created_by: userId ?? null,
+          }).select("id").single();
+          if (error || !created) throw error ?? new Error("Não foi possível cadastrar o contato.");
+          customerId = created.id;
+        }
+        const { error } = await supabase.from("customer_products").insert({
+          customer_id: customerId!, product_id: targetProductId,
+          pipeline_id: pipeline?.id ?? null, stage_id: firstStage,
+          owner_id: form.owner_id || userId || null,
+          commercial_status: "em_negociacao",
+          lead_origin: form.lead_origin || null,
+          potential_value: form.potential_value ? Number(form.potential_value) : null,
+          currency: form.currency ?? "BRL", notes: form.notes || null,
+        });
+        if (error) throw error;
       }
-      customerId = created.id;
+      toast.success("Oportunidade criada.");
+      setOpen(false);
+      setForm({ currency: "BRL" });
+      queryClient.invalidateQueries({ queryKey: ["crm"] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+    } catch (error: any) {
+      toast.error(error?.message || "Não foi possível criar a oportunidade.");
+    } finally {
+      setSaving(false);
     }
-
-    const { error } = await supabase.from("customer_products").insert({
-      customer_id: customerId!,
-      product_id: targetProductId,
-      pipeline_id: pipeline?.id ?? null,
-      stage_id: firstStage,
-      owner_id: form.owner_id || userId || null,
-      commercial_status: "em_negociacao",
-      lead_origin: form.lead_origin || null,
-      potential_value: form.potential_value ? Number(form.potential_value) : null,
-      currency: form.currency ?? "BRL",
-      notes: form.notes || null,
-    });
-    setSaving(false);
-    if (error) {
-      toast.error(
-        error.message.includes("duplicate")
-          ? "Este contato já está nesta categoria."
-          : "Não foi possível criar a oportunidade.",
-      );
-      return;
-    }
-    toast.success("Oportunidade criada.");
-    setOpen(false);
-    setForm({ currency: "BRL" });
-    queryClient.invalidateQueries({ queryKey: ["crm", productId] });
-    queryClient.invalidateQueries({ queryKey: ["customers"] });
   }
 
   const title = isAll
