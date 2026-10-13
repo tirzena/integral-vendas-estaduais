@@ -1,3 +1,4 @@
+import { scopeOrdersByProduct } from "@/lib/order-product-scope";
 import {
   Table,
   TableHeader,
@@ -264,21 +265,21 @@ export function DocsList({
     setReceivedManualPyg("");
   }, [detailDoc?.id]);
 
-  useEffect(() => setSelectedProduct(productId), [productId]);
+  useEffect(() => setSelectedProduct("todos"), [productId]);
 
   const { data, isLoading, dataUpdatedAt } = useQuery({
-    queryKey: ["sales-docs", kind, productId, stage, allOrders, requestsOnly, excludeRequests, canUseLineCosts],
+    queryKey: ["sales-docs", userId, kind, productId, stage, allOrders, requestsOnly, excludeRequests, canUseLineCosts],
     queryFn: async () => {
       const table = isQuote ? "quotes" : "orders";
       let q = (supabase.from(table as any) as any)
         .select("*")
         .order("number", { ascending: false })
         .limit(500);
-      if (productId !== "todos") q = q.eq("product_id", productId);
+      if (isQuote && productId !== "todos") q = q.eq("product_id", productId);
       if (!isQuote) q = q.is("deleted_at", null).is("superseded_at", null);
       if (!isQuote && !allOrders && stage !== "cancelado") q = q.eq("kind", kind);
       const [
-        { data: docs },
+        { data: docs, error: docsError },
         { data: customers },
         { data: people },
         { data: company },
@@ -286,7 +287,7 @@ export function DocsList({
         { data: teamMembers },
         { data: warehouses },
       ] = await Promise.all([
-        q,
+        isQuote ? q : scopeOrdersByProduct(supabase, q, productId),
         supabase
           .from("customers")
           .select("id,name,document,phone,whatsapp,email,address,city,state"),
@@ -296,6 +297,7 @@ export function DocsList({
         supabase.from("team_members").select("team_id,user_id"),
         (supabase as any).rpc("sales_warehouses"),
       ]);
+      if (docsError) throw docsError;
       if (!isQuote && allOrders) {
         const requestedId = new URLSearchParams(window.location.search).get("pedido");
         if (requestedId && !(docs ?? []).some((d: any) => d.id === requestedId)) {
