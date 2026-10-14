@@ -2841,6 +2841,10 @@ export type Database = {
           created_at: string
           currency: Database["public"]["Enums"]["currency_code"]
           description: string | null
+          public_description: string | null
+          intended_use: string | null
+          usage_instructions: string | null
+          information_source_url: string | null
           extra_cost: number
           id: string
           image_url: string | null
@@ -2873,6 +2877,10 @@ export type Database = {
           created_at?: string
           currency?: Database["public"]["Enums"]["currency_code"]
           description?: string | null
+          public_description?: string | null
+          intended_use?: string | null
+          usage_instructions?: string | null
+          information_source_url?: string | null
           extra_cost?: number
           id?: string
           image_url?: string | null
@@ -2905,6 +2913,10 @@ export type Database = {
           created_at?: string
           currency?: Database["public"]["Enums"]["currency_code"]
           description?: string | null
+          public_description?: string | null
+          intended_use?: string | null
+          usage_instructions?: string | null
+          information_source_url?: string | null
           extra_cost?: number
           id?: string
           image_url?: string | null

@@ -3,6 +3,7 @@ export const ESTADUAL_ROUTE_PREFIXES = [
   "/crm",
   "/clientes",
   "/produtos",
+  "/guia-de-estudo",
   "/pedidos",
   "/promocoes",
   "/entregas",

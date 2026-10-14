@@ -6,7 +6,7 @@ describe("isEstadualRoute", () => {
     for (const path of [
       "/painel", "/crm", "/crm/abc", "/clientes", "/produtos", "/pedidos",
       "/promocoes", "/entregas", "/financeiro", "/ranking", "/relatorios",
-      "/equipe", "/tarefas/abc", "/avisos", "/chat", "/configuracoes",
+      "/guia-de-estudo", "/equipe", "/tarefas/abc", "/avisos", "/chat", "/configuracoes",
     ]) expect(isEstadualRoute(path)).toBe(true);
   });
 
@@ -14,7 +14,7 @@ describe("isEstadualRoute", () => {
     for (const path of [
       "/admin", "/acessos", "/sos", "/compras", "/fornecedores",
       "/investimentos", "/integracoes", "/sistemas-divisionais",
-      "/trafego-pago", "/autenticidade", "/estoque",
+      "/trafego-pago", "/autenticidade", "/estoque", "/guia-de-estudo-externo",
     ]) expect(isEstadualRoute(path)).toBe(false);
   });
 });
