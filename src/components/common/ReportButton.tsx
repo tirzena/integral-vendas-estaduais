@@ -1,3 +1,5 @@
+import { reportSummary } from "@/lib/report-summary";
+import { buildReportSummaryPdf } from "@/lib/report-summary-pdf";
 import { jsPDF } from "jspdf";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -60,6 +62,7 @@ export function ReportButton({
   refreshKey,
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [format, setFormat] = useState<"completo" | "simplificado">("completo");
   const [data, setData] = useState<ReportData | null>(null);
   const [exportingPdf, setExportingPdf] = useState(false);
   const buildRef = useRef(build);
@@ -84,7 +87,8 @@ export function ReportButton({
   }
 
   function exportCsv() {
-    const current = build();
+    const original = build();
+    const current = format === "simplificado" ? reportSummary(original) : original;
     const sectionRows = (current.sections ?? []).flatMap((section) => [
       [],
       [section.title],
@@ -98,6 +102,11 @@ export function ReportButton({
     setExportingPdf(true);
     try {
       const current = build();
+      if (format === "simplificado") {
+        const summary = buildReportSummaryPdf(reportSummary(current), {title, filters: current.pdfDocument?.filters ?? []});
+        downloadPdfBlob(summary.output("blob"), `${filename}-simplificado-${stamp()}.pdf`);
+        return;
+      }
       if (current.pdfDocument) {
         downloadOrdersReportPdf(current.pdfDocument, filename);
         return;
@@ -174,17 +183,24 @@ export function ReportButton({
     }
   }
 
+  const shownData = data && format === "simplificado" ? reportSummary(data) : data;
+
   return (
     <>
       <Button variant={variant} onClick={openReport}>
         <BarChart3 className="mr-2 size-4" /> {label}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
+        <DialogContent className={`max-h-[85vh] overflow-y-auto ${format === "simplificado" ? "sm:max-w-[95vw]" : "sm:max-w-4xl"}`}>
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
             {description ? <DialogDescription>{description}</DialogDescription> : null}
           </DialogHeader>
+          {data?.pdfDocument && <div role="group" aria-label="Formato do relatório" className="flex flex-wrap gap-2 rounded-xl border bg-muted/20 p-3">
+            <Button variant={format === "completo" ? "default" : "outline"} aria-pressed={format === "completo"} onClick={() => setFormat("completo")}>Relatório completo</Button>
+            <Button variant={format === "simplificado" ? "default" : "outline"} aria-pressed={format === "simplificado"} onClick={() => setFormat("simplificado")}>Relatório simplificado</Button>
+            <p className="w-full text-xs text-muted-foreground">{format === "simplificado" ? "Lista de resumo dos pedidos filtrados, com valores por moeda agrupados. Sem fichas individuais ou detalhamento de custos por item." : "Documento completo com as fichas, itens e valores de cada pedido."}</p>
+          </div>}
           {filters ? <div className="rounded-lg border bg-muted/30 p-3">{filters}</div> : null}
 
           {data?.highlights?.length ? (
@@ -198,10 +214,10 @@ export function ReportButton({
             </div>
           ) : null}
 
-          {data
+          {shownData
             ? [
-                { title: "Resumo", headers: data.headers, rows: data.rows },
-                ...(data.sections ?? []),
+                { title: "Resumo", headers: shownData.headers, rows: shownData.rows },
+                ...(shownData.sections ?? []),
               ].map((section) => (
                 <section key={section.title} className="space-y-2">
                   <h3 className="font-semibold">{section.title}</h3>
@@ -216,9 +232,9 @@ export function ReportButton({
                       </TableHeader>
                       <TableBody>
                         {section.rows.slice(0, 60).map((r, i) => (
-                          <TableRow key={i}>
+                          <TableRow key={i} className={format === "simplificado" ? "odd:bg-primary/5" : undefined}>
                             {r.map((cell, j) => (
-                              <TableCell key={j}>{cell ?? "—"}</TableCell>
+                              <TableCell key={j} className="whitespace-pre-line align-top py-3">{cell ?? "—"}</TableCell>
                             ))}
                           </TableRow>
                         ))}
@@ -239,7 +255,8 @@ export function ReportButton({
           <div className="flex flex-wrap justify-end gap-2">
             <SheetLinkExportButton
               build={() => {
-                const current = build();
+                const original = build();
+                const current = format === "simplificado" ? reportSummary(original) : original;
                 return [
                   current.headers,
                   ...current.rows,
@@ -258,7 +275,7 @@ export function ReportButton({
               ) : (
                 <FileText className="mr-2 size-4" />
               )}
-              Baixar PDF
+              {format === "simplificado" ? "Baixar PDF simplificado" : "Baixar PDF completo"}
             </Button>
             <Button onClick={exportCsv}>
               <Download className="mr-2 size-4" /> Baixar planilha
