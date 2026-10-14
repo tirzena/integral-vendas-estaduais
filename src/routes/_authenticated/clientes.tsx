@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ResourcePage } from "@/components/common/ResourcePage";
+import { SellerCustomers } from "@/components/customers/SellerCustomers";
+import { useCurrentUser } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -33,6 +35,12 @@ export const Route = createFileRoute("/_authenticated/clientes")({
 const NONE = "00000000-0000-0000-0000-000000000000";
 
 function Clientes() {
+  const { roles, isAdmin } = useCurrentUser();
+  if (!isAdmin && roles.includes("vendedor")) return <SellerCustomers />;
+  return <AdminClientes />;
+}
+
+function AdminClientes() {
   const navigate = useNavigate();
   const [teamId, setTeamId] = useState("todos");
   const [sellerId, setSellerId] = useState("todos");
