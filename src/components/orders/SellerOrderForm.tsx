@@ -144,5 +144,95 @@ export function SellerOrderForm({ onFinished }: { onFinished?: () => void }) {
     <Button variant="outline" onClick={() => void refetch()}>Tentar novamente</Button>
   </div>;
   if (!access.canWrite) return <p>Este perfil não possui autorização para criar pedidos.</p>;
-  return <div className="space-y-5">SELLER_ORDER_FORM_BODY</div>;
+  return <div className="space-y-5"><>
+    <div className="grid gap-4 md:grid-cols-2">
+      <div className="space-y-2"><Label>Categoria</Label>
+        <Select value={categoryId} onValueChange={(v) => { setCategoryId(v); setItemId(""); }}>
+          <SelectTrigger><SelectValue placeholder="Selecione a categoria" /></SelectTrigger>
+          <SelectContent>{products.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2"><Label>Moeda</Label>
+        <Select value={currency} onValueChange={(v) => { setCurrency(v); invalidate(); }}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>{["BRL", "USD", "PYG"].map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2"><Label>Produto</Label>
+        <Select value={itemId} onValueChange={setItemId}>
+          <SelectTrigger><SelectValue placeholder="Selecione o produto" /></SelectTrigger>
+          <SelectContent>{items.filter((i) => !categoryId || i.product_id === categoryId).map((i) =>
+            <SelectItem key={i.id} value={i.id}>{i.name} · {i.currency} {i.price}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+      <div className="flex items-end gap-2">
+        <div className="flex-1 space-y-2"><Label>Quantidade</Label>
+          <Input type="number" min="0.001" step="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+        </div>
+        <Button type="button" onClick={add}>Adicionar</Button>
+      </div>
+    </div>
+    <div className="space-y-2">
+      <Label>Itens selecionados</Label>
+      {lines.length === 0 ? <p className="text-sm text-muted-foreground">Adicione pelo menos um produto.</p> :
+        lines.map((line) => <div key={line.item_id} className="flex items-center justify-between gap-2 rounded border p-3">
+          <span>{itemById.get(line.item_id)?.name} · {line.quantity} un.</span>
+          <Button variant="outline" size="sm" onClick={() => {
+            setLines((old) => old.filter((l) => l.item_id !== line.item_id)); invalidate();
+          }}>Remover</Button>
+        </div>)}
+    </div>
+    <div className="space-y-2"><Label>Estoque de origem (saldo para todos os itens)</Label>
+      <Select value={warehouseId} onValueChange={(v) => { setWarehouseId(v); invalidate(); }}>
+        <SelectTrigger><SelectValue placeholder="Escolha o estoque" /></SelectTrigger>
+        <SelectContent>{availableWarehouses.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent>
+      </Select>
+      {lines.length > 0 && !availableWarehouses.length &&
+        <p className="text-sm text-destructive">Nenhum estoque possui saldo suficiente.</p>}
+    </div>
+    <div className="space-y-2"><Label>Cliente</Label>
+      <Select value={customerId} onValueChange={(v) => { setCustomerId(v); invalidate(); }}>
+        <SelectTrigger><SelectValue /></SelectTrigger>
+        <SelectContent><SelectItem value="novo">Novo cliente</SelectItem>
+          {customers.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+      </Select>
+      {customerId === "novo" && <div className="grid gap-3 md:grid-cols-2">
+        <div className="space-y-2"><Label>Nome</Label>
+          <Input value={name} maxLength={150} onChange={(e) => { setName(e.target.value); invalidate(); }} /></div>
+        <div className="space-y-2"><Label>Telefone</Label>
+          <Input value={phone} maxLength={80} onChange={(e) => { setPhone(e.target.value); invalidate(); }} /></div>
+      </div>}
+    </div>
+    <div className="grid gap-3 md:grid-cols-2">
+      <div className="space-y-2"><Label>País</Label>
+        <Input value={address.country} onChange={(e) => changeAddress("country", e.target.value)} /></div>
+      <div className="space-y-2"><Label>Estado / UF</Label>
+        <Input value={address.state} onChange={(e) => changeAddress("state", e.target.value)} /></div>
+      <div className="space-y-2"><Label>Cidade</Label>
+        <Input value={address.city} onChange={(e) => changeAddress("city", e.target.value)} /></div>
+      <div className="space-y-2"><Label>Endereço</Label>
+        <Input value={address.address} onChange={(e) => changeAddress("address", e.target.value)} /></div>
+      <div className="space-y-2"><Label>Número</Label>
+        <Input value={address.number} onChange={(e) => changeAddress("number", e.target.value)} /></div>
+      <div className="space-y-2"><Label>Observações</Label>
+        <Input value={notes} maxLength={1000} onChange={(e) => { setNotes(e.target.value); invalidate(); }} /></div>
+    </div>
+    <div className="flex flex-wrap gap-3">
+      <Button type="button" disabled={busy || !lines.length} onClick={() => void calculate()}>
+        {busy ? "Aguarde…" : "Calcular pedido e frete"}
+      </Button>
+      {quote && <Button type="button" disabled={busy} onClick={() => void create()}>
+        {busy ? "Salvando…" : "Confirmar e gerar pedido"}
+      </Button>}
+    </div>
+    {quote && <div className="space-y-2 rounded-lg border p-4" role="status">
+      <p className="font-semibold">Cotação confirmada pelo servidor</p>
+      {quote.items.map((line: any, index: number) =>
+        <p key={index} className="text-sm">{line.description} · {line.quantity} un. · {quote.currency} {line.total}</p>)}
+      <p>Produtos: {quote.currency} {quote.subtotal}</p>
+      <p>Frete: {quote.currency} {quote.shipping_cost}</p>
+      <p className="font-semibold">Total: {quote.currency} {quote.total}</p>
+      <p className="text-xs text-muted-foreground">O pedido será registrado em seu nome. A reserva de estoque ocorre na confirmação.</p>
+    </div>}
+  </></div>;
 }
