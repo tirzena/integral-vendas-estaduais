@@ -1,3 +1,5 @@
+import { useProductCatalogConfigs, useProductImages } from "@/lib/storage";
+import { informationSourceUrl } from "@/lib/product-information";
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -32,6 +34,7 @@ import {
   STUDY_GLOSSARY,
   studySource,
   studyText,
+  studyImagePath,
   type StudyProduct,
 } from "@/lib/study-guide";
 
@@ -81,10 +84,10 @@ export function StudyGuide() {
     }
   };
   const query = useQuery({
-    queryKey: ["study-guide", userId],
+    queryKey: ["inventory-study-guide", userId],
     enabled: !!userId,
-    staleTime: 600_000,
-    refetchOnWindowFocus: false,
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       const items: StudyProduct[] = [];
       for (let offset = 0; ; offset += 500) {
@@ -101,6 +104,30 @@ export function StudyGuide() {
       }
     },
   });
+  const configs = useProductCatalogConfigs();
+  const imagePathOf = (item: StudyProduct) => studyImagePath(item, configs.data?.[item.id]);
+  const imagePaths = (query.data ?? []).map(imagePathOf);
+  const images = useProductImages(imagePaths.filter(path => !informationSourceUrl(path)));
+  const imageOf = (item: StudyProduct) => {
+    const path = imagePathOf(item);
+    return informationSourceUrl(path) ?? (path ? images.data?.[path] : null);
+  };
+  useEffect(() => {
+    setSelected(current => current ? query.data?.find(item => item.id === current.id) ?? null : null);
+  }, [query.data]);
+  useEffect(() => {
+    // Reuse inventory invalidation for immediate product changes; refresh gallery
+    // metadata too, including changes made in another browser.
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
+      void query.refetch();
+      void configs.refetch();
+      if (images.isStale) void images.refetch();
+    };
+    const interval = window.setInterval(refresh, 30_000);
+    window.addEventListener("focus", refresh);
+    return () => { window.clearInterval(interval); window.removeEventListener("focus", refresh); };
+  }, [query.refetch, configs.refetch, images.refetch, images.isStale]);
   const items = useMemo(
     () =>
       (query.data ?? []).filter((item) => productId === "todos" || item.product_id === productId),
@@ -317,9 +344,9 @@ export function StudyGuide() {
                     className="study-card flex flex-col overflow-hidden rounded-xl border bg-card transition-shadow hover:shadow-md"
                   >
                     <div className="flex h-40 items-center justify-center border-b bg-muted/20 p-4">
-                      {item.image_url ? (
+                      {imageOf(item) ? (
                         <img
-                          src={item.image_url}
+                          src={imageOf(item) ?? undefined}
                           alt={item.name}
                           className="h-full w-full object-contain"
                           loading="lazy"
@@ -477,9 +504,9 @@ export function StudyGuide() {
                 <Badge variant="secondary">{selectedSource?.kind ?? "Documentação pendente"}</Badge>
                 {studied.has(selected.id) && <Badge variant="outline">Estudado</Badge>}
               </div>
-              {selected.image_url && (
+              {imageOf(selected) && (
                 <img
-                  src={selected.image_url}
+                  src={imageOf(selected) ?? undefined}
                   alt={selected.name}
                   className="mx-auto h-40 w-full object-contain"
                 />

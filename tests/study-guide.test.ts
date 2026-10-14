@@ -89,3 +89,11 @@ describe("study guide library", () => {
     ).toHaveLength(3);
   });
 });
+
+it("uses the main registered image or the first gallery photo", async () => {
+ const {studyImagePath} = await import("../src/lib/study-guide");
+ expect(studyImagePath({image_url: "existing.jpg"}, {media: [{kind: "image",path: "other.jpg"}]})).toBe("existing.jpg");
+ expect(studyImagePath({image_url: null}, {media: [{kind: "video",path: "video.mp4"},{kind: "image",path: "gallery.jpg"}]})).toBe("gallery.jpg");
+ expect(studyImagePath({image_url: null}, {media: [{kind: "image",url: "https://example.com/photo.jpg"}]})).toBe("https://example.com/photo.jpg");
+ expect(studyImagePath({image_url: null}, {media: {bad: true}})).toBeNull();
+});

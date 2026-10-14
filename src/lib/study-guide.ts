@@ -22,6 +22,17 @@ export const studyText = (value: string) =>
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
 
+export function studyImagePath(item: Pick<StudyProduct, "image_url">, config?: { media?: unknown }) {
+  if (item.image_url?.trim()) return item.image_url.trim();
+  if (!Array.isArray(config?.media)) return null;
+  for (const entry of config.media) {
+    if (!entry || entry.kind !== "image") continue;
+    const value = typeof entry.path === "string" && entry.path.trim() ? entry.path : entry.url;
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return null;
+}
+
 export function studySource(value: string | null) {
   const url = informationSourceUrl(value);
   if (!url) return null;
