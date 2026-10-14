@@ -31,7 +31,8 @@ export function buildReportSummaryPdf(data: ReportData, options: {title: string;
     pdf.setTextColor(15,45,40);pdf.setFontSize(8);pdf.text(text,margin+4,y+5);y+=height+2;
   }
   y+=4;
-  const weights=data.headers.map(header=>/produto|cliente/i.test(header)?2.1:/vendedor|pagamento|rastreio/i.test(header)?1.5:/total|pago|pagar|receber|frete|custo|lucro/i.test(header)?1.6:1);
+  const columnWidths: Record<string, number> = {Total:32, Pago:32, "A receber":32, Frete:32, Pedido:14, Data:17, Cliente:30, Vendedor:24, "Situação":23, "Data(s) do pagamento":24, Produtos:30, Unidades:15, Estoque:18};
+  const weights=data.headers.map(header=>columnWidths[header] ?? 15);
   const total=weights.reduce((sum,value)=>sum+value,0)||1;
   const widths=weights.map(value=>width*value/total);
   const lineHeight=3.5, padding=2;
