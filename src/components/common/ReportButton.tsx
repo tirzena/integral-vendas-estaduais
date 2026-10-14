@@ -231,13 +231,13 @@ export function ReportButton({
           {data?.pdfDocument && <div role="group" aria-label="Formato do relatório" className="flex flex-wrap gap-2 rounded-xl border bg-muted/20 p-3">
             <Button variant={format === "completo" ? "default" : "outline"} aria-pressed={format === "completo"} onClick={() => setFormat("completo")}>Relatório completo</Button>
             <Button variant={format === "simplificado" ? "default" : "outline"} aria-pressed={format === "simplificado"} onClick={() => setFormat("simplificado")}>Relatório simplificado</Button>
-            <p className="w-full text-xs text-muted-foreground">{format === "simplificado" ? "Lista de resumo dos pedidos filtrados, com valores por moeda agrupados. Sem fichas individuais ou detalhamento de custos por item." : "Documento completo com as fichas, itens e valores de cada pedido."}</p>
+            <p className="w-full text-xs text-muted-foreground">{format === "simplificado" ? "Somente A receber e A pagar, com valores por moeda. Valores ausentes na origem aparecem como —." : "Documento completo com as fichas, itens e valores de cada pedido."}</p>
           </div>}
           {filters ? <div className="rounded-lg border bg-muted/30 p-3">{filters}</div> : null}
 
-          {data?.highlights?.length ? (
+          {shownData?.highlights?.length ? (
             <div className="grid gap-3 sm:grid-cols-3">
-              {data.highlights.map((h) => (
+              {shownData.highlights.map((h) => (
                 <div key={h.label} className="rounded-lg border p-3">
                   <p className="text-xs text-muted-foreground">{h.label}</p>
                   <p className="font-display text-lg font-semibold break-words">{h.value}</p>
