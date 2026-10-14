@@ -231,7 +231,7 @@ export function ReportButton({
           {data?.pdfDocument && <div role="group" aria-label="Formato do relatório" className="flex flex-wrap gap-2 rounded-xl border bg-muted/20 p-3">
             <Button variant={format === "completo" ? "default" : "outline"} aria-pressed={format === "completo"} onClick={() => setFormat("completo")}>Relatório completo</Button>
             <Button variant={format === "simplificado" ? "default" : "outline"} aria-pressed={format === "simplificado"} onClick={() => setFormat("simplificado")}>Relatório simplificado</Button>
-            <p className="w-full text-xs text-muted-foreground">{format === "simplificado" ? "Somente A receber e A pagar, com valores por moeda. Valores ausentes na origem aparecem como —." : "Documento completo com as fichas, itens e valores de cada pedido."}</p>
+            <p className="w-full text-xs text-muted-foreground">{format === "simplificado" ? "Resumo com os campos solicitados, de Pedido até Estoque. Moedas agrupadas em Total, Pago, A receber e Frete. Sem rastreio, custos, lucro ou fichas detalhadas." : "Documento completo com as fichas, itens e valores de cada pedido."}</p>
           </div>}
           {filters ? <div className="rounded-lg border bg-muted/30 p-3">{filters}</div> : null}
 

@@ -1,18 +1,29 @@
 import type { ReportData } from "@/components/common/ReportButton";
 
-/** Exactly the requested balances; paid amounts are never reclassified as payable. */
+export const SIMPLIFIED_REPORT_HEADERS = [
+  "Pedido", "Data", "Cliente", "Vendedor", "Situação", "Data(s) do pagamento",
+  "Produtos", "Unidades", "Total BRL", "Total USD", "Total PYG",
+  "Pago BRL", "Pago USD", "Pago PYG", "A receber BRL", "A receber USD",
+  "A receber PYG", "Frete BRL", "Frete USD", "Frete PYG", "Estoque",
+] as const;
+
+/** Only the requested fields, with equivalent currencies grouped without summing. */
 export function reportSummary(data: ReportData): ReportData {
-  const headers = ["A receber", "A pagar"];
-  const groups = headers.map(title => data.headers.flatMap((header, index) => {
-    const match = header.trim().replace(/\s+/g, " ").match(/^(a receber|a pagar)(?: (BRL|USD|PYG))?$/i);
-    return match && match[1]?.toLowerCase() === title.toLowerCase() ? [{index, currency: match[2]}] : [];
-  }));
+  const groups: {title: string; cells: {index: number; currency?: string}[]}[] = [];
+  for (const header of SIMPLIFIED_REPORT_HEADERS) {
+    const match = header.match(/^(.*) (BRL|USD|PYG)$/);
+    const title = match?.[1] ?? header;
+    const cell = {index: data.headers.indexOf(header), ...(match?.[2] ? {currency: match[2]} : {})};
+    const existing = match ? groups.find(group => group.title === title) : undefined;
+    if (existing) existing.cells.push(cell);
+    else groups.push({title, cells: [cell]});
+  }
   return {
-    headers,
-    rows: data.rows.map(row => groups.map(group => group.length === 0 ? "—" : group.map(({index, currency}) => {
-      const value = row[index] ?? "—";
-      return currency ? `${currency.toUpperCase()}: ${value}` : String(value);
-    }).join("\n"))),
+    headers: groups.map(group => group.title),
+    rows: data.rows.map(row => groups.map(group => {
+      if (group.cells.length === 1) return row[group.cells[0]!.index] ?? "—";
+      return group.cells.map(({index,currency}) => `${currency}: ${index < 0 ? "—" : row[index] ?? "—"}`).join("\n");
+    })),
     highlights: [],
     sections: [],
   };

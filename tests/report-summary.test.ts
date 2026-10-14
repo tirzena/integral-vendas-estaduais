@@ -1,26 +1,27 @@
 import { expect, it } from "vitest";
 import { writeFileSync } from "node:fs";
-import { reportSummary } from "../src/lib/report-summary";
+import { reportSummary, SIMPLIFIED_REPORT_HEADERS } from "../src/lib/report-summary";
 import { buildReportSummaryPdf } from "../src/lib/report-summary-pdf";
 
-const original = {
- headers: ["Pedido", "Cliente", "Total BRL", "Pago BRL", "A receber BRL", "A receber USD", "A pagar BRL", "Custo BRL"],
- rows: [["#02.3", "Cliente exemplo", "TOTAL_PRIVATE", "PAID_SENTINEL", "R$ 500,00", "$ 100.00", "R$ 80,00", "COST_PRIVATE"]],
- highlights: [{label:"Valor total",value:"TOTAL_HIGHLIGHT"}],
- sections: [{title:"Detalhes",headers:["Item"],rows:[["Detalhe completo"]]}],
-};
-it("exports exactly receivable and payable balances without mutating the complete report", () => {
+const expectedHeaders = ["Pedido", "Data", "Cliente", "Vendedor", "Situação", "Data(s) do pagamento", "Produtos", "Unidades", "Total BRL", "Total USD", "Total PYG", "Pago BRL", "Pago USD", "Pago PYG", "A receber BRL", "A receber USD", "A receber PYG", "Frete BRL", "Frete USD", "Frete PYG", "Estoque"];
+
+it("keeps exactly the requested fields and groups their currencies without adding other data", () => {
+ const original = {headers: ["Rastreio", ...[...expectedHeaders].reverse(), "Custo total BRL", "Lucro bruto USD", "A pagar BRL"], rows: [["TRACKING_PRIVATE", ...[...expectedHeaders].reverse().map((name,index)=>`${name}: ${index}`), "COST_PRIVATE", "PROFIT_PRIVATE", "PAYABLE_PRIVATE"]], highlights: [{label:"Total",value:"HIGHLIGHT_PRIVATE"}], sections: [{title:"Detalhes",headers:["Item"],rows:[["DETAIL_PRIVATE"]]}]};
  const before=JSON.stringify(original), summary=reportSummary(original);
- expect(summary.headers).toEqual(["A receber", "A pagar"]);
- expect(summary.rows).toEqual([["BRL: R$ 500,00\nUSD: $ 100.00", "BRL: R$ 80,00"]]);
+ expect(summary.headers).toEqual(["Pedido", "Data", "Cliente", "Vendedor", "Situação", "Data(s) do pagamento", "Produtos", "Unidades", "Total", "Pago", "A receber", "Frete", "Estoque"]);
+ expect(summary.headers).toHaveLength(13);
+ expectedHeaders.forEach(name=>expect(summary.rows[0]!.join("\n")).toContain(String(original.rows[0]?.[original.headers.indexOf(name)])));
+ for(const value of ["TRACKING_PRIVATE", "COST_PRIVATE", "PROFIT_PRIVATE", "PAYABLE_PRIVATE", "HIGHLIGHT_PRIVATE", "DETAIL_PRIVATE"]) expect(JSON.stringify(summary)).not.toContain(value);
  expect(summary.highlights).toEqual([]);expect(summary.sections).toEqual([]);expect(summary.pdfDocument).toBeUndefined();
- for(const value of ["PAID_SENTINEL", "TOTAL_PRIVATE", "COST_PRIVATE", "Cliente exemplo", "TOTAL_HIGHLIGHT"]) expect(JSON.stringify(summary)).not.toContain(value);
  expect(JSON.stringify(original)).toBe(before);
 });
-it("shows missing payable as unavailable instead of using paid amounts", () => {
- const summary=reportSummary({headers:["Pago BRL", "A receber BRL"],rows:[["R$ 100,00", "R$ 50,00"]]});
- expect(summary.headers).toEqual(["A receber", "A pagar"]);
- expect(summary.rows).toEqual([["BRL: R$ 50,00", "—"]]);
+
+it("keeps numeric zero and never shifts values when an input column is missing", () => {
+ const summary=reportSummary({headers:["Pago BRL", "A receber BRL"],rows:[[0, "R$ 50,00"]]});
+ expect(summary.rows[0]?.[summary.headers.indexOf("Pago")]).toContain("BRL: 0");
+ expect(summary.rows[0]?.[summary.headers.indexOf("A receber")]).toContain("BRL: R$ 50,00");
+ expect(summary.rows[0]?.[summary.headers.indexOf("Estoque")]).toBe("—");
+ expect(SIMPLIFIED_REPORT_HEADERS).toEqual(expectedHeaders);
 });
 
 it("paginates long lists and unusually long cells without dropping the last row", () => {
@@ -30,7 +31,7 @@ it("paginates long lists and unusually long cells without dropping the last row"
   expect(pdf.output()).toContain("FINAL_MARKER");
 });
 
-it("creates a branded PDF preview with all grouped values", () => {
+it("creates a branded PDF preview with requested fields and grouped currencies", () => {
   const headers=["Pedido","Data","Cliente","Vendedor","Situação","Data(s) do pagamento","Produtos","Unidades",... ["Total","Pago","A receber","Frete"].flatMap(label=>["BRL","USD","PYG"].map(currency=>`${label} ${currency}`)),"Estoque","Rastreio"];
   const row=["#02.3","14/08/2026","Cliente exemplo","Vendedor exemplo","Pagamento parcial","11/09/2026","Produto A | Produto B",10,...Array.from({length:4},()=>["R$ 5.680,00","$ 1,096.55","Gs. 8.000.000"]).flat(),"Principal","Aguardando"];
   const pdf=buildReportSummaryPdf(reportSummary({headers,rows:Array.from({length:12},(_,index)=>[...row.slice(0,0),`#${index+1}.3`,...row.slice(1)]),highlights:[{label:"Pedidos",value:"12"},{label:"Valor total",value:"R$ 68.160,00 | USD 13,158.60 | PYG 96.000.000"}]}),{title:"Relatório - Pagamento parcial",filters:["Base: filtros da tela | Vendedor: Todos | Situação: Pagamento parcial"]});
