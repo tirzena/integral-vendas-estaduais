@@ -1,0 +1,43 @@
+name: Refresh vulnerable dependency lockfile
+on:
+  push:
+    paths:
+      - .github/workflows/security-lock-refresh.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Fix vulnerable dependencies in lockfile
+        run: npm audit fix --package-lock-only --ignore-scripts
+      - name: Install and verify production audit
+        run: |
+          npm ci
+          npm audit --omit=dev --audit-level=high
+      - name: Verify lint, tests and Node build
+        run: |
+          npx eslint src --quiet --rule '@typescript-eslint/no-explicit-any: off'
+          npx vitest run
+          npm run build:hostinger
+          test -f .output/server/index.mjs
+      - name: Commit verified dependency fixes
+        run: |
+          if git diff --quiet -- package.json package-lock.json; then
+            echo "No dependency changes needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "fix: update vulnerable production dependencies"
+          git push origin HEAD:main
