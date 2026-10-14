@@ -184,6 +184,37 @@ export function ReportButton({
   }
 
   const shownData = data && format === "simplificado" ? reportSummary(data) : data;
+  const exportActions = (position: string) => (
+          <div role="group" aria-label={`Exportações do relatório — ${position}`} className="flex flex-wrap justify-end gap-2">
+            <SheetLinkExportButton
+              build={() => {
+                const original = build();
+                const current = format === "simplificado" ? reportSummary(original) : original;
+                return [
+                  current.headers,
+                  ...current.rows,
+                  ...(current.sections ?? []).flatMap((section) => [
+                    [],
+                    [section.title],
+                    section.headers,
+                    ...section.rows,
+                  ]),
+                ];
+              }}
+            />
+            <Button variant="outline" onClick={() => void exportPdf()} disabled={exportingPdf}>
+              {exportingPdf ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+              ) : (
+                <FileText className="mr-2 size-4" />
+              )}
+              {format === "simplificado" ? "Baixar PDF simplificado" : "Baixar PDF completo"}
+            </Button>
+            <Button onClick={exportCsv}>
+              <Download className="mr-2 size-4" /> Baixar planilha
+            </Button>
+          </div>
+  );
 
   return (
     <>
@@ -196,6 +227,7 @@ export function ReportButton({
             <DialogTitle>{title}</DialogTitle>
             {description ? <DialogDescription>{description}</DialogDescription> : null}
           </DialogHeader>
+          {exportActions("início")}
           {data?.pdfDocument && <div role="group" aria-label="Formato do relatório" className="flex flex-wrap gap-2 rounded-xl border bg-muted/20 p-3">
             <Button variant={format === "completo" ? "default" : "outline"} aria-pressed={format === "completo"} onClick={() => setFormat("completo")}>Relatório completo</Button>
             <Button variant={format === "simplificado" ? "default" : "outline"} aria-pressed={format === "simplificado"} onClick={() => setFormat("simplificado")}>Relatório simplificado</Button>
@@ -252,35 +284,7 @@ export function ReportButton({
               ))
             : null}
 
-          <div className="flex flex-wrap justify-end gap-2">
-            <SheetLinkExportButton
-              build={() => {
-                const original = build();
-                const current = format === "simplificado" ? reportSummary(original) : original;
-                return [
-                  current.headers,
-                  ...current.rows,
-                  ...(current.sections ?? []).flatMap((section) => [
-                    [],
-                    [section.title],
-                    section.headers,
-                    ...section.rows,
-                  ]),
-                ];
-              }}
-            />
-            <Button variant="outline" onClick={() => void exportPdf()} disabled={exportingPdf}>
-              {exportingPdf ? (
-                <Loader2 className="mr-2 size-4 animate-spin" />
-              ) : (
-                <FileText className="mr-2 size-4" />
-              )}
-              {format === "simplificado" ? "Baixar PDF simplificado" : "Baixar PDF completo"}
-            </Button>
-            <Button onClick={exportCsv}>
-              <Download className="mr-2 size-4" /> Baixar planilha
-            </Button>
-          </div>
+          {exportActions("final")}
         </DialogContent>
       </Dialog>
     </>
