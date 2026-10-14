@@ -96,6 +96,7 @@ export const NAV_GROUPS = [
     items: [
       { to: "/equipe", label: "Vendedores", icon: UsersRound },
       { to: "/tarefas", label: "Tarefas", icon: ClipboardList },
+      { to: "/guia-de-estudo", label: "Guia de estudo", icon: BookOpen },
       { to: "/avisos", label: "Notificações", icon: Megaphone },
       { to: "/chat", label: "Chat interno", icon: MessagesSquare },
     ],

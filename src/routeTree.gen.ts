@@ -34,6 +34,7 @@ import { Route as AuthenticatedEstoqueRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedFinanceiroRouteImport } from './routes/_authenticated/financeiro'
 import { Route as AuthenticatedFornecedorRouteImport } from './routes/_authenticated/fornecedor'
 import { Route as AuthenticatedFornecedoresRouteImport } from './routes/_authenticated/fornecedores'
+import { Route as AuthenticatedGuiaDeEstudoRouteImport } from './routes/_authenticated/guia-de-estudo'
 import { Route as AuthenticatedHierarquiaRouteImport } from './routes/_authenticated/hierarquia'
 import { Route as AuthenticatedIntegracoesRouteImport } from './routes/_authenticated/integracoes'
 import { Route as AuthenticatedInvestimentosRouteImport } from './routes/_authenticated/investimentos'
@@ -202,6 +203,11 @@ const AuthenticatedFornecedoresRoute =
     path: '/fornecedores',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedGuiaDeEstudoRoute = AuthenticatedGuiaDeEstudoRouteImport.update({
+  id: '/guia-de-estudo',
+  path: '/guia-de-estudo',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedHierarquiaRoute = AuthenticatedHierarquiaRouteImport.update({
   id: '/hierarquia',
   path: '/hierarquia',
@@ -439,6 +445,7 @@ export interface FileRoutesByFullPath {
   '/financeiro': typeof AuthenticatedFinanceiroRoute
   '/fornecedor': typeof AuthenticatedFornecedorRoute
   '/fornecedores': typeof AuthenticatedFornecedoresRouteWithChildren
+  '/guia-de-estudo': typeof AuthenticatedGuiaDeEstudoRoute
   '/hierarquia': typeof AuthenticatedHierarquiaRoute
   '/integracoes': typeof AuthenticatedIntegracoesRoute
   '/investimentos': typeof AuthenticatedInvestimentosRoute
@@ -500,6 +507,7 @@ export interface FileRoutesByTo {
   '/estoque': typeof AuthenticatedEstoqueRoute
   '/financeiro': typeof AuthenticatedFinanceiroRoute
   '/fornecedor': typeof AuthenticatedFornecedorRoute
+  '/guia-de-estudo': typeof AuthenticatedGuiaDeEstudoRoute
   '/hierarquia': typeof AuthenticatedHierarquiaRoute
   '/integracoes': typeof AuthenticatedIntegracoesRoute
   '/investimentos': typeof AuthenticatedInvestimentosRoute
@@ -567,6 +575,7 @@ export interface FileRoutesById {
   '/_authenticated/financeiro': typeof AuthenticatedFinanceiroRoute
   '/_authenticated/fornecedor': typeof AuthenticatedFornecedorRoute
   '/_authenticated/fornecedores': typeof AuthenticatedFornecedoresRouteWithChildren
+  '/_authenticated/guia-de-estudo': typeof AuthenticatedGuiaDeEstudoRoute
   '/_authenticated/hierarquia': typeof AuthenticatedHierarquiaRoute
   '/_authenticated/integracoes': typeof AuthenticatedIntegracoesRoute
   '/_authenticated/investimentos': typeof AuthenticatedInvestimentosRoute
@@ -634,6 +643,7 @@ export interface FileRouteTypes {
     | '/financeiro'
     | '/fornecedor'
     | '/fornecedores'
+    | '/guia-de-estudo'
     | '/hierarquia'
     | '/integracoes'
     | '/investimentos'
@@ -695,6 +705,7 @@ export interface FileRouteTypes {
     | '/estoque'
     | '/financeiro'
     | '/fornecedor'
+    | '/guia-de-estudo'
     | '/hierarquia'
     | '/integracoes'
     | '/investimentos'
@@ -761,6 +772,7 @@ export interface FileRouteTypes {
     | '/_authenticated/financeiro'
     | '/_authenticated/fornecedor'
     | '/_authenticated/fornecedores'
+    | '/_authenticated/guia-de-estudo'
     | '/_authenticated/hierarquia'
     | '/_authenticated/integracoes'
     | '/_authenticated/investimentos'
@@ -996,6 +1008,13 @@ declare module '@tanstack/react-router' {
       path: '/fornecedores'
       fullPath: '/fornecedores'
       preLoaderRoute: typeof AuthenticatedFornecedoresRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/guia-de-estudo': {
+      id: '/_authenticated/guia-de-estudo'
+      path: '/guia-de-estudo'
+      fullPath: '/guia-de-estudo'
+      preLoaderRoute: typeof AuthenticatedGuiaDeEstudoRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/hierarquia': {
@@ -1391,6 +1410,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedFinanceiroRoute: typeof AuthenticatedFinanceiroRoute
   AuthenticatedFornecedorRoute: typeof AuthenticatedFornecedorRoute
   AuthenticatedFornecedoresRoute: typeof AuthenticatedFornecedoresRouteWithChildren
+  AuthenticatedGuiaDeEstudoRoute: typeof AuthenticatedGuiaDeEstudoRoute
   AuthenticatedHierarquiaRoute: typeof AuthenticatedHierarquiaRoute
   AuthenticatedIntegracoesRoute: typeof AuthenticatedIntegracoesRoute
   AuthenticatedInvestimentosRoute: typeof AuthenticatedInvestimentosRoute
@@ -1430,6 +1450,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedFinanceiroRoute: AuthenticatedFinanceiroRoute,
   AuthenticatedFornecedorRoute: AuthenticatedFornecedorRoute,
   AuthenticatedFornecedoresRoute: AuthenticatedFornecedoresRouteWithChildren,
+  AuthenticatedGuiaDeEstudoRoute: AuthenticatedGuiaDeEstudoRoute,
   AuthenticatedHierarquiaRoute: AuthenticatedHierarquiaRoute,
   AuthenticatedIntegracoesRoute: AuthenticatedIntegracoesRoute,
   AuthenticatedInvestimentosRoute: AuthenticatedInvestimentosRoute,
