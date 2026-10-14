@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { FilePenLine, Plus, Trash2, X } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { orderDraftStorageKey, Pdv, type PdvDraft } from "@/components/orders/Pdv";
+import { SellerOrderForm } from "@/components/orders/SellerOrderForm";
 import { DocsList, OrderHistoryList } from "@/components/orders/DocsList";
 import { useProductScope } from "@/hooks/useProductScope";
 import { Button } from "@/components/ui/button";
@@ -30,7 +31,8 @@ export const Route = createFileRoute("/_authenticated/pedidos")({
 
 function Pedidos() {
   const { productId } = useProductScope();
-  const { userId } = useCurrentUser();
+  const { userId, roles, isAdmin } = useCurrentUser();
+  const sellerPortal = roles.includes("vendedor") && !isAdmin;
   const estadualAccess = useEstadualAccess();
   const [tab, setTab] = useState("pedidos");
   const [draft, setDraft] = useState<PdvDraft | null>(null);
@@ -115,6 +117,7 @@ function Pedidos() {
   });
 
   function editInPdv(next: PdvDraft) {
+    if (sellerPortal) return;
     setDraft({ ...next });
     setCashOpen(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -130,7 +133,7 @@ function Pedidos() {
             disabled={!estadualAccess.canWrite && !cashOpen}
             onClick={() => {
               if (cashOpen) return setCashOpen(false);
-              setDraft(savedDraft ? { ...savedDraft } : null);
+              setDraft(sellerPortal ? null : savedDraft ? { ...savedDraft } : null);
               setCashOpen(true);
             }}
           >
@@ -142,16 +145,24 @@ function Pedidos() {
       {cashOpen && (
         <Card className="mb-5">
           <CardContent className="pt-5">
-            <Pdv
-              productId={productId}
-              draft={draft}
-              readOnly={!estadualAccess.canWrite}
-              onFinished={() => {
+            {sellerPortal ? (
+              <SellerOrderForm onFinished={() => {
                 setDraft(null);
                 setCashOpen(false);
                 setTab("pedidos");
-              }}
-            />
+              }} />
+            ) : (
+              <Pdv
+                productId={productId}
+                draft={draft}
+                readOnly={!estadualAccess.canWrite}
+                onFinished={() => {
+                  setDraft(null);
+                  setCashOpen(false);
+                  setTab("pedidos");
+                }}
+              />
+            )}
           </CardContent>
         </Card>
       )}
@@ -174,10 +185,10 @@ function Pedidos() {
           <TabsTrigger value="historico">Histórico</TabsTrigger>
         </TabsList>
         <TabsContent value="solicitacoes" className="pt-4">
-          <DocsList kind="pre_pedido" productId={productId} requestsOnly onEdit={estadualAccess.canWrite ? editInPdv : undefined} />
+          <DocsList kind="pre_pedido" productId={productId} requestsOnly onEdit={estadualAccess.canWrite && !sellerPortal ? editInPdv : undefined} />
         </TabsContent>
         <TabsContent value="rascunhos" className="pt-4">
-          {savedDraft ? (
+          {!sellerPortal && savedDraft ? (
             <Card>
               <CardContent className="flex flex-wrap items-center gap-3 pt-6">
                 <FilePenLine className="size-5 text-primary" />
