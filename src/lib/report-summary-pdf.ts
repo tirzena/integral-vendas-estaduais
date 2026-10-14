@@ -31,7 +31,7 @@ export function buildReportSummaryPdf(data: ReportData, options: {title: string;
     pdf.setTextColor(15,45,40);pdf.setFontSize(8);pdf.text(text,margin+4,y+5);y+=height+2;
   }
   y+=4;
-  const weights=data.headers.map(header=>/produto|cliente/i.test(header)?2.1:/vendedor|pagamento|rastreio/i.test(header)?1.5:/total|pago|receber|frete|custo|lucro/i.test(header)?1.6:1);
+  const weights=data.headers.map(header=>/produto|cliente/i.test(header)?2.1:/vendedor|pagamento|rastreio/i.test(header)?1.5:/total|pago|pagar|receber|frete|custo|lucro/i.test(header)?1.6:1);
   const total=weights.reduce((sum,value)=>sum+value,0)||1;
   const widths=weights.map(value=>width*value/total);
   const lineHeight=3.5, padding=2;

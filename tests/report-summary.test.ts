@@ -4,24 +4,23 @@ import { reportSummary } from "../src/lib/report-summary";
 import { buildReportSummaryPdf } from "../src/lib/report-summary-pdf";
 
 const original = {
-  headers: ["Pedido","Cliente","Total BRL","Total USD","Total PYG","Pago BRL","Pago USD","Pago PYG"],
-  rows: [["#02.3","Cliente exemplo","R$ 5.680,00","$ 1,096.55","Gs. 8.000.000","R$ 100,00","$ 20.00","Gs. 140.000"]],
-  highlights: [{label:"Pedidos",value:"1"}],
-  sections: [{title:"Detalhes",headers:["Item"],rows:[["Detalhe completo"]]}],
+ headers: ["Pedido", "Cliente", "Total BRL", "Pago BRL", "A receber BRL", "A receber USD", "A pagar BRL", "Custo BRL"],
+ rows: [["#02.3", "Cliente exemplo", "TOTAL_PRIVATE", "PAID_SENTINEL", "R$ 500,00", "$ 100.00", "R$ 80,00", "COST_PRIVATE"]],
+ highlights: [{label:"Valor total",value:"TOTAL_HIGHLIGHT"}],
+ sections: [{title:"Detalhes",headers:["Item"],rows:[["Detalhe completo"]]}],
 };
-
-it("groups currencies without altering amounts, order numbers or the complete report", () => {
-  const before=JSON.stringify(original), summary=reportSummary(original);
-  expect(summary.headers).toEqual(["Pedido","Cliente","Total","Pago"]);
-  expect(summary.rows[0]?.[0]).toBe("#02.3");
-  for(const value of original.rows[0]!.slice(2)) expect(summary.rows[0]!.join(" ")).toContain(value);
-  expect(summary.sections).toEqual([]);expect(summary.pdfDocument).toBeUndefined();
-  expect(summary.highlights).toEqual(original.highlights);
-  expect(JSON.stringify(original)).toBe(before);
+it("exports exactly receivable and payable balances without mutating the complete report", () => {
+ const before=JSON.stringify(original), summary=reportSummary(original);
+ expect(summary.headers).toEqual(["A receber", "A pagar"]);
+ expect(summary.rows).toEqual([["BRL: R$ 500,00\nUSD: $ 100.00", "BRL: R$ 80,00"]]);
+ expect(summary.highlights).toEqual([]);expect(summary.sections).toEqual([]);expect(summary.pdfDocument).toBeUndefined();
+ for(const value of ["PAID_SENTINEL", "TOTAL_PRIVATE", "COST_PRIVATE", "Cliente exemplo", "TOTAL_HIGHLIGHT"]) expect(JSON.stringify(summary)).not.toContain(value);
+ expect(JSON.stringify(original)).toBe(before);
 });
-
-it("keeps only available columns, never inventing privileged financial fields", () => {
-  expect(reportSummary({headers:["Pedido","Situação"],rows:[["#01","Parcial"]]}).headers).toEqual(["Pedido","Situação"]);
+it("shows missing payable as unavailable instead of using paid amounts", () => {
+ const summary=reportSummary({headers:["Pago BRL", "A receber BRL"],rows:[["R$ 100,00", "R$ 50,00"]]});
+ expect(summary.headers).toEqual(["A receber", "A pagar"]);
+ expect(summary.rows).toEqual([["BRL: R$ 50,00", "—"]]);
 });
 
 it("paginates long lists and unusually long cells without dropping the last row", () => {
