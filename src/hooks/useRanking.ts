@@ -68,7 +68,7 @@ export function useRanking(
     queryKey: ["ranking-data", productId],
     queryFn: async () => {
       const pid = productId === "todos" ? null : productId;
-      let ordersQuery = supabase
+      const ordersQuery = supabase
         .from("orders")
         .select("id,seller_id,status,total,currency,created_at,product_id,workflow_stage,order_date")
         .is("deleted_at", null)
