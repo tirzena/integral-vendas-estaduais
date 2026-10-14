@@ -79,7 +79,7 @@ function Pedidos() {
   const { data: counts = {} } = useQuery({
     queryKey: ["sales-stage-counts", userId, productId],
     queryFn: async () => {
-      let ordersQuery = (supabase as any)
+      const ordersQuery = (supabase as any)
         .from("orders")
         .select("workflow_stage,status,product_id,origin,kind,stock_state")
         .is("deleted_at", null)
