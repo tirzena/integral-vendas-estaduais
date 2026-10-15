@@ -72,6 +72,8 @@ export function PayrollSection({
     value: c.id,
     label: `${products.find((p) => p.id === c.product_id)?.name ?? "Categoria"} › ${c.name}`,
   }));
+  const compensationItems = useRows<any>("inventory_items", { select: "id,name,product_id,category_id", orderBy: { column: "name", ascending: true }, limit: 10000 });
+  const itemOptions = (compensationItems.data ?? []).filter((item: any) => productId === "todos" || item.product_id === productId).map((item: any) => ({ value: item.id, label: item.name }));
   const categoryLabel = (id: string | null) =>
     categoryOptions.find((c) => c.value === id)?.label ?? null;
 
@@ -216,10 +218,12 @@ export function PayrollSection({
               description={`A mesma pessoa pode ter vários acordos ao mesmo tempo: um percentual em uma categoria, um valor fixo em outra, outro em marketing. ${scopeNote}`}
               table="member_compensations"
               filter={scopeFilter}
-              beforeSave={(v: any) => ({
-                ...v,
-                product_id: v["product_id"] || (productId === "todos" ? null : productId),
-              })}
+              beforeSave={(v: any) => {
+                const item = (compensationItems.data ?? []).find((item: any) => item.id === v["item_id"]);
+                if (item && ((v["product_id"] && v["product_id"] !== item.product_id) || (v["category_id"] && v["category_id"] !== item.category_id)))
+                  throw new Error("O produto deve pertencer à categoria e subcategoria escolhidas.");
+                return { ...v, product_id: item?.product_id || v["product_id"] || (productId === "todos" ? null : productId), category_id: item?.category_id || v["category_id"] || null, item_id: v["item_id"] || null };
+              }}
               canWrite={isAdmin}
               searchKeys={["notes", "label"]}
               emptyTitle="Nenhum acordo cadastrado"
@@ -231,6 +235,7 @@ export function PayrollSection({
                   key: "product_id",
                   label: "Categoria",
                   render: (r: any) =>
+                    itemOptions.find((item: any) => item.value === r.item_id)?.label ??
                     categoryLabel(r.category_id) ??
                     productOptions.find((p) => p.value === r.product_id)?.label ??
                     "Todas",
@@ -281,6 +286,7 @@ export function PayrollSection({
                   options: categoryOptions,
                 },
 
+                { name: "item_id", label: "Produto individual (opcional)", type: "select", options: itemOptions },
                 {
                   name: "comp_type",
                   label: "Forma de pagamento",

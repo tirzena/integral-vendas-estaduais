@@ -36,36 +36,16 @@ export function MemberGrantEditor({ userId }: { userId: string }) {
     enabled: expanded,
     queryFn: async () => {
       const db = supabase as any;
-      const [
-        rules,
-        products,
-        warehouses,
-        categoryGrants,
-        itemGrants,
-        categoryRows,
-        itemRows,
-      ] = await Promise.all([
-        db
-          .from("integral_member_rules")
-          .select("*")
-          .eq("user_id", userId)
-          .maybeSingle(),
-        db.from("product_users").select("product_id").eq("user_id", userId),
-        db
-          .from("warehouse_user_assignments")
-          .select("warehouse_id")
-          .eq("user_id", userId),
-        db
-          .from("product_category_users")
-          .select("category_id")
-          .eq("user_id", userId),
-        db.from("inventory_item_users").select("item_id").eq("user_id", userId),
-        db.from("product_categories").select("id,product_id"),
-        db
-          .from("inventory_items")
-          .select("id,product_id")
-          .eq("is_active", true),
-      ]);
+      const [rules, products, warehouses, categoryGrants, itemGrants, categoryRows, itemRows] =
+        await Promise.all([
+          db.from("integral_member_rules").select("*").eq("user_id", userId).maybeSingle(),
+          db.from("product_users").select("product_id").eq("user_id", userId),
+          db.from("warehouse_user_assignments").select("warehouse_id").eq("user_id", userId),
+          db.from("product_category_users").select("category_id").eq("user_id", userId),
+          db.from("inventory_item_users").select("item_id").eq("user_id", userId),
+          db.from("product_categories").select("id,product_id"),
+          db.from("inventory_items").select("id,product_id").eq("is_active", true),
+        ]);
       for (const r of [
         rules,
         products,
@@ -96,9 +76,7 @@ export function MemberGrantEditor({ userId }: { userId: string }) {
         ...rules.data,
         product_ids: products.data.map((p: any) => p.product_id),
         warehouse_ids: [
-          ...new Set(
-            warehouses.data.map((w: any) => w.warehouse_id).filter(Boolean),
-          ),
+          ...new Set(warehouses.data.map((w: any) => w.warehouse_id).filter(Boolean)),
         ],
       };
       setForm(next);
@@ -144,8 +122,8 @@ export function MemberGrantEditor({ userId }: { userId: string }) {
         form && (
           <div className="mt-4 space-y-3">
             <p className="text-sm text-muted-foreground">
-              Nenhuma concessão será alterada até salvar. Exclusões manuais
-              permanecem válidas para novos produtos.
+              Nenhuma concessão será alterada até salvar. Exclusões manuais permanecem válidas para
+              novos produtos.
             </p>
             {(categories.data ?? []).map((p) => (
               <div className="rounded border p-3" key={p.id}>
@@ -153,9 +131,7 @@ export function MemberGrantEditor({ userId }: { userId: string }) {
                   <input
                     type="checkbox"
                     checked={form.product_ids.includes(p.id)}
-                    onChange={(e) =>
-                      toggle("product_ids", p.id, e.target.checked)
-                    }
+                    onChange={(e) => toggle("product_ids", p.id, e.target.checked)}
                   />{" "}
                   {p.name}
                 </label>
@@ -169,11 +145,7 @@ export function MemberGrantEditor({ userId }: { userId: string }) {
                             type="checkbox"
                             checked={!form.excluded_category_ids.includes(c.id)}
                             onChange={(e) =>
-                              toggle(
-                                "excluded_category_ids",
-                                c.id,
-                                !e.target.checked,
-                              )
+                              toggle("excluded_category_ids", c.id, !e.target.checked)
                             }
                           />{" "}
                           {c.name}
@@ -185,22 +157,12 @@ export function MemberGrantEditor({ userId }: { userId: string }) {
                         <label className="block text-sm" key={i.id}>
                           <input
                             type="checkbox"
-                            disabled={form.excluded_category_ids.includes(
-                              i.category_id,
-                            )}
+                            disabled={form.excluded_category_ids.includes(i.category_id)}
                             checked={
                               !form.excluded_item_ids.includes(i.id) &&
-                              !form.excluded_category_ids.includes(
-                                i.category_id,
-                              )
+                              !form.excluded_category_ids.includes(i.category_id)
                             }
-                            onChange={(e) =>
-                              toggle(
-                                "excluded_item_ids",
-                                i.id,
-                                !e.target.checked,
-                              )
-                            }
+                            onChange={(e) => toggle("excluded_item_ids", i.id, !e.target.checked)}
                           />{" "}
                           {i.name}
                         </label>
@@ -213,11 +175,17 @@ export function MemberGrantEditor({ userId }: { userId: string }) {
               <input
                 type="checkbox"
                 checked={form.inherit_new_products}
-                onChange={(e) =>
-                  setForm({ ...form, inherit_new_products: e.target.checked })
-                }
+                onChange={(e) => setForm({ ...form, inherit_new_products: e.target.checked })}
               />{" "}
               Herdar novos produtos, respeitando exclusões
+            </label>
+            <label className="block rounded border p-3">
+              <input
+                type="checkbox"
+                checked={form.general_access !== false}
+                onChange={(e) => setForm({ ...form, general_access: e.target.checked })}
+              />{" "}
+              Acessar Direção Geral
             </label>
             <p className="font-medium">Estoques autorizados</p>
             {(stocks.data ?? []).map((w) => (
@@ -225,9 +193,7 @@ export function MemberGrantEditor({ userId }: { userId: string }) {
                 <input
                   type="checkbox"
                   checked={form.warehouse_ids.includes(w.id)}
-                  onChange={(e) =>
-                    toggle("warehouse_ids", w.id, e.target.checked)
-                  }
+                  onChange={(e) => toggle("warehouse_ids", w.id, e.target.checked)}
                 />{" "}
                 {w.name}
               </label>
@@ -236,10 +202,7 @@ export function MemberGrantEditor({ userId }: { userId: string }) {
             {(catalog.data ?? [])
               .filter((p) => p.key.includes("."))
               .map((p) => (
-                <label
-                  className="flex items-center justify-between gap-2 text-sm"
-                  key={p.key}
-                >
+                <label className="flex items-center justify-between gap-2 text-sm" key={p.key}>
                   {p.label}
                   <select
                     className="rounded border bg-background p-2"
