@@ -1,3 +1,4 @@
+import { applyTheme, readSavedTheme, THEME_STORAGE_KEY } from "@/lib/theme";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
 import {
@@ -184,21 +185,20 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [theme, setTheme] = useState<"dark" | "light">(readSavedTheme);
   const navigate = useNavigate();
   const { profile, email, roles, loading } = useCurrentUser();
   const { products, productId, setProductId, canSeeAll } = useProductScope();
   const rates = useRates();
 
+  useEffect(() => { applyTheme(theme); }, [theme]);
   useEffect(() => {
-    const saved = window.localStorage.getItem("os-integral-theme");
-    if (saved === "light") setTheme("light");
+    const syncTheme = (event: StorageEvent) => {
+      if (event.key === THEME_STORAGE_KEY && (event.newValue === "light" || event.newValue === "dark")) setTheme(event.newValue);
+    };
+    window.addEventListener("storage", syncTheme);
+    return () => window.removeEventListener("storage", syncTheme);
   }, []);
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", theme === "dark");
-    window.localStorage.setItem("os-integral-theme", theme);
-  }, [theme]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

@@ -61,6 +61,7 @@
 }
 
 :root {
+  color-scheme: light;
   --radius: 0.7rem;
   --brand-emerald: #24c982;
   --brand-sage: #8eae8a;
@@ -73,18 +74,18 @@
   --card-foreground: #191a17;
   --popover: #fffdfb;
   --popover-foreground: #191a17;
-  --primary: #24c982;
-  --primary-foreground: #10251c;
+  --primary: #087a50;
+  --primary-foreground: #ffffff;
   --secondary: #e7efe5;
   --secondary-foreground: #294331;
   --muted: #f1ede6;
-  --muted-foreground: #6f6b61;
+  --muted-foreground: #575b53;
   --accent: #fbe5eb;
   --accent-foreground: #7c2941;
-  --destructive: #f22d63;
+  --destructive: #bd174d;
   --destructive-foreground: #ffffff;
-  --success: #24c982;
-  --success-foreground: #10251c;
+  --success: #087a50;
+  --success-foreground: #ffffff;
   --warning: #d8bd83;
   --warning-foreground: #4e3d1b;
   --border: #dfddd4;
@@ -106,6 +107,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: #03080c;
   --foreground: #f7fafb;
   --card: #071118;
@@ -147,6 +149,7 @@
 /* O shell do Integral envolve as rotas reais do OS. Os módulos mantêm seu
    estado, permissões e consultas ao Supabase. */
 .integral-shell {
+  color: var(--foreground);
   background: radial-gradient(circle at 97% 40%, rgb(0 190 190 / 6%), transparent 24%), var(--background);
 }
 .integral-sidebar { border-right: 1px solid var(--border); }
@@ -190,12 +193,13 @@
 .integral-sidebar nav a[aria-current="page"],
 .integral-sidebar nav a.bg-sidebar-primary {
   box-shadow: inset 3px 0 var(--primary);
-  background: linear-gradient(90deg, rgb(44 231 161 / 24%), rgb(12 30 36 / 80%));
+  background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 18%, var(--sidebar)), var(--sidebar-primary));
 }
 .integral-topbar {
   min-height: 76px;
   border-color: var(--border);
-  background: rgb(3 10 14 / 92%);
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--card) 92%, transparent);
   backdrop-filter: blur(16px);
 }
 .integral-role { min-width: 150px; border-color: var(--border); }
@@ -222,21 +226,21 @@
 .dark .integral-topbar { background: rgb(3 10 14 / 92%); }
 .integral-auth-brand {
   background: radial-gradient(circle at 82% 42%, rgb(0 214 190 / 16%), transparent 30%),
-    radial-gradient(circle at 22% 82%, rgb(245 0 103 / 13%), transparent 30%), #040a0e;
+    radial-gradient(circle at 22% 82%, rgb(245 0 103 / 13%), transparent 30%), var(--background);
   border-right: 1px solid var(--border);
 }
 .integral-auth-brand h1 { font-family: Impact, "Arial Black", sans-serif; font-size: clamp(54px, 6vw, 88px); line-height: .98; }
-.integral-auth-form { background: radial-gradient(circle at 50% 35%, rgb(19 54 65 / 24%), transparent 38%), #060d12; }
-.integral-auth-form input { min-height: 48px; background: #081219; border-color: #637681; }
-.integral-scope-banner { display: flex; align-items: center; gap: 12px; min-height: 54px; padding: 0 18px; border: 1px solid var(--border); border-radius: 10px; background: #0a151d; font-size: 13px; }
+.integral-auth-form { background: radial-gradient(circle at 50% 35%, rgb(19 54 65 / 24%), transparent 38%), var(--card); }
+.integral-auth-form input { min-height: 48px; background: var(--background); color: var(--foreground); border-color: var(--input); }
+.integral-scope-banner { display: flex; align-items: center; gap: 12px; min-height: 54px; padding: 0 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--secondary); color: var(--foreground); font-size: 13px; }
 .integral-scope-banner > span { color: var(--muted-foreground); }
 .integral-scope-banner > small { margin-left: auto; color: var(--muted-foreground); font-size: 11px; letter-spacing: .08em; }
 .integral-metric-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
-.integral-metric-card { min-height: 200px; position: relative; display: flex; align-items: flex-start; gap: 18px; border: 1px solid #6c7e88; border-radius: 14px; padding: 22px; background: rgb(7 17 24 / 85%); }
+.integral-metric-card { min-height: 200px; position: relative; display: flex; align-items: flex-start; gap: 18px; border: 1px solid var(--border); border-radius: 14px; padding: 22px; background: var(--card); color: var(--card-foreground); }
 .integral-metric-card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: #82939c; }
 .integral-metric-card--green::before { background: #2ce7a1; }
 .integral-metric-card--pink::before { background: #f50067; }
-.integral-metric-card > svg { width: 30px; height: 30px; flex: none; margin-top: 32px; color: #dbe4e8; }
+.integral-metric-card > svg { width: 30px; height: 30px; flex: none; margin-top: 32px; color: var(--muted-foreground); }
 .integral-metric-content { display: flex; min-width: 0; flex: 1; flex-direction: column; align-items: flex-start; gap: 6px; }
 .integral-metric-content > span { font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
 .integral-metric-content > strong { font-family: Impact, "Arial Black", sans-serif; font-size: 40px; line-height: 1.1; }
@@ -248,14 +252,14 @@
 
 .integral-metric-content > p { margin: 0; color: var(--muted-foreground); font-size: 12px; line-height: 1.4; }
 .integral-metric-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 3px; }
-.integral-metric-chips > small { border-radius: 5px; background: rgb(255 255 255 / 6%); padding: 3px 6px; color: var(--muted-foreground); font-size: 11px; line-height: 1.3; white-space: nowrap; }
+.integral-metric-chips > small { border-radius: 5px; background: var(--muted); padding: 3px 6px; color: var(--muted-foreground); font-size: 11px; line-height: 1.3; white-space: nowrap; }
 .integral-metric-card:hover { border-color: #94a9b5; }
 .integral-territory-grid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(300px, 1fr); gap: 16px; }
 .integral-map-card { min-height: 520px; }
 .integral-brazil-map { display: block; width: 100%; height: min(450px, 55vw); min-height: 300px; }
-.integral-brazil-map path { fill: #1b2830; stroke: #8497a2; stroke-width: .7; cursor: pointer; transition: fill .18s, stroke-width .18s; outline: none; }
+.integral-brazil-map path { fill: var(--muted); stroke: var(--muted-foreground); stroke-width: .7; cursor: pointer; transition: fill .18s, stroke-width .18s; outline: none; }
 .integral-brazil-map path:hover { filter: brightness(1.25); opacity: 1 !important; }
-.integral-brazil-map path.is-selected, .integral-brazil-map path:focus-visible { stroke: #fff; stroke-width: 2.2; filter: drop-shadow(0 0 8px rgb(255 255 255 / 24%)); outline: none; }
+.integral-brazil-map path.is-selected, .integral-brazil-map path:focus-visible { stroke: var(--foreground); stroke-width: 2.2; filter: drop-shadow(0 0 8px rgb(255 255 255 / 24%)); outline: none; }
 .integral-map-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #1b2830; border: 1px solid #8497a2; }
 .integral-map-dot--active { background: #2ce7a1; border-color: #2ce7a1; }
 .integral-map-detail { display: flex; flex-direction: column; }
@@ -274,6 +278,9 @@
   * {
     border-color: var(--color-border);
   }
+
+  input, select, textarea { color: var(--foreground); }
+  input::placeholder, textarea::placeholder { color: var(--muted-foreground); opacity: 1; }
 
   body {
     background:
@@ -321,3 +328,5 @@
     var(--brand-magenta)
   );
 }
+
+:root:not(.dark) .integral-state-mark { color: var(--primary); border-color: var(--primary); }
