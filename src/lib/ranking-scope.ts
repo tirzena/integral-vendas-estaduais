@@ -1,3 +1,9 @@
+// Non-competing administrators retain seller access for operational work.
+export const NON_COMPETING_MEMBER_IDS = new Set([
+  "cf25abd8-ed9d-438d-8b09-85e27a71e808", // Zé
+  "90a39e4e-4529-4929-b682-33377cf34080", // Junior
+]);
+
 type Order = { product_id?: string | null; total?: number | null };
 type Line = { item_id?: string | null; quantity?: number | null; total?: number | null };
 
@@ -14,5 +20,5 @@ export function rankingOrderScope<T extends Line>(order: Order, lines: T[], prod
 
 export function activeRankingSellerIds(sellers: {user_id: string}[], profiles: {id: string; is_active?: boolean | null}[]) {
   const inactive = new Set(profiles.filter(p => p.is_active === false).map(p => p.id));
-  return new Set(sellers.map(s => s.user_id).filter(id => !inactive.has(id)));
+  return new Set(sellers.map(s => s.user_id).filter(id => !inactive.has(id) && !NON_COMPETING_MEMBER_IDS.has(id)));
 }
