@@ -284,11 +284,11 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           <Select value={productId} onValueChange={setProductId}>
             <SelectTrigger className="w-[170px]">
-              <SelectValue placeholder="Produto" />
+              <SelectValue placeholder="Categoria" />
             </SelectTrigger>
             <SelectContent>
               {canSeeAll && <SelectItem value="todos">Todas as categorias</SelectItem>}
-              {!canSeeAll && <SelectItem value="todos">Meus produtos</SelectItem>}
+              {!canSeeAll && <SelectItem value="todos">Todas as minhas categorias</SelectItem>}
               {products.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   {p.name}
