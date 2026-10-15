@@ -1,3 +1,4 @@
+import { PendingPaymentReceipts } from "@/components/finance/PendingPaymentReceipts";
 import { FinanceStock } from "@/components/finance/FinanceStock";
 import { CustomerCreditsSection } from "@/components/finance/CustomerCreditsSection";
 import { financeDashboard } from "@/lib/finance-dashboard";
@@ -67,7 +68,8 @@ function statusBadge(r: any) {
 }
 
 function Financeiro() {
-  const { seesCompanyFinance, userId } = usePermissions();
+  const { seesCompanyFinance, userId, roles, isAdmin } = usePermissions();
+  const canReviewPayments = isAdmin || roles.includes("financeiro");
   const { productId, products } = useProductScope();
   const [displayCurrency, setDisplayCurrency] = useState<Currency>("BRL");
   const [dateFrom, setDateFrom] = useState("");
@@ -551,12 +553,14 @@ function Financeiro() {
           <TabsList className="flex-wrap">
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="receber">A receber</TabsTrigger>
+            {canReviewPayments && <TabsTrigger value="conferencias">Conferir pagamentos</TabsTrigger>}
             <TabsTrigger value="creditos">Créditos de clientes</TabsTrigger>
             <TabsTrigger value="pagar">A pagar</TabsTrigger>
             <TabsTrigger value="estoque">Em estoque</TabsTrigger>
             <TabsTrigger value="folha">Remuneração e folha</TabsTrigger>
             <TabsTrigger value="lucros">Participação nos lucros</TabsTrigger>
           </TabsList>
+          {canReviewPayments && <TabsContent value="conferencias" className="pt-4"><PendingPaymentReceipts productId={effectiveProductId} /></TabsContent>}
           <TabsContent value="resumo" className="pt-4">
             <Tabs defaultValue="visao">
               <TabsList className="flex-wrap">

@@ -12,8 +12,22 @@ export function RouteGuard({
   capability: Capability;
   children: ReactNode;
 }) {
-  const { can, loading } = usePermissions();
+  const { can, loading, error, retryPermissions } = usePermissions();
   if (loading) return null;
+  if (error)
+    return (
+      <div role="alert" className="rounded-xl border p-6 text-center">
+        <p className="font-medium">
+          Não foi possível verificar suas permissões
+        </p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Tente novamente para carregar seus acessos.
+        </p>
+        <Button className="mt-4" onClick={() => void retryPermissions()}>
+          Tentar novamente
+        </Button>
+      </div>
+    );
   if (can(capability)) return <>{children}</>;
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed px-6 py-20 text-center">
@@ -22,8 +36,8 @@ export function RouteGuard({
       </div>
       <p className="font-medium">Esta área não faz parte do seu perfil</p>
       <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-        Seu cargo enxerga apenas os próprios resultados. Fale com um administrador se precisar
-        deste acesso.
+        Seu cargo enxerga apenas os próprios resultados. Fale com um
+        administrador se precisar deste acesso.
       </p>
       <Button asChild className="mt-4">
         <Link to="/painel">Voltar ao painel</Link>

@@ -35,6 +35,20 @@ Foram introduzidas integral_member_rules, order_change_requests e tabelas privad
 - Typecheck global foi executado e encontrou erros anteriores em StockEntryDialog e painel; não foram tratados como validação aprovada do projeto inteiro.
 - Advisors de segurança consultados; não equivale a afirmar ausência de avisos anteriores no projeto.
 
+## Complemento: permissões de sessão, membros e conferência financeira
+
+- get_my_capabilities agora retorna as permissões da própria sessão ativa, incluindo a união dos cargos e negativas individuais. O cargo vendedor não provoca mais uma exceção nessa consulta. A função retorna somente metadados; as restrições gerais de dados do vendedor continuam em vigor.
+- Geral e Estadual deixam de substituir falhas dessa consulta por permissões estimadas. Uma área protegida mostra a falha e permite tentar novamente.
+- Membros usa um componente exclusivo de consulta, sem formulários de alteração ou funções de gravação. Pesquisa sem distinção de acentos; filtros por perfil, cargo organizacional, nível, setor, categoria principal e situação; todos os perfis aparecem. As consultas paginam com ordenação estável e mostram falhas, em vez de tratá-las como lista vazia.
+- Financeiro recebe a aba Conferir pagamentos, com fila paginada de recebimentos dos vendedores, comprovantes e confirmação explícita. A fila respeita a categoria principal selecionada e inclui todas as datas pendentes; os demais filtros do resumo financeiro não se aplicam a ela.
+- A conferência exige cargo Financeiro ou administrador ativo e operação autorizada no servidor. Financeiro + Vendedor pode conferir sem perder seu cargo financeiro; Vendedor isolado continua impedido.
+- A confirmação preserva a data informada no recebimento, revalida saldo/comprovante/pedido vigente, mantém idempotência e executa a baixa proporcional de estoque no contexto transacional protegido. Nenhum pagamento real foi confirmado durante a implementação.
+- Três blocos adicionais em tests/integral-role-finance-regression.sql passaram com ROLLBACK: seis combinações de cargos e estados de sessão, conferência de Financeiro + Vendedor com estoque proporcional/data/repetição e negativas explícitas. Os 11 blocos anteriores também foram executados novamente e passaram.
+- Conferência final: zero contas fictícias remanescentes, zero regras individuais reais gravadas e as quatro tabelas de concessões idênticas à cópia anterior.
+- Builds Geral e Estadual passaram. Lint passou nos componentes novos e arquivos de permissões/listagem. A rota financeira passou com a regra de formatação desativada para conservar a formatação anterior do arquivo; não houve supressão de validações funcionais.
+- O typecheck global do Geral ainda encontra problemas anteriores em StockEntryDialog, CRM e painel; nenhum erro nos componentes novos. O Estadual não possui script typecheck.
+- Esta etapa acrescentou cinco migrações, com cópias das funções anteriores antes das alterações. SQL final para revisão em 18-role-capability-metadata.sql, 19-finance-receipt-queue.sql e 20-confirmation-date.sql.
+
 ## Limites e pendências para considerar todo o documento concluído
 
 - Implantação e teste de interface nos domínios da Hostinger ainda não confirmados: a sessão não expõe ferramentas operacionais da Hostinger, embora haja configuração dos servidores.
