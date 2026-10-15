@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useRates } from "@/hooks/useRates";
+import { useCommissionPreview } from "@/hooks/useCommissionPreview";
 import { manualExchange, exchangeConvert, isPix } from "@/lib/order-exchange";
 import { formatMoney, formatNumber } from "@/lib/format";
 import type { Currency } from "@/lib/format";
@@ -558,7 +559,7 @@ export function Pdv({
   const freight = Math.max(0, round2(toNumber(shippingCost)));
   const internalVariableCost = Math.max(0, round2(toNumber(variableCost)));
   const total = Math.max(0, round2(netAfterItems - generalDiscount + freight));
-  const commissionTotal = round2(
+  const manualCommissionTotal = round2(
     lines.reduce(
       (sum, line) =>
         sum +
@@ -569,6 +570,21 @@ export function Pdv({
       0,
     ),
   );
+  const commissionPreview = useCommissionPreview({
+    actor: userId,
+    sellerId: selectedSellerId,
+    orderId: sourceOrderId,
+    productId: scoped ? productId : null,
+    exchange: selectedExchange ?? (systemRates.ready ? {
+      base: currency,
+      BRL: systemRates.convert(1, currency, "BRL"),
+      USD: systemRates.convert(1, currency, "USD"),
+      PYG: systemRates.convert(1, currency, "PYG"),
+    } : null),
+    lines,
+    enabled: commissionEnabled,
+  });
+  const commissionTotal = commissionPreview.data?.commission_total ?? manualCommissionTotal;
   const creditToUse = useCustomerCredit ? round2(toNumber(customerCreditAmount)) : 0;
   const paid = round2(payments.reduce((s, p) => s + p.amount, 0) + creditToUse);
   const remaining = round2(Math.max(0, total - paid));
@@ -1067,6 +1083,9 @@ export function Pdv({
   }
 
   async function finalize(kind: SaleKind) {
+    if (kind !== "orcamento" && (commissionPreview.pending || commissionPreview.error)) {
+      return void toast.error(commissionPreview.error?.message ?? "Aguarde a conferência da comissão e confira o vendedor e a cotação.");
+    }
     if (readOnly) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
     if (useCustomerCredit && (
       !customerId || Boolean(sourceOrderId) || kind === "orcamento" ||
@@ -2236,9 +2255,9 @@ export function Pdv({
               }}
             />
             <div>
-              <Label htmlFor="commission-enabled">Este pedido tem comissão</Label>
+              <Label htmlFor="commission-enabled">Comissão padrão do pedido</Label>
               <p className="text-xs text-muted-foreground">
-                A comissão é calculada por produto após o desconto do item.
+                Acordos por venda prevalecem: produto → subcategoria → categoria → geral. Acordos do mesmo nível se somam. Sem acordo, vale a comissão padrão. Valores fixos são cobrados uma vez por venda e rateados entre os itens abrangidos.
               </p>
             </div>
           </div>
@@ -2249,10 +2268,12 @@ export function Pdv({
             </p>
           ) : (
             <div className="space-y-3">
-              {lines.map((l) => {
+              {lines.map((l, lineIndex) => {
+                const previewLine = commissionPreview.data?.items[lineIndex];
+                const agreedLine = previewLine?.commission_source === "agreement";
                 const base = round2(l.quantity * l.unit_price);
                 const canEditLineDiscount = canManageDiscounts || l.max_discount_percent > 0;
-                const lineCommission = round2(
+                const lineCommission = previewLine?.commission_amount ?? round2(
                   Math.max(0, base - l.discount) * (l.commission_percent / 100),
                 );
                 return (
@@ -2388,22 +2409,23 @@ export function Pdv({
                           {secondaryCurrencyValues(round2(base - l.discount))}
                         </p>
                       </div>
-                      {commissionEnabled && (
+                      {(commissionEnabled || agreedLine) && (
                         <div className="col-span-2 grid gap-2 rounded-md bg-muted/40 p-2 sm:grid-cols-2">
                           <label className="flex items-center gap-2 text-xs font-medium">
                             <Checkbox
-                              checked={l.commission_enabled}
+                              checked={agreedLine || l.commission_enabled}
+                              disabled={agreedLine}
                               onCheckedChange={(checked) =>
                                 updateLine(l.key, { commission_enabled: checked === true })
                               }
                             />
-                            Comissão neste produto
+                            {agreedLine ? "Acordo aplicado" : "Comissão neste produto"}
                           </label>
                           <div>
                             <Label className="text-xs">Comissão (%)</Label>
                             <DecimalInput
-                              value={String(l.commission_percent)}
-                              disabled={!l.commission_enabled}
+                              value={String(agreedLine ? previewLine.commission_percent : l.commission_percent)}
+                              disabled={agreedLine || !l.commission_enabled}
                               min={0}
                               max={100}
                               step="0.01"
@@ -2418,7 +2440,7 @@ export function Pdv({
                             Comissão deste item:{" "}
                             <CurrencyValues
                               convert={rates.convert}
-                              value={l.commission_enabled ? lineCommission : 0}
+                              value={agreedLine || l.commission_enabled ? lineCommission : 0}
                               currency={currency}
                               layout="inline"
                               primaryFirst
@@ -2465,9 +2487,9 @@ export function Pdv({
                 primaryFirst
               />
             </div>
-            {commissionEnabled && (
+            {(commissionEnabled || commissionPreview.hasAgreement) && (
               <div className="flex justify-between">
-                <span>Comissões</span>
+                <span>Comissões {commissionPreview.pending ? "(conferindo…)" : commissionPreview.error ? "(não conferidas)" : ""}</span>
                 <CurrencyValues
                   convert={rates.convert}
                   value={commissionTotal}
