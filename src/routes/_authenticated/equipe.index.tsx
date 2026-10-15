@@ -6,10 +6,10 @@ import { MembersList } from "@/components/team/MembersList";
 export const Route = createFileRoute("/_authenticated/equipe/")({
   validateSearch: (search: Record<string, unknown>) => ({
     tab:
-      search.tab === "equipes" ||
-      search.tab === "cargos" ||
-      search.tab === "pessoas"
-        ? search.tab
+      search["tab"] === "equipes" ||
+      search["tab"] === "cargos" ||
+      search["tab"] === "pessoas"
+        ? search["tab"]
         : "pessoas",
   }),
   head: () => ({
