@@ -55,7 +55,12 @@ const CAPS: Record<AppRole, Capability[]> = {
     "deliveries_view",
     "deliveries_manage",
   ],
-  financeiro: ["company_finance", "company_sales", "manage_suppliers", "inventory_view"],
+  financeiro: [
+    "company_finance",
+    "company_sales",
+    "manage_suppliers",
+    "inventory_view",
+  ],
   vendedor: ["inventory_view", "deliveries_view"],
   estoque: ["manage_suppliers", "inventory_view", "inventory_manage"],
   fornecedor: [],
@@ -89,21 +94,24 @@ export function usePermissions() {
     queryFn: async () => {
       // The generated database types are updated after the migration is linked to Supabase CLI.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any).rpc("get_my_capabilities");
+      const { data, error } = await (supabase as any).rpc(
+        "get_my_capabilities",
+      );
       if (error) throw error;
       return (data ?? []) as Capability[];
     },
     staleTime: 30_000,
   });
-  const legacyCaps = list.flatMap((r) => CAPS[r] ?? []);
-  const dynamicOrLegacy = dynamicCaps.data ?? legacyCaps;
-  // O vendedor estadual sempre precisa abrir catálogo e acompanhar as próprias entregas.
-  // Isso só controla a interface; RLS continua sendo a autoridade sobre as linhas visíveis.
-  const sellerBaseline: Capability[] = list.includes("vendedor")
-    ? ["inventory_view", "deliveries_view"]
-    : [];
+  // O modo espelho só simula a apresentação. Sessões reais usam a resposta do servidor.
+  const previewCaps = list.flatMap((r) => CAPS[r] ?? []);
   const caps = new Set<Capability>(
-    isAdmin ? ADMIN_CAPS : [...dynamicOrLegacy, ...sellerBaseline],
+    isAdmin
+      ? ADMIN_CAPS
+      : viewAs
+        ? previewCaps
+        : dynamicCaps.isError
+          ? []
+          : (dynamicCaps.data ?? []),
   );
 
   const can = (c: Capability) => caps.has(c);
@@ -114,7 +122,10 @@ export function usePermissions() {
   };
 
   return {
-    loading: loading || (!!userId && !viewAs && !isAdmin && dynamicCaps.isLoading),
+    loading:
+      loading || (!!userId && !viewAs && !isAdmin && dynamicCaps.isLoading),
+    error: dynamicCaps.error,
+    retryPermissions: dynamicCaps.refetch,
     userId,
     viewAs,
     isAdmin,
