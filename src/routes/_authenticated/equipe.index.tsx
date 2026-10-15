@@ -10,7 +10,6 @@ import { useCurrentUser, ROLE_LABELS, type AppRole } from "@/hooks/useAuth";
 import { useProductScope } from "@/hooks/useProductScope";
 import { formatDate, initials } from "@/lib/format";
 import { PageHeader, EmptyState } from "@/components/common/PageHeader";
-import { AddMemberDialog } from "@/components/team/AddMemberDialog";
 import { TeamsSection } from "@/components/team/TeamsSection";
 import { RolesPermissionsSection } from "@/components/team/RolesPermissionsSection";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -42,7 +41,9 @@ import {
 export const Route = createFileRoute("/_authenticated/equipe/")({
   validateSearch: (search: Record<string, unknown>) => ({
     tab:
-      search.tab === "equipes" || search.tab === "cargos" || search.tab === "pessoas"
+      search.tab === "equipes" ||
+      search.tab === "cargos" ||
+      search.tab === "pessoas"
         ? search.tab
         : "pessoas",
   }),
@@ -51,10 +52,14 @@ export const Route = createFileRoute("/_authenticated/equipe/")({
       { title: "Membros — OS" },
       {
         name: "description",
-        content: "Perfis de acesso, equipes e vínculo de vendedores a produtos.",
+        content:
+          "Perfis de acesso, equipes e vínculo de vendedores a produtos.",
       },
       { property: "og:title", content: "Membros — OS" },
-      { property: "og:description", content: "Perfis de acesso, equipes e produtos por vendedor." },
+      {
+        property: "og:description",
+        content: "Perfis de acesso, equipes e produtos por vendedor.",
+      },
     ],
   }),
   component: GuardedEquipe,
@@ -73,28 +78,9 @@ function Equipe() {
     <div>
       <PageHeader
         title="Membros"
-        description="Perfis de acesso, equipes e categorias de cada pessoa."
-        actions={isAdmin && tab === "pessoas" ? <AddMemberDialog /> : undefined}
+        description="Relação de membros, cargos, categorias e situação da conta. Cadastro e permissões ficam na Visão Interna."
       />
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="h-auto w-full justify-start overflow-x-auto p-1 sm:w-auto">
-          <TabsTrigger value="pessoas">Pessoas</TabsTrigger>
-          <TabsTrigger value="equipes">Equipes</TabsTrigger>
-          <TabsTrigger value="cargos">Cargos e permissões</TabsTrigger>
-          <TabsTrigger value="hierarquia" asChild>
-            <Link to="/equipe/hierarquia">Hierarquia</Link>
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="pessoas" className="pt-4">
-          <People canManage={isAdmin} />
-        </TabsContent>
-        <TabsContent value="equipes" className="pt-4">
-          <TeamsSection canWrite={isAdmin} />
-        </TabsContent>
-        <TabsContent value="cargos" className="pt-4">
-          <RolesPermissionsSection canWrite={isAdmin} />
-        </TabsContent>
-      </Tabs>
+      <People canManage={false} />
     </div>
   );
 }
@@ -104,6 +90,9 @@ function People({ canManage }: { canManage: boolean }) {
   const queryClient = useQueryClient();
   const { products } = useProductScope();
   const [busy, setBusy] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [roleFilter, setRoleFilter] = useState("todos");
+  const [statusFilter, setStatusFilter] = useState("todos");
   const [editing, setEditing] = useState<any | null>(null);
   const [editingJobs, setEditingJobs] = useState(false);
 
@@ -141,8 +130,15 @@ function People({ canManage }: { canManage: boolean }) {
 
   async function changeRole(userId: string, role: AppRole) {
     setBusy(userId);
-    const { error } = await supabase.from("user_roles").insert({ user_id: userId, role });
-    if (!error) await supabase.from("user_roles").delete().eq("user_id", userId).neq("role", role);
+    const { error } = await supabase
+      .from("user_roles")
+      .insert({ user_id: userId, role });
+    if (!error)
+      await supabase
+        .from("user_roles")
+        .delete()
+        .eq("user_id", userId)
+        .neq("role", role);
     setBusy(null);
     if (error) {
       const denied = /row-level security/i.test(error.message);
@@ -171,9 +167,20 @@ function People({ canManage }: { canManage: boolean }) {
     queryClient.invalidateQueries({ queryKey: ["team-people"] });
   }
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">Carregando…</p>;
-  const people = data?.profiles ?? [];
-  if (people.length === 0)
+  if (isLoading)
+    return <p className="text-sm text-muted-foreground">Carregando…</p>;
+  const people = (data?.profiles ?? []).filter(
+    (p: any) =>
+      `${p.full_name ?? ""} ${p.email ?? ""} ${p.cargo ?? ""} ${p.setor ?? ""}`
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) &&
+      (roleFilter === "todos" ||
+        data?.roles.some(
+          (r: any) => r.user_id === p.id && r.role === roleFilter,
+        )) &&
+      (statusFilter === "todos" || p.is_active === (statusFilter === "ativo")),
+  );
+  if ((data?.profiles ?? []).length === 0)
     return (
       <EmptyState
         title="Nenhuma pessoa cadastrada"
@@ -183,38 +190,86 @@ function People({ canManage }: { canManage: boolean }) {
 
   return (
     <div className="grid gap-3">
+      <div className="flex flex-wrap gap-3">
+        <Input
+          className="max-w-sm"
+          placeholder="Pesquisar nome, e-mail, cargo ou setor"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+        <select
+          className="rounded-md border bg-background p-2"
+          value={roleFilter}
+          onChange={(e) => setRoleFilter(e.target.value)}
+        >
+          <option value="todos">Todos os cargos</option>
+          {ROLES.map((r) => (
+            <option key={r} value={r}>
+              {ROLE_LABELS[r]}
+            </option>
+          ))}
+        </select>
+        <select
+          className="rounded-md border bg-background p-2"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+        >
+          <option value="todos">Todas as situações</option>
+          <option value="ativo">Ativo</option>
+          <option value="inativo">Inativo</option>
+        </select>
+      </div>
       {people.map((p: any) => {
-        const role = (data?.roles ?? []).find((r: any) => r.user_id === p.id)?.role as AppRole;
+        const role = (data?.roles ?? []).find((r: any) => r.user_id === p.id)
+          ?.role as AppRole;
         const jobs = (data?.assignments ?? [])
           .filter((a: any) => a.user_id === p.id)
           .map((a: any) => ({
             ...a,
-            role: (data?.jobRoles ?? []).find((r: any) => r.id === a.job_role_id),
-            level: (data?.levels ?? []).find((l: any) => l.id === a.job_level_id),
+            role: (data?.jobRoles ?? []).find(
+              (r: any) => r.id === a.job_role_id,
+            ),
+            level: (data?.levels ?? []).find(
+              (l: any) => l.id === a.job_level_id,
+            ),
           }));
         const linked = new Set(
-          (data?.links ?? []).filter((l: any) => l.user_id === p.id).map((l: any) => l.product_id),
+          (data?.links ?? [])
+            .filter((l: any) => l.user_id === p.id)
+            .map((l: any) => l.product_id),
         );
         return (
           <Card
             key={p.id}
             className="cursor-pointer transition-shadow hover:shadow-md"
-            onClick={() => navigate({ to: "/equipe/$id", params: { id: p.id } })}
+            onClick={() =>
+              navigate({ to: "/equipe/$id", params: { id: p.id } })
+            }
           >
             <CardContent className="flex flex-wrap items-center gap-4 pt-6">
               <Avatar className="size-11">
                 <AvatarImage src={p.avatar_url ?? undefined} />
-                <AvatarFallback>{initials(p.full_name ?? p.email)}</AvatarFallback>
+                <AvatarFallback>
+                  {initials(p.full_name ?? p.email)}
+                </AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-2 truncate font-medium">
-                  <Link to="/equipe/$id" params={{ id: p.id }} className="hover:underline">
+                  <Link
+                    to="/equipe/$id"
+                    params={{ id: p.id }}
+                    className="hover:underline"
+                  >
                     {p.full_name || p.email}
                   </Link>
                   {p.is_demo && <Badge variant="outline">Fictício</Badge>}
+                  <Badge variant="outline">
+                    {p.is_active ? "Ativo" : "Inativo"}
+                  </Badge>
                 </p>
                 <p className="truncate text-sm text-muted-foreground">
-                  {p.email} · último acesso {formatDate(p.last_access)}
+                  {p.email} · {p.setor || "Sem setor"} · último acesso{" "}
+                  {formatDate(p.last_access)}
                 </p>
                 <div className="mt-1 flex flex-wrap gap-1">
                   {jobs.length ? (
@@ -231,7 +286,10 @@ function People({ canManage }: { canManage: boolean }) {
                           setEditing(p);
                         }}
                       >
-                        <Badge variant="secondary" className="font-normal hover:bg-secondary/80">
+                        <Badge
+                          variant="secondary"
+                          className="font-normal hover:bg-secondary/80"
+                        >
                           {j.role?.name ?? "Cargo"}
                           {j.level ? ` · ${j.level.name}` : ""}
                         </Badge>
@@ -292,10 +350,15 @@ function People({ canManage }: { canManage: boolean }) {
               >
                 <span className="text-xs text-muted-foreground">Produtos:</span>
                 {products.length === 0 && (
-                  <span className="text-xs text-muted-foreground">Nenhum produto cadastrado.</span>
+                  <span className="text-xs text-muted-foreground">
+                    Nenhum produto cadastrado.
+                  </span>
                 )}
                 {products.map((prod) => (
-                  <label key={prod.id} className="flex items-center gap-2 text-xs">
+                  <label
+                    key={prod.id}
+                    className="flex items-center gap-2 text-xs"
+                  >
                     <Checkbox
                       checked={linked.has(prod.id)}
                       disabled={!canManage}
@@ -317,12 +380,16 @@ function People({ canManage }: { canManage: boolean }) {
       <EditMemberDialog
         member={editing}
         jobsOnly={editingJobs}
-        assignments={(data?.assignments ?? []).filter((a: any) => a.user_id === editing?.id)}
+        assignments={(data?.assignments ?? []).filter(
+          (a: any) => a.user_id === editing?.id,
+        )}
         jobRoles={data?.jobRoles ?? []}
         levels={data?.levels ?? []}
         areas={data?.areas ?? []}
         onClose={() => setEditing(null)}
-        onSaved={() => queryClient.invalidateQueries({ queryKey: ["team-people"] })}
+        onSaved={() =>
+          queryClient.invalidateQueries({ queryKey: ["team-people"] })
+        }
       />
     </div>
   );
