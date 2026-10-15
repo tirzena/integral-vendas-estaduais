@@ -46,7 +46,7 @@ Foram introduzidas integral_member_rules, order_change_requests e tabelas privad
 - Três blocos adicionais em tests/integral-role-finance-regression.sql passaram com ROLLBACK: seis combinações de cargos e estados de sessão, conferência de Financeiro + Vendedor com estoque proporcional/data/repetição e negativas explícitas. Os 11 blocos anteriores também foram executados novamente e passaram.
 - Conferência final: zero contas fictícias remanescentes, zero regras individuais reais gravadas e as quatro tabelas de concessões idênticas à cópia anterior.
 - Builds Geral e Estadual passaram. Lint passou nos componentes novos e arquivos de permissões/listagem. A rota financeira passou com a regra de formatação desativada para conservar a formatação anterior do arquivo; não houve supressão de validações funcionais.
-- O typecheck global do Geral ainda encontra problemas anteriores em StockEntryDialog, CRM e painel; nenhum erro nos componentes novos. O Estadual não possui script typecheck.
+- O typecheck global do Geral ainda encontra problemas anteriores em StockEntryDialog, CRM e painel; nenhum erro nos componentes novos. O Estadual não possui script typecheck; a execução direta de tsc --noEmit encontrou erros anteriores em catálogo e outros módulos. Os componentes novos foram corrigidos para respeitar a tipagem de moeda do Estadual.
 - Esta etapa acrescentou cinco migrações, com cópias das funções anteriores antes das alterações. SQL final para revisão em 18-role-capability-metadata.sql, 19-finance-receipt-queue.sql e 20-confirmation-date.sql.
 
 ## Limites e pendências para considerar todo o documento concluído

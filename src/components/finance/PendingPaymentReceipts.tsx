@@ -22,9 +22,9 @@ type Receipt = {
   customer_name: string | null;
   seller_name: string | null;
   amount: number;
-  currency: string;
+  currency: "BRL" | "USD" | "PYG";
   received_amount: number | null;
-  received_currency: string | null;
+  received_currency: "BRL" | "USD" | "PYG" | null;
   method: string;
   paid_at: string | null;
   created_at: string;
