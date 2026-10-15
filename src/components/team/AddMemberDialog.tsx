@@ -39,6 +39,8 @@ const deal = () => ({
   label: "",
   product_id: "",
   category_id: "",
+  item_id: "",
+  notes: "",
   comp_type: "percent" as "percent" | "fixed",
   amount: "",
   currency: "USD" as "USD" | "BRL" | "PYG",
@@ -53,6 +55,7 @@ export function AddMemberDialog() {
     [step, setStep] = useState(0),
     [saving, setSaving] = useState(false),
     [activation, setActivation] = useState("");
+  const [generalAccess, setGeneralAccess] = useState(false);
   const [person, setPerson] = useState({ full_name: "", email: "", phone: "" });
   const [roles, setRoles] = useState<AppRole[]>(["vendedor"]),
     [jobs, setJobs] = useState<Record<string, string>>({});
@@ -108,6 +111,7 @@ export function AddMemberDialog() {
   );
   function reset() {
     setStep(0);
+    setGeneralAccess(false);
     setPerson({ full_name: "", email: "", phone: "" });
     setRoles(["vendedor"]);
     setJobs({});
@@ -121,13 +125,11 @@ export function AddMemberDialog() {
     setActivation("");
   }
   function next() {
-    if (
-      step === 0 &&
-      (!person.full_name.trim() || !/^\S+@\S+\.\S+$/.test(person.email))
-    )
+    if (step === 0 && (!person.full_name.trim() || !/^\S+@\S+\.\S+$/.test(person.email)))
       return void toast.error("Informe nome e e-mail válidos.");
-    if (step === 1 && !roles.length)
-      return void toast.error("Selecione um perfil de acesso.");
+    if (step === 1 && !roles.length) return void toast.error("Selecione um perfil de acesso.");
+    if (step === 2 && !generalAccess && !roles.includes("superadmin") && !grants.length)
+      return void toast.error("Selecione ao menos um sistema para o membro acessar.");
     setStep(Math.min(4, step + 1));
   }
   async function submit() {
@@ -137,6 +139,7 @@ export function AddMemberDialog() {
         data: {
           ...person,
           roles,
+          general_access: generalAccess || roles.includes("superadmin"),
           access: grants,
           cargo: selectedJobs.map((r) => r.name).join(" · "),
           setor: sectors,
@@ -182,8 +185,7 @@ export function AddMemberDialog() {
         {activation ? (
           <div className="space-y-3">
             <p>
-              Cadastro concluído. O membro define a própria senha pelo link
-              individual de ativação.
+              Cadastro concluído. O membro define a própria senha pelo link individual de ativação.
             </p>
             <Input readOnly value={activation} />
             <Button
@@ -201,11 +203,7 @@ export function AddMemberDialog() {
               {steps.map((s, i) => (
                 <li
                   key={s}
-                  className={
-                    i === step
-                      ? "font-bold text-primary"
-                      : "text-muted-foreground"
-                  }
+                  className={i === step ? "font-bold text-primary" : "text-muted-foreground"}
                 >
                   {i + 1}. {s}
                 </li>
@@ -224,15 +222,13 @@ export function AddMemberDialog() {
                       key={key}
                       type={key === "email" ? "email" : "text"}
                       value={value}
-                      onChange={(e) =>
-                        setPerson({ ...person, [key]: e.target.value })
-                      }
+                      onChange={(e) => setPerson({ ...person, [key]: e.target.value })}
                     />,
                   ),
                 )}
                 <p className="text-sm text-muted-foreground sm:col-span-2">
-                  O acesso inicial será feito por link individual de ativação.
-                  Nenhuma senha compartilhada será usada.
+                  O acesso inicial será feito por link individual de ativação. Nenhuma senha
+                  compartilhada será usada.
                 </p>
               </div>
             )}
@@ -241,20 +237,14 @@ export function AddMemberDialog() {
                 <p className="font-medium">Perfis de acesso</p>
                 <div className="grid gap-2 sm:grid-cols-3">
                   {(Object.keys(ROLE_LABELS) as AppRole[])
-                    .filter(
-                      (r) =>
-                        r !== "superadmin" ||
-                        caller.roles.includes("superadmin"),
-                    )
+                    .filter((r) => r !== "superadmin" || caller.roles.includes("superadmin"))
                     .map((r) => (
                       <label key={r}>
                         <input
                           type="checkbox"
                           checked={roles.includes(r)}
                           onChange={(e) =>
-                            setRoles(
-                              toggle(roles, r, e.target.checked) as AppRole[],
-                            )
+                            setRoles(toggle(roles, r, e.target.checked) as AppRole[])
                           }
                         />{" "}
                         {ROLE_LABELS[r]}
@@ -283,9 +273,7 @@ export function AddMemberDialog() {
                       className={field}
                       disabled={!(r.id in jobs)}
                       value={jobs[r.id] ?? ""}
-                      onChange={(e) =>
-                        setJobs({ ...jobs, [r.id]: e.target.value })
-                      }
+                      onChange={(e) => setJobs({ ...jobs, [r.id]: e.target.value })}
                     >
                       <option value="">Sem nível</option>
                       {(levels.data ?? []).map((l) => (
@@ -296,17 +284,12 @@ export function AddMemberDialog() {
                     </select>
                   </div>
                 ))}
-                <p>
-                  Setor automático: {sectors || "Conforme perfis selecionados"}
-                </p>
+                <p>Setor automático: {sectors || "Conforme perfis selecionados"}</p>
               </div>
             )}
             {step === 2 && (
               <div className="space-y-4">
-                <p>
-                  Direção Geral: acesso conforme perfis e permissões efetivas
-                  abaixo.
-                </p>
+                <p>Direção Geral: acesso conforme perfis e permissões efetivas abaixo.</p>
                 {systems.map(([code, name]) => {
                   const grant = grants.find((g) => g.system_code === code);
                   return (
@@ -343,9 +326,7 @@ export function AddMemberDialog() {
                               onChange={(e) =>
                                 setGrants(
                                   grants.map((g) =>
-                                    g === grant
-                                      ? { ...g, can_write: e.target.checked }
-                                      : g,
+                                    g === grant ? { ...g, can_write: e.target.checked } : g,
                                   ),
                                 )
                               }
@@ -389,13 +370,7 @@ export function AddMemberDialog() {
                             }
                           >
                             <option value="">Todas as regiões</option>
-                            {[
-                              "norte",
-                              "nordeste",
-                              "centro-oeste",
-                              "sudeste",
-                              "sul",
-                            ].map((r) => (
+                            {["norte", "nordeste", "centro-oeste", "sudeste", "sul"].map((r) => (
                               <option key={r}>{r}</option>
                             ))}
                           </select>
@@ -410,8 +385,7 @@ export function AddMemberDialog() {
                                   g === grant
                                     ? {
                                         ...g,
-                                        territory_uf:
-                                          e.target.value.toUpperCase() || null,
+                                        territory_uf: e.target.value.toUpperCase() || null,
                                         region_code: null,
                                       }
                                     : g,
@@ -435,8 +409,7 @@ export function AddMemberDialog() {
                           g.permission_key === p.key &&
                           g.allowed &&
                           g.job_role_id in jobs &&
-                          (g.job_level_id === null ||
-                            g.job_level_id === jobs[g.job_role_id]),
+                          (g.job_level_id === null || g.job_level_id === jobs[g.job_role_id]),
                       ) ||
                       (roles.includes("vendedor") &&
                         [
@@ -464,18 +437,11 @@ export function AddMemberDialog() {
                       >
                         {p.label}
                         <span className="text-xs text-muted-foreground">
-                          Efetiva:{" "}
-                          {(overrides[p.key] ?? inherited)
-                            ? "permitida"
-                            : "bloqueada"}
+                          Efetiva: {(overrides[p.key] ?? inherited) ? "permitida" : "bloqueada"}
                         </span>
                         <select
                           className={field}
-                          value={
-                            p.key in overrides
-                              ? String(overrides[p.key])
-                              : "inherit"
-                          }
+                          value={p.key in overrides ? String(overrides[p.key]) : "inherit"}
                           onChange={(e) =>
                             setOverrides((old) => {
                               const n = { ...old };
@@ -497,8 +463,8 @@ export function AddMemberDialog() {
             {step === 3 && (
               <div className="space-y-4">
                 <p>
-                  Selecionar uma categoria inclui suas subcategorias e produtos
-                  ativos. Desmarque as exceções; elas serão preservadas.
+                  Selecionar uma categoria inclui suas subcategorias e produtos ativos. Desmarque as
+                  exceções; elas serão preservadas.
                 </p>
                 {products.map((p) => (
                   <div key={p.id} className="rounded-lg border p-3">
@@ -506,9 +472,7 @@ export function AddMemberDialog() {
                       <input
                         type="checkbox"
                         checked={selected.includes(p.id)}
-                        onChange={(e) =>
-                          setSelected(toggle(selected, p.id, e.target.checked))
-                        }
+                        onChange={(e) => setSelected(toggle(selected, p.id, e.target.checked))}
                       />{" "}
                       {p.name}
                     </label>
@@ -523,11 +487,7 @@ export function AddMemberDialog() {
                                 checked={!excludedCategories.includes(c.id)}
                                 onChange={(e) =>
                                   setExcludedCategories(
-                                    toggle(
-                                      excludedCategories,
-                                      c.id,
-                                      !e.target.checked,
-                                    ),
+                                    toggle(excludedCategories, c.id, !e.target.checked),
                                   )
                                 }
                               />{" "}
@@ -540,21 +500,13 @@ export function AddMemberDialog() {
                             <label className="block text-sm" key={i.id}>
                               <input
                                 type="checkbox"
-                                disabled={excludedCategories.includes(
-                                  i.category_id,
-                                )}
+                                disabled={excludedCategories.includes(i.category_id)}
                                 checked={
                                   !excludedItems.includes(i.id) &&
                                   !excludedCategories.includes(i.category_id)
                                 }
                                 onChange={(e) =>
-                                  setExcludedItems(
-                                    toggle(
-                                      excludedItems,
-                                      i.id,
-                                      !e.target.checked,
-                                    ),
-                                  )
+                                  setExcludedItems(toggle(excludedItems, i.id, !e.target.checked))
                                 }
                               />{" "}
                               {i.name}
@@ -570,11 +522,7 @@ export function AddMemberDialog() {
                     <input
                       type="checkbox"
                       checked={warehouses.includes(w.id)}
-                      onChange={(e) =>
-                        setWarehouses(
-                          toggle(warehouses, w.id, e.target.checked),
-                        )
-                      }
+                      onChange={(e) => setWarehouses(toggle(warehouses, w.id, e.target.checked))}
                     />{" "}
                     {w.name}
                   </label>
@@ -584,18 +532,13 @@ export function AddMemberDialog() {
             {step === 4 && (
               <div className="space-y-4">
                 {deals.map((d, index) => (
-                  <div
-                    key={index}
-                    className="grid gap-2 rounded-lg border p-3 sm:grid-cols-3"
-                  >
+                  <div key={index} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-3">
                     <Input
                       placeholder="Nome do acordo"
                       value={d.label}
                       onChange={(e) =>
                         setDeals(
-                          deals.map((v, i) =>
-                            i === index ? { ...v, label: e.target.value } : v,
-                          ),
+                          deals.map((v, i) => (i === index ? { ...v, label: e.target.value } : v)),
                         )
                       }
                     />
@@ -605,9 +548,7 @@ export function AddMemberDialog() {
                       onChange={(e) =>
                         setDeals(
                           deals.map((v, i) =>
-                            i === index
-                              ? { ...v, comp_type: e.target.value as any }
-                              : v,
+                            i === index ? { ...v, comp_type: e.target.value as any } : v,
                           ),
                         )
                       }
@@ -622,9 +563,7 @@ export function AddMemberDialog() {
                       value={d.amount}
                       onChange={(e) =>
                         setDeals(
-                          deals.map((v, i) =>
-                            i === index ? { ...v, amount: e.target.value } : v,
-                          ),
+                          deals.map((v, i) => (i === index ? { ...v, amount: e.target.value } : v)),
                         )
                       }
                     />
@@ -658,9 +597,7 @@ export function AddMemberDialog() {
                       onChange={(e) =>
                         setDeals(
                           deals.map((v, i) =>
-                            i === index
-                              ? { ...v, category_id: e.target.value }
-                              : v,
+                            i === index ? { ...v, category_id: e.target.value, item_id: "" } : v,
                           ),
                         )
                       }
@@ -674,15 +611,67 @@ export function AddMemberDialog() {
                           </option>
                         ))}
                     </select>
+                    <label className="grid gap-1 text-xs">
+                      Produto individual (opcional)
+                      <select
+                        className={field}
+                        value={d.item_id}
+                        onChange={(e) => {
+                          const item = (items.data ?? []).find(
+                            (item) => item.id === e.target.value,
+                          );
+                          setDeals(
+                            deals.map((v, i) =>
+                              i === index
+                                ? {
+                                    ...v,
+                                    item_id: e.target.value,
+                                    ...(item
+                                      ? {
+                                          product_id: item.product_id,
+                                          category_id: item.category_id ?? "",
+                                        }
+                                      : {}),
+                                  }
+                                : v,
+                            ),
+                          );
+                        }}
+                      >
+                        <option value="">Todos do escopo escolhido</option>
+                        {(items.data ?? [])
+                          .filter(
+                            (item) =>
+                              selected.includes(item.product_id) &&
+                              (!d.product_id || item.product_id === d.product_id) &&
+                              (!d.category_id || item.category_id === d.category_id) &&
+                              !excludedItems.includes(item.id) &&
+                              !excludedCategories.includes(item.category_id),
+                          )
+                          .map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.name}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                    <Input
+                      placeholder="Condições do acordo (opcional)"
+                      maxLength={2000}
+                      value={d.notes}
+                      onChange={(e) =>
+                        setDeals(
+                          deals.map((v, i) => (i === index ? { ...v, notes: e.target.value } : v)),
+                        )
+                      }
+                    />
                     <select
                       className={field}
                       value={d.currency}
                       onChange={(e) =>
                         setDeals(
                           deals.map((v, i) =>
-                            i === index
-                              ? { ...v, currency: e.target.value as any }
-                              : v,
+                            i === index ? { ...v, currency: e.target.value as any } : v,
                           ),
                         )
                       }
@@ -697,9 +686,7 @@ export function AddMemberDialog() {
                       onChange={(e) =>
                         setDeals(
                           deals.map((v, i) =>
-                            i === index
-                              ? { ...v, period: e.target.value as any }
-                              : v,
+                            i === index ? { ...v, period: e.target.value as any } : v,
                           ),
                         )
                       }
@@ -711,18 +698,13 @@ export function AddMemberDialog() {
                     </select>
                     <Button
                       variant="ghost"
-                      onClick={() =>
-                        setDeals(deals.filter((_, i) => i !== index))
-                      }
+                      onClick={() => setDeals(deals.filter((_, i) => i !== index))}
                     >
                       Remover acordo
                     </Button>
                   </div>
                 ))}
-                <Button
-                  variant="outline"
-                  onClick={() => setDeals([...deals, deal()])}
-                >
+                <Button variant="outline" onClick={() => setDeals([...deals, deal()])}>
                   Outro acordo
                 </Button>
                 <div className="rounded-lg bg-muted p-4 text-sm">
@@ -733,11 +715,13 @@ export function AddMemberDialog() {
                   <p>Cargos: {roles.map((r) => ROLE_LABELS[r]).join(", ")}</p>
                   <p>Setores: {sectors || "Conforme perfis"}</p>
                   <p>
+                    Direção Geral:{" "}
+                    {generalAccess || roles.includes("superadmin") ? "Permitida" : "Sem acesso"}
+                  </p>
+                  <p>
                     Sistemas:{" "}
                     {grants
-                      .map(
-                        (g) => systems.find((s) => s[0] === g.system_code)?.[1],
-                      )
+                      .map((g) => systems.find((s) => s[0] === g.system_code)?.[1])
                       .join(", ") || "Nenhuma divisão adicional"}
                   </p>
                   <p>
@@ -748,9 +732,8 @@ export function AddMemberDialog() {
                       .join(", ") || "Nenhuma"}
                   </p>
                   <p>
-                    {excludedCategories.length} subcategorias excluídas ·{" "}
-                    {excludedItems.length} produtos excluídos ·{" "}
-                    {warehouses.length} estoques ·{" "}
+                    {excludedCategories.length} subcategorias excluídas · {excludedItems.length}{" "}
+                    produtos excluídos · {warehouses.length} estoques ·{" "}
                     {Object.keys(overrides).length} ajustes individuais
                   </p>
                   {deals
@@ -758,9 +741,7 @@ export function AddMemberDialog() {
                     .map((d, i) => (
                       <p key={i}>
                         {d.label || "Acordo"}: {d.amount}
-                        {d.comp_type === "percent"
-                          ? "%"
-                          : " " + d.currency} · {d.period}
+                        {d.comp_type === "percent" ? "%" : " " + d.currency} · {d.period}
                       </p>
                     ))}
                 </div>
@@ -788,11 +769,7 @@ export function AddMemberDialog() {
                 {step ? "Voltar" : "Cancelar"}
               </Button>
               <Button disabled={saving} onClick={step === 4 ? submit : next}>
-                {saving
-                  ? "Salvando…"
-                  : step === 4
-                    ? "Concluir cadastro"
-                    : "Próxima etapa"}
+                {saving ? "Salvando…" : step === 4 ? "Concluir cadastro" : "Próxima etapa"}
               </Button>
             </>
           )}

@@ -49,13 +49,28 @@ Foram introduzidas integral_member_rules, order_change_requests e tabelas privad
 - O typecheck global do Geral ainda encontra problemas anteriores em StockEntryDialog, CRM e painel; nenhum erro nos componentes novos. O Estadual não possui script typecheck; a execução direta de tsc --noEmit encontrou erros anteriores em catálogo e outros módulos. Os componentes novos foram corrigidos para respeitar a tipagem de moeda do Estadual.
 - Esta etapa acrescentou cinco migrações, com cópias das funções anteriores antes das alterações. SQL final para revisão em 18-role-capability-metadata.sql, 19-finance-receipt-queue.sql e 20-confirmation-date.sql.
 
+## Complemento: entrada na Direção Geral e acordos por produto — 15/10, retomada
+
+- A migração interrompida anteriormente não havia sido aplicada. A retomada confirmou esse estado antes de executar qualquer alteração.
+- Novos cadastros escolhem explicitamente o acesso à Direção Geral na etapa de sistemas. A escolha aparece no resumo; o formulário exige pelo menos um sistema. Superadministrador mantém acesso global.
+- general_access nullable em integral_member_rules preserva as contas e integrações anteriores. Nenhum membro existente foi bloqueado ou teve suas concessões substituídas por esta migração.
+- A entrada das rotas autenticadas e o middleware das funções de servidor do Geral consultam integral_my_general_access. O Estadual mantém sua própria entrada. Este controle de portal não substitui a RLS compartilhada de dados dos demais sistemas.
+- O editor administrativo permite alterar manualmente o acesso ao Geral. Administrador não pode editar concessões de superadministrador nem conceder acesso ao Geral que ele mesmo não possui. Valores nulos e payloads antigos não contornam uma negativa explícita.
+- Acordos de remuneração aceitam produto individual e condições textuais, além de categoria/subcategoria, valor, percentual, moeda e período. O backend valida a hierarquia e impede vínculo a produto excluído no cadastro.
+- O Financeiro mostra o produto do acordo e permite configurá-lo. O cadastro de um acordo não cria pagamento ou lançamento de folha, nem altera automaticamente comissões de pedidos. Essa automação continua pendente.
+- Um arquivo de paginação usado por DocsList havia ficado fora da publicação anterior do Estadual. read-all-rows.ts foi incluído e o build foi repetido em cópia limpa desse repositório.
+- Quatro migrações aplicadas no banco autorizado, com cópias das funções e dos acordos anteriores. SQL para revisão nos arquivos 21 a 23; não executar novamente às cegas.
+- Os 14 blocos SQL anteriores e dois novos passaram com fixtures e ROLLBACK. Casos novos cobrem legado, concessão/negativa explícita, inativação, limites administrativos, nulos, múltiplos acordos e rollback de cadastro inválido.
+- Builds Geral e Estadual passaram. Lint dos arquivos de acesso/cadastro e do helper passou; PayrollSection foi validado com apenas a regra de formatação desativada para manter o formato anterior. Typecheck global continua com erros anteriores; nenhum apontamento nos arquivos alterados.
+- Implantação e testes autenticados online continuam sem confirmação. Os demais limites abaixo permanecem válidos.
+
 ## Limites e pendências para considerar todo o documento concluído
 
 - Implantação e teste de interface nos domínios da Hostinger ainda não confirmados: a sessão não expõe ferramentas operacionais da Hostinger, embora haja configuração dos servidores.
 - Login/ativação real e testes de interface com os seis perfis ainda não foram feitos ponta a ponta; testes SQL não substituem testes de sessão e navegador.
 - A união completa de cargos e a matriz de RLS/operações de todos os módulos e dos outros seis portais ainda precisam de auditoria e integração. O conjunto não substitui globalmente as políticas existentes.
-- A seleção explícita de acesso à Direção Geral, regras de município/registro por operação e todas as restrições administrativas precisam de revisão transversal.
-- Remuneração por item individual do estoque e todo o fluxo de folha/comissões não foram concluídos neste conjunto; os acordos atuais por categoria/subcategoria foram preservados.
+- A seleção explícita de acesso à Direção Geral foi implementada nesta etapa. Regras de município/registro por operação e todas as restrições administrativas ainda precisam de revisão transversal.
+- O vínculo de acordos por produto individual foi implementado. A aplicação automática dos acordos ao cálculo dos novos pedidos e toda a matriz de remuneração ainda precisam de integração. Comissões da folha continuam baseadas nos valores gravados em cada pedido; não foram recalculadas retroativamente.
 - Clientes/oportunidades tiveram criação e movimentação corrigidas; edição/exclusão completa de todos os campos e autorizações ainda requer integração.
 - Auditoria histórica integral de dashboard, financeiro, estoque e todos os relatórios ainda não foi concluída. Não foi apagado histórico comercial para corrigir visualização.
 - Existem 12 vendedores sem warehouse_user_assignments. Nenhum estoque foi atribuído ou revogado automaticamente. A regularização deve ocorrer manualmente no editor administrativo.
