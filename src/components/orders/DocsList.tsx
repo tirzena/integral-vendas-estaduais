@@ -1,3 +1,6 @@
+import { readAllRows } from "@/lib/read-all-rows";
+import { OrderPaymentDialog } from "@/components/orders/OrderPaymentDialog";
+import { OrderEditDialog } from "@/components/orders/OrderEditDialog";
 import { scopeOrdersByProduct } from "@/lib/order-product-scope";
 import {
   Table,
@@ -29,10 +32,20 @@ import {
   Wallet,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { formatDate, formatExchangeRate, formatMoney, formatNumber } from "@/lib/format";
+import {
+  formatDate,
+  formatExchangeRate,
+  formatMoney,
+  formatNumber,
+} from "@/lib/format";
 import type { Currency } from "@/lib/format";
 import { useRates } from "@/hooks/useRates";
-import { isPix, exchangeConvert, manualExchange, type OrderExchange } from "@/lib/order-exchange";
+import {
+  isPix,
+  exchangeConvert,
+  manualExchange,
+  type OrderExchange,
+} from "@/lib/order-exchange";
 import {
   PAYMENT_METHODS,
   applyCustomerCredit,
@@ -77,7 +90,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ReportButton, type ReportData } from "@/components/common/ReportButton";
+import {
+  ReportButton,
+  type ReportData,
+} from "@/components/common/ReportButton";
 import { EmptyState } from "@/components/common/PageHeader";
 import { CurrencyValues } from "@/components/common/CurrencyValues";
 import {
@@ -147,10 +163,13 @@ const WORKFLOW_OPTIONS = [
 ];
 
 function workflowTone(stage: string) {
-  if (stage === "vendido") return "border-emerald-200 bg-emerald-50 text-emerald-800";
-  if (stage === "pagamento_parcial") return "border-sky-200 bg-sky-50 text-sky-800";
+  if (stage === "vendido")
+    return "border-emerald-200 bg-emerald-50 text-emerald-800";
+  if (stage === "pagamento_parcial")
+    return "border-sky-200 bg-sky-50 text-sky-800";
   if (stage === "em_caminho") return "border-blue-200 bg-blue-50 text-blue-800";
-  if (stage === "esperando_pagamento") return "border-amber-200 bg-amber-50 text-amber-800";
+  if (stage === "esperando_pagamento")
+    return "border-amber-200 bg-amber-50 text-amber-800";
   return "border-border bg-secondary text-secondary-foreground";
 }
 
@@ -164,7 +183,8 @@ export function DocsList({
   excludeRequests = false,
   onEdit,
 }: Props) {
-  const { seesCompanySales, seesCompanyFinance, isAdmin, roles, can, userId } = usePermissions();
+  const { seesCompanySales, seesCompanyFinance, isAdmin, roles, can, userId } =
+    usePermissions();
   const canIssueCredit = isAdmin || roles.includes("financeiro");
   const canUseLineCosts = roles.some((role) =>
     ["superadmin", "admin", "financeiro"].includes(role),
@@ -190,7 +210,15 @@ export function DocsList({
   const sortStorageKey = `pedidos:ordem:${userId ?? "anonimo"}:${kind}`;
   useEffect(() => {
     const saved = localStorage.getItem(sortStorageKey);
-    if (["recentes", "antigos", "alfabetica", "numero_asc", "numero_desc"].includes(saved ?? ""))
+    if (
+      [
+        "recentes",
+        "antigos",
+        "alfabetica",
+        "numero_asc",
+        "numero_desc",
+      ].includes(saved ?? "")
+    )
       setSortOrder(saved as typeof sortOrder);
   }, [sortStorageKey]);
   const [reportScope, setReportScope] = useState<"tela" | "aba">("tela");
@@ -212,8 +240,21 @@ export function DocsList({
   const [cancelReason, setCancelReason] = useState("");
   const [cancelWarehouseId, setCancelWarehouseId] = useState("");
   const [printFormat, setPrintFormat] = useState<PrintFormat>("A4");
-  const [printOverrides, setPrintOverrides] = useState<Record<string, PrintFormat>>({});
+  const [printOverrides, setPrintOverrides] = useState<
+    Record<string, PrintFormat>
+  >({});
   const [detailDoc, setDetailDoc] = useState<any>(null);
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+  const [paymentOrderId, setPaymentOrderId] = useState<string | null>(null);
+  const operations = useQuery({
+    queryKey: ["integral-operations", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const r = await (supabase as any).rpc("integral_my_operations");
+      if (r.error) throw r.error;
+      return r.data as string[];
+    },
+  });
   const [proofUrl, setProofUrl] = useState("");
   const [uploadingProof, setUploadingProof] = useState(false);
   const [deleteDoc, setDeleteDoc] = useState<any>(null);
@@ -227,12 +268,18 @@ export function DocsList({
     queryKey: ["customer-credit-order-items", detailDoc?.id],
     enabled: Boolean(detailDoc?.id && canIssueCredit),
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from("order_items")
+      const { data, error } = await (supabase as any)
+        .from("order_items")
         .select("id,description,quantity,total")
         .eq("order_id", detailDoc.id)
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return (data ?? []) as { id: string; description: string; quantity: number; total: number }[];
+      return (data ?? []) as {
+        id: string;
+        description: string;
+        quantity: number;
+        total: number;
+      }[];
     },
   });
   const { data: customerCreditBalances = [] } = useQuery({
@@ -241,12 +288,18 @@ export function DocsList({
     enabled: Boolean(detailDoc?.customer_id),
     staleTime: 10_000,
   });
-  const selectedCustomerCredit = Number(customerCreditBalances.find(
-    (entry) => entry.currency === (detailDoc?.currency ?? "BRL"),
-  )?.balance ?? 0);
+  const selectedCustomerCredit = Number(
+    customerCreditBalances.find(
+      (entry) => entry.currency === (detailDoc?.currency ?? "BRL"),
+    )?.balance ?? 0,
+  );
   const [receivedMethod, setReceivedMethod] = useState("PIX");
-  const [receivedDate, setReceivedDate] = useState(new Date().toLocaleDateString("en-CA"));
-  const [receivedExchangeMode, setReceivedExchangeMode] = useState<"automatic" | "manual">("automatic");
+  const [receivedDate, setReceivedDate] = useState(
+    new Date().toLocaleDateString("en-CA"),
+  );
+  const [receivedExchangeMode, setReceivedExchangeMode] = useState<
+    "automatic" | "manual"
+  >("automatic");
   const [receivedManualBrl, setReceivedManualBrl] = useState("");
   const [receivedManualPyg, setReceivedManualPyg] = useState("");
   const [cashReceiptToken, setCashReceiptToken] = useState("");
@@ -268,16 +321,26 @@ export function DocsList({
   useEffect(() => setSelectedProduct("todos"), [productId]);
 
   const { data, isLoading, dataUpdatedAt } = useQuery({
-    queryKey: ["sales-docs", userId, kind, productId, stage, allOrders, requestsOnly, excludeRequests, canUseLineCosts],
+    queryKey: [
+      "sales-docs",
+      userId,
+      kind,
+      productId,
+      stage,
+      allOrders,
+      requestsOnly,
+      excludeRequests,
+      canUseLineCosts,
+    ],
     queryFn: async () => {
       const table = isQuote ? "quotes" : "orders";
       let q = (supabase.from(table as any) as any)
         .select("*")
-        .order("number", { ascending: false })
-        .limit(500);
+        .order("number", { ascending: false });
       if (isQuote && productId !== "todos") q = q.eq("product_id", productId);
       if (!isQuote) q = q.is("deleted_at", null).is("superseded_at", null);
-      if (!isQuote && !allOrders && stage !== "cancelado") q = q.eq("kind", kind);
+      if (!isQuote && !allOrders && stage !== "cancelado")
+        q = q.eq("kind", kind);
       const [
         { data: docs, error: docsError },
         { data: customers },
@@ -287,7 +350,22 @@ export function DocsList({
         { data: teamMembers },
         { data: warehouses },
       ] = await Promise.all([
-        isQuote ? q : scopeOrdersByProduct(supabase, q, productId),
+        isQuote
+          ? readAllRows(q)
+          : (async () => {
+              const rows: any[] = [];
+              for (let offset = 0; ; offset += 500) {
+                const page = await scopeOrdersByProduct(
+                  supabase,
+                  q.order("id").range(offset, offset + 499),
+                  productId,
+                );
+                if (page.error) throw page.error;
+                rows.push(...(page.data ?? []));
+                if ((page.data ?? []).length < 500)
+                  return { data: rows, error: null };
+              }
+            })(),
         supabase
           .from("customers")
           .select("id,name,document,phone,whatsapp,email,address,city,state"),
@@ -299,25 +377,44 @@ export function DocsList({
       ]);
       if (docsError) throw docsError;
       if (!isQuote && allOrders) {
-        const requestedId = new URLSearchParams(window.location.search).get("pedido");
-        if (requestedId && !(docs ?? []).some((d: any) => d.id === requestedId)) {
-          const requested = await (supabase.from("orders") as any).select("*")
-            .eq("id", requestedId).is("deleted_at", null).is("superseded_at", null).maybeSingle();
+        const requestedId = new URLSearchParams(window.location.search).get(
+          "pedido",
+        );
+        if (
+          requestedId &&
+          !(docs ?? []).some((d: any) => d.id === requestedId)
+        ) {
+          const requested = await (supabase.from("orders") as any)
+            .select("*")
+            .eq("id", requestedId)
+            .is("deleted_at", null)
+            .is("superseded_at", null)
+            .maybeSingle();
           if (requested.error) throw requested.error;
           if (requested.data) (docs ?? []).push(requested.data);
         }
       }
       const ids = (docs ?? []).map((d: any) => d.id);
-      const { data: lines } = ids.length
-        ? await (supabase.from(isQuote ? "quote_items" : "order_items") as any)
+      const lines: any[] = [];
+      for (let offset = 0; offset < ids.length; offset += 100) {
+        const result = await readAllRows(
+          (supabase.from(isQuote ? "quote_items" : "order_items") as any)
             .select("*")
-            .in(isQuote ? "quote_id" : "order_id", ids)
-        : { data: [] };
+            .in(
+              isQuote ? "quote_id" : "order_id",
+              ids.slice(offset, offset + 100),
+            ),
+        );
+        lines.push(...result.data);
+      }
       let costs: any[] = [];
       if (ids.length && !isQuote && canUseLineCosts) {
-        const result = await (supabase as any).rpc("sales_get_order_item_costs", {
-          p_order_ids: ids,
-        });
+        const result = await (supabase as any).rpc(
+          "sales_get_order_item_costs",
+          {
+            p_order_ids: ids,
+          },
+        );
         if (result.error) throw result.error;
         costs = result.data ?? [];
       }
@@ -338,7 +435,10 @@ export function DocsList({
   const customers = useMemo(() => data?.customers ?? [], [data?.customers]);
   const people = useMemo(() => data?.people ?? [], [data?.people]);
   const teams = useMemo(() => data?.teams ?? [], [data?.teams]);
-  const teamMembers = useMemo(() => data?.teamMembers ?? [], [data?.teamMembers]);
+  const teamMembers = useMemo(
+    () => data?.teamMembers ?? [],
+    [data?.teamMembers],
+  );
   const customersById = useMemo(
     () => new Map(customers.map((customer: any) => [customer.id, customer])),
     [customers],
@@ -359,7 +459,8 @@ export function DocsList({
     return grouped;
   }, [data?.lines, isQuote]);
   const costsByLine = useMemo(
-    () => new Map((data?.costs ?? []).map((row: any) => [row.order_item_id, row])),
+    () =>
+      new Map((data?.costs ?? []).map((row: any) => [row.order_item_id, row])),
     [data?.costs],
   );
   const customerOf = (id: string) => customersById.get(id);
@@ -368,7 +469,9 @@ export function DocsList({
 
   useEffect(() => {
     if ((!allOrders && !requestsOnly) || !data?.docs?.length) return;
-    const requestedId = new URLSearchParams(window.location.search).get("pedido");
+    const requestedId = new URLSearchParams(window.location.search).get(
+      "pedido",
+    );
     const requested = data.docs.find((doc: any) => doc.id === requestedId);
     if (requested) setDetailDoc(requested);
   }, [allOrders, requestsOnly, data?.docs]);
@@ -377,7 +480,10 @@ export function DocsList({
     const t = term.trim().toLowerCase();
     const matchesPeriod = (value: string | null | undefined) => {
       const date = String(value ?? "").slice(0, 10);
-      return (!dateFrom || (date && date >= dateFrom)) && (!dateTo || (date && date <= dateTo));
+      return (
+        (!dateFrom || (date && date >= dateFrom)) &&
+        (!dateTo || (date && date <= dateTo))
+      );
     };
     const filtered = (data?.docs ?? []).filter((d: any) => {
       if (requestsOnly && !isCatalogRequest(d)) return false;
@@ -388,7 +494,8 @@ export function DocsList({
       if (
         team !== "todos" &&
         !teamMembers.some(
-          (member: any) => member.team_id === team && member.user_id === d.seller_id,
+          (member: any) =>
+            member.team_id === team && member.user_id === d.seller_id,
         )
       )
         return false;
@@ -403,8 +510,9 @@ export function DocsList({
         !documentLines.some(
           (line: any) =>
             (line.supplier_id ??
-              inventoryMetadata.data?.items.find((item) => item.id === line.item_id)
-                ?.supplier_id) === supplierFilter,
+              inventoryMetadata.data?.items.find(
+                (item) => item.id === line.item_id,
+              )?.supplier_id) === supplierFilter,
         )
       )
         return false;
@@ -423,7 +531,9 @@ export function DocsList({
         c?.name,
         c?.document,
         sellerName(d.seller_id),
-        ...linesOf(d.id).map((l: any) => `${l.description} ${l.sku ?? ""} ${l.barcode ?? ""}`),
+        ...linesOf(d.id).map(
+          (l: any) => `${l.description} ${l.sku ?? ""} ${l.barcode ?? ""}`,
+        ),
       ]
         .join(" ")
         .toLowerCase();
@@ -436,12 +546,19 @@ export function DocsList({
       if (sortOrder === "alfabetica") {
         const aName = customerOf(a.customer_id)?.name ?? "Venda balcão";
         const bName = customerOf(b.customer_id)?.name ?? "Venda balcão";
-        return aName.localeCompare(bName, "pt-BR", { sensitivity: "base" }) || numberDifference;
+        return (
+          aName.localeCompare(bName, "pt-BR", { sensitivity: "base" }) ||
+          numberDifference
+        );
       }
       const aTime = new Date(a.order_date ?? a.created_at).getTime();
       const bTime = new Date(b.order_date ?? b.created_at).getTime();
-      const timeDifference = sortOrder === "antigos" ? aTime - bTime : bTime - aTime;
-      return timeDifference || (sortOrder === "antigos" ? numberDifference : -numberDifference);
+      const timeDifference =
+        sortOrder === "antigos" ? aTime - bTime : bTime - aTime;
+      return (
+        timeDifference ||
+        (sortOrder === "antigos" ? numberDifference : -numberDifference)
+      );
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -466,7 +583,8 @@ export function DocsList({
       ? people
       : people.filter((person: any) =>
           teamMembers.some(
-            (member: any) => member.team_id === team && member.user_id === person.id,
+            (member: any) =>
+              member.team_id === team && member.user_id === person.id,
           ),
         );
 
@@ -484,46 +602,65 @@ export function DocsList({
   };
 
   function buildOrdersReport(): ReportData {
-    const source = reportScope === "tela"
-      ? docs
-      : (data?.docs ?? []).filter((doc: any) => {
-          if (requestsOnly && !isCatalogRequest(doc)) return false;
-          if (excludeRequests && isCatalogRequest(doc)) return false;
-          if (stage === "cancelado") return doc.status === "cancelado";
-          if (stage) return doc.status !== "cancelado" && doc.workflow_stage === stage;
-          return true;
-        });
+    const source =
+      reportScope === "tela"
+        ? docs
+        : (data?.docs ?? []).filter((doc: any) => {
+            if (requestsOnly && !isCatalogRequest(doc)) return false;
+            if (excludeRequests && isCatalogRequest(doc)) return false;
+            if (stage === "cancelado") return doc.status === "cancelado";
+            if (stage)
+              return doc.status !== "cancelado" && doc.workflow_stage === stage;
+            return true;
+          });
     const selected = source.filter((doc: any) => {
       const date = String(doc.order_date ?? doc.created_at ?? "").slice(0, 10);
       if (reportFrom && date < reportFrom) return false;
       if (reportTo && date > reportTo) return false;
-      if (reportSeller !== "todos" && doc.seller_id !== reportSeller) return false;
+      if (reportSeller !== "todos" && doc.seller_id !== reportSeller)
+        return false;
       if (
         reportStatus !== "todos" &&
         doc.workflow_stage !== reportStatus &&
         doc.status !== reportStatus
-      ) return false;
-      if (reportCurrency !== "todos" && doc.currency !== reportCurrency) return false;
+      )
+        return false;
+      if (reportCurrency !== "todos" && doc.currency !== reportCurrency)
+        return false;
       if (
         reportProduct !== "todos" &&
         !linesOf(doc.id).some((line: any) => line.item_id === reportProduct)
-      ) return false;
+      )
+        return false;
       const number = reportNumber.trim().replace(/^#/, "");
-      return !number || String(doc.number ?? "").padStart(2, "0").includes(number);
+      return (
+        !number ||
+        String(doc.number ?? "")
+          .padStart(2, "0")
+          .includes(number)
+      );
     });
     const filters = [
-      reportScope === "tela" ? "Pedidos filtrados na tela" : "Todos os pedidos da aba",
+      reportScope === "tela"
+        ? "Pedidos filtrados na tela"
+        : "Todos os pedidos da aba",
       reportScope === "tela" && (dateFrom || dateTo)
         ? `Período da tela: ${dateFrom ? formatDate(dateFrom) : "início"} até ${dateTo ? formatDate(dateTo) : "sem limite"}`
         : "",
       reportFrom ? `De: ${formatDate(reportFrom)}` : "",
       reportTo ? `Até: ${formatDate(reportTo)}` : "",
       reportSeller !== "todos" ? `Vendedor: ${sellerName(reportSeller)}` : "",
-      reportStatus !== "todos" ? `Situação: ${stageLabel({ workflow_stage: reportStatus, status: reportStatus })}` : "",
-      reportProduct !== "todos" ? `Produto: ${inventoryItems.find((item) => item.id === reportProduct)?.name ?? "Selecionado"}` : "",
+      reportStatus !== "todos"
+        ? `Situação: ${stageLabel({ workflow_stage: reportStatus, status: reportStatus })}`
+        : "",
+      reportProduct !== "todos"
+        ? `Produto: ${inventoryItems.find((item) => item.id === reportProduct)?.name ?? "Selecionado"}`
+        : "",
       reportCurrency !== "todos" ? `Moeda: ${reportCurrency}` : "",
       reportNumber.trim() ? `Número: ${reportNumber.trim()}` : "",
-      (data?.docs ?? []).length >= 500 ? "Fonte: até 500 pedidos mais recentes carregados" : "",
+      (data?.docs ?? []).length >= 500
+        ? "Fonte: até 500 pedidos mais recentes carregados"
+        : "",
     ].filter(Boolean);
     const baseHeaders = [
       "Pedido",
@@ -569,7 +706,9 @@ export function DocsList({
       (a: any, b: any) => Number(a.number ?? 0) - Number(b.number ?? 0),
     );
     const reportValues = (amount: number, source: Currency) =>
-      (["BRL", "USD", "PYG"] as Currency[]).map((target) => rates.money(amount, source, target));
+      (["BRL", "USD", "PYG"] as Currency[]).map((target) =>
+        rates.money(amount, source, target),
+      );
     const rows = orderedDocs.map((doc: any) => {
       const customer = customerOf(doc.customer_id);
       const orderLines = linesOf(doc.id);
@@ -577,9 +716,13 @@ export function DocsList({
         (sum: number, line: any) => sum + Number(line.quantity ?? 0),
         0,
       );
-      const warehouse = (data?.warehouses ?? []).find((item: any) => item.id === doc.warehouse_id);
+      const warehouse = (data?.warehouses ?? []).find(
+        (item: any) => item.id === doc.warehouse_id,
+      );
       const row: (string | number | null | undefined)[] = [
-        isQuote ? documentCode("orcamento", doc.number) : orderNumber(doc.number, doc.revision_no),
+        isQuote
+          ? documentCode("orcamento", doc.number)
+          : orderNumber(doc.number, doc.revision_no),
         formatDate(doc.order_date ?? doc.created_at),
         customer?.name ?? "Venda balcão",
         sellerName(doc.seller_id),
@@ -588,34 +731,55 @@ export function DocsList({
         units,
         ...reportValues(Number(doc.total ?? 0), doc.currency ?? "BRL"),
         ...reportValues(Number(doc.amount_paid ?? 0), doc.currency ?? "BRL"),
-        ...reportValues(Number(doc.amount_receivable ?? 0), doc.currency ?? "BRL"),
+        ...reportValues(
+          Number(doc.amount_receivable ?? 0),
+          doc.currency ?? "BRL",
+        ),
         ...reportValues(Number(doc.shipping_cost ?? 0), doc.currency ?? "BRL"),
         warehouse?.name ?? "Não definido",
         doc.tracking_code ?? "",
       ];
       if (seesCompanyFinance) {
         row.push(
-          ...reportValues(Number(doc.merchandise_cost ?? 0), doc.currency ?? "BRL"),
-          ...reportValues(Number(doc.variable_cost ?? 0), doc.currency ?? "BRL"),
+          ...reportValues(
+            Number(doc.merchandise_cost ?? 0),
+            doc.currency ?? "BRL",
+          ),
+          ...reportValues(
+            Number(doc.variable_cost ?? 0),
+            doc.currency ?? "BRL",
+          ),
           ...reportValues(Number(doc.total_cost_brl ?? 0), "BRL"),
           ...reportValues(Number(doc.gross_margin ?? 0), doc.currency ?? "BRL"),
         );
       }
       return row;
     });
-    const totalsByCurrency = (["BRL", "USD", "PYG"] as Currency[]).map((currency) => ({
-      currency,
-      total: selected.reduce(
-        (sum: number, doc: any) =>
-          sum + (rates.convert(Number(doc.total ?? 0), doc.currency ?? "BRL", currency) ?? 0),
-        0,
-      ),
-      paid: selected.reduce(
-        (sum: number, doc: any) =>
-          sum + (rates.convert(Number(doc.amount_paid ?? 0), doc.currency ?? "BRL", currency) ?? 0),
-        0,
-      ),
-    }));
+    const totalsByCurrency = (["BRL", "USD", "PYG"] as Currency[]).map(
+      (currency) => ({
+        currency,
+        total: selected.reduce(
+          (sum: number, doc: any) =>
+            sum +
+            (rates.convert(
+              Number(doc.total ?? 0),
+              doc.currency ?? "BRL",
+              currency,
+            ) ?? 0),
+          0,
+        ),
+        paid: selected.reduce(
+          (sum: number, doc: any) =>
+            sum +
+            (rates.convert(
+              Number(doc.amount_paid ?? 0),
+              doc.currency ?? "BRL",
+              currency,
+            ) ?? 0),
+          0,
+        ),
+      }),
+    );
     const formattedTotals = totalsByCurrency
       .map((item) => formatMoney(item.total, item.currency))
       .join(" · ");
@@ -630,71 +794,144 @@ export function DocsList({
       ],
       headers,
       rows,
-      sections: canUseLineCosts && !isQuote ? [{
-        title: "Custo por produto e por unidade (moeda do pedido)",
-        headers: ["Pedido", "Produto", "Quantidade", "Moeda", "Custo por unidade", "Custo do produto", "Origem do custo"],
-        rows: orderedDocs.flatMap((doc: any) => linesOf(doc.id).map((line: any) => {
-          const cost: any = costsByLine.get(line.id);
-          const unitCost = cost?.unit_cost == null ? null : Number(cost.unit_cost);
-          return [
-            orderNumber(doc.number, doc.revision_no),
-            line.description,
-            Number(line.quantity ?? 0),
-            doc.currency ?? "BRL",
-            unitCost == null ? "—" : formatMoney(unitCost, doc.currency ?? "BRL"),
-            unitCost == null ? "—" : formatMoney(round2(unitCost * Number(line.quantity ?? 0)), doc.currency ?? "BRL"),
-            cost?.is_manual ? "Manual" : unitCost == null ? "Sem custo cadastrado" : "Cadastro de estoque",
-          ];
-        })),
-      }] : undefined,
+      sections:
+        canUseLineCosts && !isQuote
+          ? [
+              {
+                title: "Custo por produto e por unidade (moeda do pedido)",
+                headers: [
+                  "Pedido",
+                  "Produto",
+                  "Quantidade",
+                  "Moeda",
+                  "Custo por unidade",
+                  "Custo do produto",
+                  "Origem do custo",
+                ],
+                rows: orderedDocs.flatMap((doc: any) =>
+                  linesOf(doc.id).map((line: any) => {
+                    const cost: any = costsByLine.get(line.id);
+                    const unitCost =
+                      cost?.unit_cost == null ? null : Number(cost.unit_cost);
+                    return [
+                      orderNumber(doc.number, doc.revision_no),
+                      line.description,
+                      Number(line.quantity ?? 0),
+                      doc.currency ?? "BRL",
+                      unitCost == null
+                        ? "—"
+                        : formatMoney(unitCost, doc.currency ?? "BRL"),
+                      unitCost == null
+                        ? "—"
+                        : formatMoney(
+                            round2(unitCost * Number(line.quantity ?? 0)),
+                            doc.currency ?? "BRL",
+                          ),
+                      cost?.is_manual
+                        ? "Manual"
+                        : unitCost == null
+                          ? "Sem custo cadastrado"
+                          : "Cadastro de estoque",
+                    ];
+                  }),
+                ),
+              },
+            ]
+          : undefined,
       pdfDocument: {
         brand: data?.company?.brand_name ?? "OS",
-        company: [data?.company?.legal_name, data?.company?.document].filter(Boolean).join(" · "),
+        company: [data?.company?.legal_name, data?.company?.document]
+          .filter(Boolean)
+          .join(" · "),
         title: "Relatório de pedidos",
         filters,
         orders: orderedDocs.map((doc: any) => {
           const currency = (doc.currency ?? "BRL") as Currency;
           const customer = customerOf(doc.customer_id);
-          const warehouse = (data?.warehouses ?? []).find((item: any) => item.id === doc.warehouse_id);
+          const warehouse = (data?.warehouses ?? []).find(
+            (item: any) => item.id === doc.warehouse_id,
+          );
           const orderLines = linesOf(doc.id);
           const costsVisible = canUseLineCosts && seesCompanyFinance;
-          const money = (value: any) => formatMoney(Number(value ?? 0), currency);
+          const money = (value: any) =>
+            formatMoney(Number(value ?? 0), currency);
           return {
             title: `Pedido ${orderNumber(doc.number, doc.revision_no)} · ${customer?.name ?? "Venda balcão"}`,
             fields: [
-              { label: "Data", value: formatDate(doc.order_date ?? doc.created_at) },
+              {
+                label: "Data",
+                value: formatDate(doc.order_date ?? doc.created_at),
+              },
               { label: "Cliente", value: customer?.name ?? "Venda balcão" },
-              { label: "Documento do cliente", value: customer?.document ?? "—" },
-              { label: "Contato", value: customer?.phone ?? customer?.whatsapp ?? "—" },
+              {
+                label: "Documento do cliente",
+                value: customer?.document ?? "—",
+              },
+              {
+                label: "Contato",
+                value: customer?.phone ?? customer?.whatsapp ?? "—",
+              },
               { label: "Vendedor", value: sellerName(doc.seller_id) },
               { label: "Situação", value: stageLabel(doc) },
               { label: "Pagamento", value: doc.payment_status ?? "—" },
               { label: "Moeda", value: currency },
               { label: "Origem", value: doc.origin ?? "pdv" },
               { label: "Estoque", value: warehouse?.name ?? "Não definido" },
-              { label: "Destinatário", value: doc.delivery_recipient_name ?? "—" },
-              { label: "Endereço de entrega", value: [
-                doc.shipping_address, doc.shipping_address_number,
-                doc.shipping_city, doc.shipping_state,
-              ].filter(Boolean).join(", ") || "—" },
-              { label: "Previsão de entrega", value: doc.delivery_deadline ? formatDate(doc.delivery_deadline) : "—" },
+              {
+                label: "Destinatário",
+                value: doc.delivery_recipient_name ?? "—",
+              },
+              {
+                label: "Endereço de entrega",
+                value:
+                  [
+                    doc.shipping_address,
+                    doc.shipping_address_number,
+                    doc.shipping_city,
+                    doc.shipping_state,
+                  ]
+                    .filter(Boolean)
+                    .join(", ") || "—",
+              },
+              {
+                label: "Previsão de entrega",
+                value: doc.delivery_deadline
+                  ? formatDate(doc.delivery_deadline)
+                  : "—",
+              },
               { label: "Transportadora", value: doc.carrier ?? "—" },
               { label: "Rastreio", value: doc.tracking_code ?? "—" },
-              { label: "Cotação do pedido", value: exchangeSnapshotText(doc.exchange_rates_snapshot) },
+              {
+                label: "Cotação do pedido",
+                value: exchangeSnapshotText(doc.exchange_rates_snapshot),
+              },
             ],
             itemHeaders: costsVisible
-              ? ["Produto", "Qtd.", "Preço/un.", "Total", "Custo/un.", "Custo produto"]
+              ? [
+                  "Produto",
+                  "Qtd.",
+                  "Preço/un.",
+                  "Total",
+                  "Custo/un.",
+                  "Custo produto",
+                ]
               : ["Produto", "Qtd.", "Preço/un.", "Total"],
             itemRows: orderLines.map((line: any) => {
               const quantity = Number(line.quantity ?? 0);
               const discount = Number(line.discount ?? 0);
-              const description = [line.description, line.sku ? `SKU: ${line.sku}` : ""]
-                .filter(Boolean).join(" · ");
+              const description = [
+                line.description,
+                line.sku ? `SKU: ${line.sku}` : "",
+              ]
+                .filter(Boolean)
+                .join(" · ");
               const row = [
                 description,
                 formatNumber(quantity, 3),
                 money(line.unit_price),
-                money(round2(quantity * Number(line.unit_price ?? 0) - discount)),
+                money(
+                  round2(quantity * Number(line.unit_price ?? 0) - discount),
+                ),
               ];
               if (costsVisible) {
                 const cost = (costsByLine.get(line.id) as any)?.unit_cost;
@@ -706,19 +943,59 @@ export function DocsList({
               return row;
             }),
             summary: [
-              { label: "Total", value: reportValues(Number(doc.total ?? 0), currency).join(" · ") },
-              { label: "Pago", value: reportValues(Number(doc.amount_paid ?? 0), currency).join(" · ") },
-              { label: "A receber", value: reportValues(Number(doc.amount_receivable ?? 0), currency).join(" · ") },
+              {
+                label: "Total",
+                value: reportValues(Number(doc.total ?? 0), currency).join(
+                  " · ",
+                ),
+              },
+              {
+                label: "Pago",
+                value: reportValues(
+                  Number(doc.amount_paid ?? 0),
+                  currency,
+                ).join(" · "),
+              },
+              {
+                label: "A receber",
+                value: reportValues(
+                  Number(doc.amount_receivable ?? 0),
+                  currency,
+                ).join(" · "),
+              },
               { label: "Frete", value: money(doc.shipping_cost) },
-              { label: "Comissão prevista", value: money(doc.commission_total) },
+              {
+                label: "Comissão prevista",
+                value: money(doc.commission_total),
+              },
               { label: "Bonificação", value: money(doc.bonus_amount) },
-              ...(seesCompanyFinance ? [
-                { label: "Custo dos produtos", value: money(doc.merchandise_cost) },
-                { label: "Custos variáveis", value: money(doc.variable_cost) },
-                { label: "Custo total BRL", value: formatMoney(Number(doc.total_cost_brl ?? 0), "BRL") },
-                { label: "Custo total USD", value: formatMoney(Number(doc.total_cost_usd ?? 0), "USD") },
-                { label: "Margem bruta", value: money(doc.gross_margin) },
-              ] : []),
+              ...(seesCompanyFinance
+                ? [
+                    {
+                      label: "Custo dos produtos",
+                      value: money(doc.merchandise_cost),
+                    },
+                    {
+                      label: "Custos variáveis",
+                      value: money(doc.variable_cost),
+                    },
+                    {
+                      label: "Custo total BRL",
+                      value: formatMoney(
+                        Number(doc.total_cost_brl ?? 0),
+                        "BRL",
+                      ),
+                    },
+                    {
+                      label: "Custo total USD",
+                      value: formatMoney(
+                        Number(doc.total_cost_usd ?? 0),
+                        "USD",
+                      ),
+                    },
+                    { label: "Margem bruta", value: money(doc.gross_margin) },
+                  ]
+                : []),
             ],
             notes: doc.notes ?? doc.source_payload?.observations ?? "",
           };
@@ -739,14 +1016,20 @@ export function DocsList({
 
   const allTotals = (total: number, from: Currency) =>
     (["BRL", "USD", "PYG"] as Currency[])
-      .map((c) => ({ currency: c, total: rates.convert(total, from, c) ?? NaN }))
+      .map((c) => ({
+        currency: c,
+        total: rates.convert(total, from, c) ?? NaN,
+      }))
       .filter((c) => Number.isFinite(c.total));
 
   function buildPrint(doc: any): PrintDoc {
     const c = customerOf(doc.customer_id);
     const lines = linesOf(doc.id);
     const gross = round2(
-      lines.reduce((s: number, l: any) => s + Number(l.quantity) * Number(l.unit_price), 0),
+      lines.reduce(
+        (s: number, l: any) => s + Number(l.quantity) * Number(l.unit_price),
+        0,
+      ),
     );
     return {
       kind: isQuote ? "orcamento" : (doc.kind as SaleKind),
@@ -754,7 +1037,9 @@ export function DocsList({
       createdAt: doc.created_at,
       currency: (doc.currency ?? "BRL") as Currency,
       gross,
-      discount: round2(gross + Number(doc.shipping_cost ?? 0) - Number(doc.total ?? 0)),
+      discount: round2(
+        gross + Number(doc.shipping_cost ?? 0) - Number(doc.total ?? 0),
+      ),
       shippingCost: Number(doc.shipping_cost ?? 0),
       variableCost: Number(doc.variable_cost ?? 0),
       merchandiseCost: Number(doc.merchandise_cost ?? 0),
@@ -773,9 +1058,13 @@ export function DocsList({
       receivable: Number(doc.amount_receivable ?? 0),
       paymentStatus: doc.payment_status,
       recipient: doc.delivery_recipient_name,
-      warehouse: (data?.warehouses ?? []).find((item: any) => item.id === doc.warehouse_id),
+      warehouse: (data?.warehouses ?? []).find(
+        (item: any) => item.id === doc.warehouse_id,
+      ),
       shipping: {
-        address: [doc.shipping_address, doc.shipping_address_number].filter(Boolean).join(", "),
+        address: [doc.shipping_address, doc.shipping_address_number]
+          .filter(Boolean)
+          .join(", "),
         city: doc.shipping_city,
         state: doc.shipping_state,
       },
@@ -783,7 +1072,10 @@ export function DocsList({
       carrier: doc.carrier,
       trackingCode: doc.tracking_code,
       creationExchange: exchangeSnapshotText(doc.exchange_rates_snapshot),
-      conversions: allTotals(Number(doc.total ?? 0), (doc.currency ?? "BRL") as Currency),
+      conversions: allTotals(
+        Number(doc.total ?? 0),
+        (doc.currency ?? "BRL") as Currency,
+      ),
       lines: lines.map((l: any) => ({
         description: l.description,
         sku: l.sku,
@@ -800,7 +1092,10 @@ export function DocsList({
     };
   }
 
-  async function printComplete(doc: any, audience: "customer" | "internal" = "customer") {
+  async function printComplete(
+    doc: any,
+    audience: "customer" | "internal" = "customer",
+  ) {
     const selectedPrintFormat = printOverrides[doc.id] ?? printFormat;
     if (isQuote) {
       if (!printSalesDocument(buildPrint(doc), selectedPrintFormat, audience))
@@ -821,19 +1116,24 @@ export function DocsList({
         .select("id", { count: "exact", head: true })
         .eq("order_id", doc.id),
     ]);
-    if (paymentsResult.error) return void toast.error(paymentsResult.error.message);
+    if (paymentsResult.error)
+      return void toast.error(paymentsResult.error.message);
     if (proofsResult.error) return void toast.error(proofsResult.error.message);
     const printable = buildPrint(doc);
     printable.proofCount = proofsResult.count ?? 0;
-    printable.registeredPayments = (paymentsResult.data ?? []).map((payment: any) => ({
-      method: payment.method,
-      amount: Number(payment.amount ?? 0),
-      received_amount:
-        payment.received_amount == null ? undefined : Number(payment.received_amount),
-      received_currency: payment.received_currency ?? undefined,
-      date: payment.paid_at ?? payment.created_at,
-      exchange: exchangeSnapshotText(payment.exchange_rates_snapshot),
-    }));
+    printable.registeredPayments = (paymentsResult.data ?? []).map(
+      (payment: any) => ({
+        method: payment.method,
+        amount: Number(payment.amount ?? 0),
+        received_amount:
+          payment.received_amount == null
+            ? undefined
+            : Number(payment.received_amount),
+        received_currency: payment.received_currency ?? undefined,
+        date: payment.paid_at ?? payment.created_at,
+        exchange: exchangeSnapshotText(payment.exchange_rates_snapshot),
+      }),
+    );
     if (!printSalesDocument(printable, selectedPrintFormat, audience))
       toast.error("Libere as janelas pop-up para imprimir.");
   }
@@ -867,12 +1167,18 @@ export function DocsList({
       catalogRequest: isCatalogRequest(doc),
       customerId: doc.customer_id,
       currency: (doc.currency ?? "BRL") as Currency,
-      exchangeMode: doc.exchange_rate_source?.includes("manual") ? "manual" : "automatic",
+      exchangeMode: doc.exchange_rate_source?.includes("manual")
+        ? "manual"
+        : "automatic",
       manualBrl: doc.exchange_rates_snapshot?.USD
-        ? String(doc.exchange_rates_snapshot.BRL / doc.exchange_rates_snapshot.USD)
+        ? String(
+            doc.exchange_rates_snapshot.BRL / doc.exchange_rates_snapshot.USD,
+          )
         : "",
       manualPyg: doc.exchange_rates_snapshot?.USD
-        ? String(doc.exchange_rates_snapshot.PYG / doc.exchange_rates_snapshot.USD)
+        ? String(
+            doc.exchange_rates_snapshot.PYG / doc.exchange_rates_snapshot.USD,
+          )
         : "",
       notes: doc.notes,
       whatsapp: doc.whatsapp,
@@ -883,18 +1189,25 @@ export function DocsList({
         doc.shipping_address ??
         (request ? (doc.delivery?.address ?? requestCustomer?.address) : null),
       shippingAddressNumber: doc.shipping_address_number,
-      shippingCity: doc.shipping_city ?? (request ? requestCustomer?.city : null),
+      shippingCity:
+        doc.shipping_city ?? (request ? requestCustomer?.city : null),
       shippingState:
-        doc.shipping_state ?? (request ? (doc.delivery?.state ?? requestCustomer?.state) : null),
+        doc.shipping_state ??
+        (request ? (doc.delivery?.state ?? requestCustomer?.state) : null),
       shippingCountry: doc.shipping_country ?? "Brasil",
       shippingCep: doc.shipping_cep,
       sellerId: doc.seller_id,
-      deliveryRecipientName: doc.delivery_recipient_name ?? requestCustomer?.name ?? "",
-      deliveryRecipientDocument: doc.delivery_recipient_document ?? requestCustomer?.document ?? "",
+      deliveryRecipientName:
+        doc.delivery_recipient_name ?? requestCustomer?.name ?? "",
+      deliveryRecipientDocument:
+        doc.delivery_recipient_document ?? requestCustomer?.document ?? "",
       shippingCost: Number(doc.shipping_cost ?? 0),
       shippingManuallyEdited: !isQuote && !request,
       variableCost: Number(doc.variable_cost ?? 0),
-      shippingPercentage: doc.shipping_percentage == null ? null : Number(doc.shipping_percentage),
+      shippingPercentage:
+        doc.shipping_percentage == null
+          ? null
+          : Number(doc.shipping_percentage),
       deliveryDeadline: doc.delivery_deadline,
       orderDate: doc.order_date,
       deliveredAt: doc.delivered_at,
@@ -928,8 +1241,11 @@ export function DocsList({
           payTarget === "venda" ? payments : [],
         );
       else converted = await invoicePreorder(payOpen.id, payments);
-      if (payTarget === "venda" && converted?.id) await setOrderStage(converted.id, "vendido");
-      toast.success(payTarget === "venda" ? "Venda faturada." : "Pré-pedido criado.");
+      if (payTarget === "venda" && converted?.id)
+        await setOrderStage(converted.id, "vendido");
+      toast.success(
+        payTarget === "venda" ? "Venda faturada." : "Pré-pedido criado.",
+      );
       setPayOpen(null);
       queryClient.invalidateQueries();
     } catch (e: any) {
@@ -945,12 +1261,17 @@ export function DocsList({
     try {
       if (isQuote) await cancelQuote(cancelDoc.id, cancelReason);
       else {
-        if (cancelWarehouseId) await setCancelReturnWarehouse(cancelDoc.id, cancelWarehouseId);
+        if (cancelWarehouseId)
+          await setCancelReturnWarehouse(cancelDoc.id, cancelWarehouseId);
         await deleteOrderWithReservationRepair({
           data: { orderId: cancelDoc.id, reason: cancelReason },
         });
       }
-      toast.success(isQuote ? "Orçamento recusado." : "Pedido excluído e totais recalculados.");
+      toast.success(
+        isQuote
+          ? "Orçamento recusado."
+          : "Pedido excluído e totais recalculados.",
+      );
       setCancelDoc(null);
       setCancelReason("");
       setCancelWarehouseId("");
@@ -989,7 +1310,8 @@ export function DocsList({
     });
     const suggested = warehouses[0];
     setCancelWarehouseId(suggested?.id ?? doc?.warehouse_id ?? "");
-    if (notify && suggested) toast.info(`Estoque sugerido para devolução: ${suggested.name}.`);
+    if (notify && suggested)
+      toast.info(`Estoque sugerido para devolução: ${suggested.name}.`);
   }
 
   async function changeStage(doc: any, next: string) {
@@ -1007,12 +1329,19 @@ export function DocsList({
   }
 
   async function copyOrderLink(doc: any) {
-    const { data: token, error } = await (supabase as any).rpc("sales_order_share_token", {
-      p_order_id: doc.id,
-    });
+    const { data: token, error } = await (supabase as any).rpc(
+      "sales_order_share_token",
+      {
+        p_order_id: doc.id,
+      },
+    );
     if (error || !token)
-      return void toast.error(error?.message ?? "Não foi possível gerar o link.");
-    await navigator.clipboard.writeText(`${window.location.origin}/pedido/${token}`);
+      return void toast.error(
+        error?.message ?? "Não foi possível gerar o link.",
+      );
+    await navigator.clipboard.writeText(
+      `${window.location.origin}/pedido/${token}`,
+    );
     toast.success("Link sigiloso e detalhado do pedido copiado.");
   }
 
@@ -1022,12 +1351,14 @@ export function DocsList({
     setUploadingProof(true);
     try {
       const { client, userId } = await authenticatedFileClient();
-      const { error } = await (client as any).from("order_payment_proofs").insert({
-        order_id: detailDoc.id,
-        proof_type: "link",
-        external_url: proofUrl.trim(),
-        uploaded_by: userId,
-      });
+      const { error } = await (client as any)
+        .from("order_payment_proofs")
+        .insert({
+          order_id: detailDoc.id,
+          proof_type: "link",
+          external_url: proofUrl.trim(),
+          uploaded_by: userId,
+        });
       if (error) throw error;
       setProofUrl("");
       await detailQuery.refetch();
@@ -1046,18 +1377,22 @@ export function DocsList({
       const { client, userId } = await authenticatedFileClient();
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
       const path = `${detailDoc.id}/${crypto.randomUUID()}-${safeName}`;
-      const uploaded = await client.storage.from("payment-proofs").upload(path, file, {
-        contentType: file.type || "application/octet-stream",
-      });
+      const uploaded = await client.storage
+        .from("payment-proofs")
+        .upload(path, file, {
+          contentType: file.type || "application/octet-stream",
+        });
       if (uploaded.error) throw uploaded.error;
-      const { error } = await (client as any).from("order_payment_proofs").insert({
-        order_id: detailDoc.id,
-        proof_type: file.type.startsWith("image/") ? "imagem" : "arquivo",
-        file_path: path,
-        file_name: file.name,
-        mime_type: file.type || null,
-        uploaded_by: userId,
-      });
+      const { error } = await (client as any)
+        .from("order_payment_proofs")
+        .insert({
+          order_id: detailDoc.id,
+          proof_type: file.type.startsWith("image/") ? "imagem" : "arquivo",
+          file_path: path,
+          file_name: file.name,
+          mime_type: file.type || null,
+          uploaded_by: userId,
+        });
       if (error) {
         // Se o registro falhar, não mantenha um arquivo sem vínculo no Storage.
         await client.storage.from("payment-proofs").remove([path]);
@@ -1074,15 +1409,22 @@ export function DocsList({
 
   async function openProof(proof: any) {
     if (proof.proof_type === "recibo_sistema" && proof.file_path)
-      return void window.open(`/recibo/${proof.file_path}`, "_blank", "noopener");
-    if (proof.external_url) return void window.open(proof.external_url, "_blank", "noopener");
+      return void window.open(
+        `/recibo/${proof.file_path}`,
+        "_blank",
+        "noopener",
+      );
+    if (proof.external_url)
+      return void window.open(proof.external_url, "_blank", "noopener");
     try {
       const { client } = await authenticatedFileClient();
       const { data: signed, error } = await client.storage
         .from("payment-proofs")
         .createSignedUrl(proof.file_path, 300);
       if (error || !signed?.signedUrl)
-        throw error ?? new Error("Não foi possível criar o link do comprovante.");
+        throw (
+          error ?? new Error("Não foi possível criar o link do comprovante.")
+        );
       window.open(signed.signedUrl, "_blank", "noopener");
     } catch (error: any) {
       toast.error(error?.message ?? "Não foi possível abrir o comprovante.");
@@ -1096,7 +1438,9 @@ export function DocsList({
       await deleteUnusedPaymentProof({ data: { proofId: proofToDelete.id } });
       setProofToDelete(null);
       await detailQuery.refetch();
-      await queryClient.invalidateQueries({ queryKey: ["orders-history-feed"] });
+      await queryClient.invalidateQueries({
+        queryKey: ["orders-history-feed"],
+      });
       toast.success("Comprovante excluído e registrado no histórico.");
     } catch (e: any) {
       toast.error(e?.message ?? "Não foi possível excluir o comprovante.");
@@ -1125,35 +1469,51 @@ export function DocsList({
   }
 
   async function confirmPartialPayment() {
-    const proof = (detailQuery.data?.proofs ?? []).find((item: any) => !item.payment_id);
+    const proof = (detailQuery.data?.proofs ?? []).find(
+      (item: any) => !item.payment_id,
+    );
     const amount = toNumber(receivedAmount);
     const outstanding = round2(
       Number(detailQuery.data?.receivable ?? detailDoc?.amount_receivable ?? 0),
     );
     const isCash = receivedMethod.trim().toLowerCase() === "dinheiro";
-    if (!isCash && !proof) return void toast.error("Envie um comprovante novo para esta baixa.");
+    if (!isCash && !proof)
+      return void toast.error("Envie um comprovante novo para esta baixa.");
     if (!(amount > 0)) return void toast.error("Informe o valor recebido.");
-    const manualPaymentExchange = receivedExchangeMode === "manual"
-      ? manualExchange(
-          (detailDoc?.currency ?? "BRL") as Currency,
-          toNumber(receivedManualBrl),
-          toNumber(receivedManualPyg),
-        )
-      : null;
+    const manualPaymentExchange =
+      receivedExchangeMode === "manual"
+        ? manualExchange(
+            (detailDoc?.currency ?? "BRL") as Currency,
+            toNumber(receivedManualBrl),
+            toNumber(receivedManualPyg),
+          )
+        : null;
     if (receivedExchangeMode === "manual" && !manualPaymentExchange)
-      return void toast.error("Informe cotações manuais válidas, maiores que zero.");
-    if (!detailDoc?.customer_id && !isPix(receivedMethod) && outstanding > 0 && amount > outstanding)
+      return void toast.error(
+        "Informe cotações manuais válidas, maiores que zero.",
+      );
+    if (
+      !detailDoc?.customer_id &&
+      !isPix(receivedMethod) &&
+      outstanding > 0 &&
+      amount > outstanding
+    )
       return void toast.error(
         `O valor informado é maior que o saldo de ${rates
-          .allCurrencies(outstanding, detailQuery.data?.currency ?? detailDoc?.currency ?? "BRL")
+          .allCurrencies(
+            outstanding,
+            detailQuery.data?.currency ?? detailDoc?.currency ?? "BRL",
+          )
           .map((item) => item.text)
           .join(" · ")}.`,
       );
     setBusy(true);
     try {
-      const result = await (detailDoc?.customer_id
-        ? registerPaymentWithCustomerCredit
-        : registerPaymentReceived)(
+      const result = await (
+        detailDoc?.customer_id
+          ? registerPaymentWithCustomerCredit
+          : registerPaymentReceived
+      )(
         detailDoc.id,
         amount,
         receivedMethod,
@@ -1161,7 +1521,11 @@ export function DocsList({
         manualPaymentExchange,
       );
       if (result?.payment_id)
-        await updatePaymentDate(detailDoc.id, result.payment_id, receivedDate || null);
+        await updatePaymentDate(
+          detailDoc.id,
+          result.payment_id,
+          receivedDate || null,
+        );
       setCashReceiptToken(String(result?.receipt_token ?? ""));
       setReceivedAmount("");
       setReceivedExchangeMode("automatic");
@@ -1171,8 +1535,8 @@ export function DocsList({
         Number(result?.credit_created ?? 0) > 0
           ? `Pagamento concluído. ${formatMoney(Number(result.credit_created), detailQuery.data?.currency ?? detailDoc.currency)} virou crédito do cliente.`
           : Number(result?.remaining ?? 0) > 0
-          ? "Pagamento abatido. O saldo continua em aberto."
-          : "Pagamento concluído e pedido marcado como pago.",
+            ? "Pagamento abatido. O saldo continua em aberto."
+            : "Pagamento concluído e pedido marcado como pago.",
       );
     } catch (e: any) {
       toast.error(e?.message ?? "Não foi possível registrar o pagamento.");
@@ -1183,16 +1547,22 @@ export function DocsList({
 
   async function confirmCustomerCredit() {
     const amount = round2(toNumber(creditUseAmount));
-    const remaining = Number(detailQuery.data?.receivable ?? detailDoc?.amount_receivable ?? 0);
+    const remaining = Number(
+      detailQuery.data?.receivable ?? detailDoc?.amount_receivable ?? 0,
+    );
     if (!(amount > 0) || amount > selectedCustomerCredit || amount > remaining)
-      return void toast.error("O abatimento deve estar dentro do crédito disponível e do saldo a pagar.");
+      return void toast.error(
+        "O abatimento deve estar dentro do crédito disponível e do saldo a pagar.",
+      );
     setBusy(true);
     try {
       await applyCustomerCredit(detailDoc.id, amount);
       setCreditUseAmount("");
       await detailQuery.refetch();
       await queryClient.invalidateQueries();
-      toast.success(`${formatMoney(amount, detailDoc.currency)} abatido do pedido com crédito do cliente.`);
+      toast.success(
+        `${formatMoney(amount, detailDoc.currency)} abatido do pedido com crédito do cliente.`,
+      );
     } catch (error: any) {
       toast.error(error?.message ?? "Não foi possível usar o crédito.");
     } finally {
@@ -1203,44 +1573,79 @@ export function DocsList({
   async function confirmShortDeliveryCredit() {
     const item = creditableItems.find((entry) => entry.id === shortItemId);
     const quantity = toNumber(shortQuantity);
-    if (!item || !(quantity > 0) || quantity > item.quantity || shortReason.trim().length < 5)
-      return void toast.error("Escolha o produto, a quantidade faltante e informe o motivo.");
-    const amount = round2(Number(item.total) * quantity / Number(item.quantity));
-    if (!(amount > 0)) return void toast.error("Este item não gerou cobrança para creditar.");
+    if (
+      !item ||
+      !(quantity > 0) ||
+      quantity > item.quantity ||
+      shortReason.trim().length < 5
+    )
+      return void toast.error(
+        "Escolha o produto, a quantidade faltante e informe o motivo.",
+      );
+    const amount = round2(
+      (Number(item.total) * quantity) / Number(item.quantity),
+    );
+    if (!(amount > 0))
+      return void toast.error("Este item não gerou cobrança para creditar.");
     setBusy(true);
     try {
-      await issueCustomerCredit({ customerId: detailDoc.customer_id,
-        currency: detailDoc.currency, amount, kind: "short_delivery",
-        note: shortReason.trim(), orderItemId: item.id, shortQuantity: quantity });
-      setShortItemId(""); setShortQuantity(""); setShortReason("");
-      await queryClient.invalidateQueries({ queryKey: ["customer-credit", detailDoc.customer_id] });
-      toast.success(`${formatMoney(amount, detailDoc.currency)} de crédito pela quantidade não entregue. A nota do pedido foi preservada.`);
+      await issueCustomerCredit({
+        customerId: detailDoc.customer_id,
+        currency: detailDoc.currency,
+        amount,
+        kind: "short_delivery",
+        note: shortReason.trim(),
+        orderItemId: item.id,
+        shortQuantity: quantity,
+      });
+      setShortItemId("");
+      setShortQuantity("");
+      setShortReason("");
+      await queryClient.invalidateQueries({
+        queryKey: ["customer-credit", detailDoc.customer_id],
+      });
+      toast.success(
+        `${formatMoney(amount, detailDoc.currency)} de crédito pela quantidade não entregue. A nota do pedido foi preservada.`,
+      );
     } catch (error: any) {
-      toast.error(error?.message ?? "Não foi possível registrar a diferença na entrega.");
-    } finally { setBusy(false); }
+      toast.error(
+        error?.message ?? "Não foi possível registrar a diferença na entrega.",
+      );
+    } finally {
+      setBusy(false);
+    }
   }
 
   function openPaymentEdit(payment: any) {
     setPaymentToEdit(payment);
     setPaymentEditAmount(
-      Number(payment.received_amount ?? payment.amount ?? 0).toLocaleString("pt-BR", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }),
+      Number(payment.received_amount ?? payment.amount ?? 0).toLocaleString(
+        "pt-BR",
+        {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        },
+      ),
     );
     setPaymentEditMethod(payment.method || "Dinheiro");
     setPaymentEditReason("");
-    setPaymentEditDate(payment.paid_at ?? new Date(payment.created_at).toLocaleDateString("en-CA"));
+    setPaymentEditDate(
+      payment.paid_at ??
+        new Date(payment.created_at).toLocaleDateString("en-CA"),
+    );
   }
 
   async function confirmPaymentEdit() {
     if (!paymentToEdit || !detailDoc) return;
     const amount = toNumber(paymentEditAmount);
-    if (!(amount > 0)) return void toast.error("Informe o valor correto do pagamento.");
+    if (!(amount > 0))
+      return void toast.error("Informe o valor correto do pagamento.");
     if (paymentEditReason.trim().length < 5)
       return void toast.error("Informe o motivo da alteração.");
     const isCash = paymentEditMethod.trim().toLowerCase() === "dinheiro";
-    const unusedProof = (detailQuery.data?.proofs ?? []).find((proof: any) => !proof.payment_id);
+    const unusedProof = (detailQuery.data?.proofs ?? []).find(
+      (proof: any) => !proof.payment_id,
+    );
     setBusy(true);
     try {
       const result = await editPaymentReceived(
@@ -1274,7 +1679,11 @@ export function DocsList({
       return void toast.error("Informe o motivo do cancelamento.");
     setBusy(true);
     try {
-      await cancelOrderPayment(detailDoc.id, paymentToCancel.id, paymentCancelReason);
+      await cancelOrderPayment(
+        detailDoc.id,
+        paymentToCancel.id,
+        paymentCancelReason,
+      );
       setPaymentToCancel(null);
       setPaymentCancelReason("");
       await detailQuery.refetch();
@@ -1291,27 +1700,41 @@ export function DocsList({
     queryKey: ["sales-order-detail", detailDoc?.id],
     enabled: !!detailDoc && !isQuote,
     queryFn: async () => {
-      const [detail, history, proofs, paymentRows, orderRates] = await Promise.all([
-        (supabase as any).rpc("sales_order_detail", { p_order_id: detailDoc.id }),
-        (supabase as any).rpc("sales_order_history", { p_order_id: detailDoc.id }),
-        (supabase as any)
-          .from("order_payment_proofs")
-          .select("*")
-          .eq("order_id", detailDoc.id)
-          .order("created_at", { ascending: false }),
-        (supabase as any)
-          .from("payments")
-          .select(
-            "id,amount,received_amount,received_currency,currency,method,paid_at,created_at,status,exchange_rates_snapshot,exchange_rate_source,exchange_rate_locked_at",
-          )
-          .eq("order_id", detailDoc.id)
-          .order("created_at", { ascending: true }),
-        (supabase as any)
-          .from("orders")
-          .select("exchange_rates_snapshot,exchange_rate_source,exchange_rate_locked_at")
-          .eq("id", detailDoc.id)
-          .single(),
-      ]);
+      if (!stockOnly) {
+        const result = await (supabase as any).rpc("integral_order_context", {
+          p_order_id: detailDoc.id,
+        });
+        if (result.error) throw result.error;
+        return result.data;
+      }
+      const [detail, history, proofs, paymentRows, orderRates] =
+        await Promise.all([
+          (supabase as any).rpc("sales_order_detail", {
+            p_order_id: detailDoc.id,
+          }),
+          (supabase as any).rpc("sales_order_history", {
+            p_order_id: detailDoc.id,
+          }),
+          (supabase as any)
+            .from("order_payment_proofs")
+            .select("*")
+            .eq("order_id", detailDoc.id)
+            .order("created_at", { ascending: false }),
+          (supabase as any)
+            .from("payments")
+            .select(
+              "id,amount,received_amount,received_currency,currency,method,paid_at,created_at,status,exchange_rates_snapshot,exchange_rate_source,exchange_rate_locked_at",
+            )
+            .eq("order_id", detailDoc.id)
+            .order("created_at", { ascending: true }),
+          (supabase as any)
+            .from("orders")
+            .select(
+              "exchange_rates_snapshot,exchange_rate_source,exchange_rate_locked_at",
+            )
+            .eq("id", detailDoc.id)
+            .single(),
+        ]);
       if (detail.error) throw detail.error;
       if (history.error) throw history.error;
       if (proofs.error) throw proofs.error;
@@ -1333,7 +1756,8 @@ export function DocsList({
     return (["BRL", "USD", "PYG"] as const)
       .filter((currency) => currency !== base && snapshot[currency] != null)
       .map(
-        (currency) => `1 ${base} = ${formatExchangeRate(Number(snapshot[currency]))} ${currency}`,
+        (currency) =>
+          `1 ${base} = ${formatExchangeRate(Number(snapshot[currency]))} ${currency}`,
       )
       .join(" · ");
   }
@@ -1345,10 +1769,15 @@ export function DocsList({
     toNumber(receivedManualBrl),
     toNumber(receivedManualPyg),
   );
-  const manualPaymentPreviewCredit = receivedExchangeMode === "manual" && isPix(receivedMethod)
-    && manualPaymentPreviewExchange && toNumber(receivedAmount) > 0
+  const manualPaymentPreviewCredit =
+    receivedExchangeMode === "manual" &&
+    isPix(receivedMethod) &&
+    manualPaymentPreviewExchange &&
+    toNumber(receivedAmount) > 0
       ? exchangeConvert(
-          toNumber(receivedAmount), "BRL", (detailDoc?.currency ?? "BRL") as Currency,
+          toNumber(receivedAmount),
+          "BRL",
+          (detailDoc?.currency ?? "BRL") as Currency,
           manualPaymentPreviewExchange,
         )
       : null;
@@ -1380,7 +1809,9 @@ export function DocsList({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="todos">{isQuote ? "Todos os orçamentos" : "Todas"}</SelectItem>
+              <SelectItem value="todos">
+                {isQuote ? "Todos os orçamentos" : "Todas"}
+              </SelectItem>
               {STATUS_OPTIONS[kind].map((s) => (
                 <SelectItem key={s} value={s}>
                   {STATUS_LABEL[s] ?? s}
@@ -1415,7 +1846,8 @@ export function DocsList({
                 value !== "todos" &&
                 seller !== "todos" &&
                 !teamMembers.some(
-                  (member: any) => member.team_id === value && member.user_id === seller,
+                  (member: any) =>
+                    member.team_id === value && member.user_id === seller,
                 )
               )
                 setSeller("todos");
@@ -1463,8 +1895,8 @@ export function DocsList({
                   (data?.lines ?? []).some(
                     (line: any) =>
                       (line.supplier_id ??
-                        inventoryItems.find((item) => item.id === line.item_id)?.supplier_id) ===
-                      supplier.id,
+                        inventoryItems.find((item) => item.id === line.item_id)
+                          ?.supplier_id) === supplier.id,
                   ),
                 )
                 .map((supplier) => (
@@ -1484,7 +1916,9 @@ export function DocsList({
             <SelectContent>
               <SelectItem value="todos">Todas</SelectItem>
               <SelectItem value="pdv">Caixa</SelectItem>
-              <SelectItem value="planilha_onedrive">Planilha importada</SelectItem>
+              <SelectItem value="planilha_onedrive">
+                Planilha importada
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -1512,14 +1946,36 @@ export function DocsList({
         <div className="flex flex-wrap items-end gap-2">
           <div>
             <Label htmlFor="orders-filter-from">De</Label>
-            <Input id="orders-filter-from" type="date" className="w-40" value={dateFrom} max={dateTo || undefined} onChange={(event) => setDateFrom(event.target.value)} />
+            <Input
+              id="orders-filter-from"
+              type="date"
+              className="w-40"
+              value={dateFrom}
+              max={dateTo || undefined}
+              onChange={(event) => setDateFrom(event.target.value)}
+            />
           </div>
           <div>
             <Label htmlFor="orders-filter-to">Até</Label>
-            <Input id="orders-filter-to" type="date" className="w-40" value={dateTo} min={dateFrom || undefined} onChange={(event) => setDateTo(event.target.value)} />
+            <Input
+              id="orders-filter-to"
+              type="date"
+              className="w-40"
+              value={dateTo}
+              min={dateFrom || undefined}
+              onChange={(event) => setDateTo(event.target.value)}
+            />
           </div>
           {(dateFrom || dateTo) && (
-            <Button type="button" variant="ghost" size="sm" onClick={() => { setDateFrom(""); setDateTo(""); }}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setDateFrom("");
+                setDateTo("");
+              }}
+            >
               Limpar
             </Button>
           )}
@@ -1548,7 +2004,11 @@ export function DocsList({
       <div className="flex justify-end">
         {!isQuote && (
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" onClick={() => void copyReportLink()}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void copyReportLink()}
+            >
               <Link2 className="mr-2 size-4" /> Gerar link
             </Button>
             <ReportButton
@@ -1558,21 +2018,45 @@ export function DocsList({
                   : `Relatório — ${stage ? stageLabel({ workflow_stage: stage }) : "Pedidos"}`
               }
               description="Selecione os pedidos e baixe o PDF com os detalhes, itens e valores."
-              filename={allOrders ? "todos-os-pedidos" : `pedidos-${stage ?? "aba"}`}
+              filename={
+                allOrders ? "todos-os-pedidos" : `pedidos-${stage ?? "aba"}`
+              }
               label="Exportar relatório"
               build={buildOrdersReport}
               refreshKey={JSON.stringify([
-                reportScope, reportFrom, reportTo, reportSeller, reportStatus,
-                reportProduct, reportCurrency, reportNumber, dateFrom, dateTo, term,
-                status, seller, team, selectedProduct, origin, supplierFilter,
-                sortOrder, dataUpdatedAt,
+                reportScope,
+                reportFrom,
+                reportTo,
+                reportSeller,
+                reportStatus,
+                reportProduct,
+                reportCurrency,
+                reportNumber,
+                dateFrom,
+                dateTo,
+                term,
+                status,
+                seller,
+                team,
+                selectedProduct,
+                origin,
+                supplierFilter,
+                sortOrder,
+                dataUpdatedAt,
               ])}
               filters={
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <div>
                     <Label>Base do relatório</Label>
-                    <Select value={reportScope} onValueChange={(value) => setReportScope(value as "tela" | "aba")}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                    <Select
+                      value={reportScope}
+                      onValueChange={(value) =>
+                        setReportScope(value as "tela" | "aba")
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="tela">Filtros da tela</SelectItem>
                         <SelectItem value="aba">Todos desta aba</SelectItem>
@@ -1581,50 +2065,96 @@ export function DocsList({
                   </div>
                   <div>
                     <Label>Número do pedido</Label>
-                    <Input value={reportNumber} onChange={(event) => setReportNumber(event.target.value)} placeholder="Ex.: 01" />
+                    <Input
+                      value={reportNumber}
+                      onChange={(event) => setReportNumber(event.target.value)}
+                      placeholder="Ex.: 01"
+                    />
                   </div>
                   <div>
                     <Label>Data inicial</Label>
-                    <Input type="date" value={reportFrom} max={reportTo || undefined} onChange={(event) => setReportFrom(event.target.value)} />
+                    <Input
+                      type="date"
+                      value={reportFrom}
+                      max={reportTo || undefined}
+                      onChange={(event) => setReportFrom(event.target.value)}
+                    />
                   </div>
                   <div>
                     <Label>Data final</Label>
-                    <Input type="date" value={reportTo} min={reportFrom || undefined} onChange={(event) => setReportTo(event.target.value)} />
+                    <Input
+                      type="date"
+                      value={reportTo}
+                      min={reportFrom || undefined}
+                      onChange={(event) => setReportTo(event.target.value)}
+                    />
                   </div>
                   <div>
                     <Label>Vendedor</Label>
-                    <Select value={reportSeller} onValueChange={setReportSeller}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                    <Select
+                      value={reportSeller}
+                      onValueChange={setReportSeller}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="todos">Todos</SelectItem>
-                        {people.map((person: any) => <SelectItem key={person.id} value={person.id}>{person.full_name}</SelectItem>)}
+                        {people.map((person: any) => (
+                          <SelectItem key={person.id} value={person.id}>
+                            {person.full_name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
                     <Label>Situação</Label>
-                    <Select value={reportStatus} onValueChange={setReportStatus}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                    <Select
+                      value={reportStatus}
+                      onValueChange={setReportStatus}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="todos">Todas</SelectItem>
-                        {WORKFLOW_OPTIONS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+                        {WORKFLOW_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
                     <Label>Produto</Label>
-                    <Select value={reportProduct} onValueChange={setReportProduct}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                    <Select
+                      value={reportProduct}
+                      onValueChange={setReportProduct}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="todos">Todos</SelectItem>
-                        {inventoryItems.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}
+                        {inventoryItems.map((item) => (
+                          <SelectItem key={item.id} value={item.id}>
+                            {item.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
                     <Label>Moeda</Label>
-                    <Select value={reportCurrency} onValueChange={setReportCurrency}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                    <Select
+                      value={reportCurrency}
+                      onValueChange={setReportCurrency}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="todos">Todas</SelectItem>
                         <SelectItem value="BRL">BRL</SelectItem>
@@ -1635,7 +2165,8 @@ export function DocsList({
                   </div>
                   {(data?.docs ?? []).length >= 500 && (
                     <p className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-4">
-                      Esta tela carrega até 500 pedidos recentes. Se precisar de um período maior, divida a consulta em relatórios menores.
+                      Esta tela carrega até 500 pedidos recentes. Se precisar de
+                      um período maior, divida a consulta em relatórios menores.
                     </p>
                   )}
                 </div>
@@ -1647,7 +2178,11 @@ export function DocsList({
 
       {docs.length === 0 ? (
         <EmptyState
-          title={requestsOnly ? "Nenhuma solicitação pendente" : "Nenhum documento no período"}
+          title={
+            requestsOnly
+              ? "Nenhuma solicitação pendente"
+              : "Nenhum documento no período"
+          }
           description={
             requestsOnly
               ? "As novas solicitações enviadas pelos catálogos aparecerão aqui."
@@ -1664,14 +2199,21 @@ export function DocsList({
               0,
             );
             const cur = (d.currency ?? "BRL") as Currency;
-            const cancelled = d.status === "cancelado" || d.status === "recusado";
+            const cancelled =
+              d.status === "cancelado" || d.status === "recusado";
             const catalogRequest = isCatalogRequest(d);
-            const commission = cancelled ? 0 : Math.max(0, Number(d.commission_total ?? 0));
+            const commission = cancelled
+              ? 0
+              : Math.max(0, Number(d.commission_total ?? 0));
             const paidRatio =
               Number(d.total ?? 0) > 0
-                ? Math.min(1, Math.max(0, Number(d.amount_paid ?? 0) / Number(d.total)))
+                ? Math.min(
+                    1,
+                    Math.max(0, Number(d.amount_paid ?? 0) / Number(d.total)),
+                  )
                 : 0;
-            const releasedCommission = d.kind === "venda" ? round2(commission * paidRatio) : 0;
+            const releasedCommission =
+              d.kind === "venda" ? round2(commission * paidRatio) : 0;
             return (
               <Card
                 key={d.id}
@@ -1687,9 +2229,12 @@ export function DocsList({
                         · {c?.name ?? "Venda balcão"}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {formatDate(d.order_date ?? d.created_at)} · {sellerName(d.seller_id)} ·{" "}
-                        {docLines.length} item(ns) · {formatNumber(totalUnits)} unidade(s)
-                        {d.valid_until ? ` · validade ${formatDate(d.valid_until)}` : ""}
+                        {formatDate(d.order_date ?? d.created_at)} ·{" "}
+                        {sellerName(d.seller_id)} · {docLines.length} item(ns) ·{" "}
+                        {formatNumber(totalUnits)} unidade(s)
+                        {d.valid_until
+                          ? ` · validade ${formatDate(d.valid_until)}`
+                          : ""}
                       </p>
                       {d.converted_order_id && (
                         <p className="text-xs text-primary">
@@ -1697,14 +2242,19 @@ export function DocsList({
                         </p>
                       )}
                       {d.cancel_reason && (
-                        <p className="text-xs text-destructive">Motivo: {d.cancel_reason}</p>
+                        <p className="text-xs text-destructive">
+                          Motivo: {d.cancel_reason}
+                        </p>
                       )}
                       {!stockOnly && (
                         <div className="mt-2 grid gap-x-5 gap-y-1 text-xs text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
                           <span>
                             Pago:{" "}
                             <strong className="text-foreground">
-                              <CurrencyValues value={Number(d.amount_paid ?? 0)} currency={cur} />
+                              <CurrencyValues
+                                value={Number(d.amount_paid ?? 0)}
+                                currency={cur}
+                              />
                             </strong>
                           </span>
                           <span>
@@ -1719,25 +2269,37 @@ export function DocsList({
                           <span>
                             Comissão prevista:{" "}
                             <strong className="text-foreground">
-                              <CurrencyValues value={commission} currency={cur} />
+                              <CurrencyValues
+                                value={commission}
+                                currency={cur}
+                              />
                             </strong>
                           </span>
                           <span>
                             Comissão liberada:{" "}
                             <strong className="text-foreground">
-                              <CurrencyValues value={releasedCommission} currency={cur} />
+                              <CurrencyValues
+                                value={releasedCommission}
+                                currency={cur}
+                              />
                             </strong>
                           </span>
                           <span>
                             Bonificação:{" "}
                             <strong className="text-foreground">
-                              <CurrencyValues value={Number(d.bonus_amount ?? 0)} currency={cur} />
+                              <CurrencyValues
+                                value={Number(d.bonus_amount ?? 0)}
+                                currency={cur}
+                              />
                             </strong>
                           </span>
                           <span>
                             Margem:{" "}
                             <strong className="text-foreground">
-                              <CurrencyValues value={Number(d.gross_margin ?? 0)} currency={cur} />
+                              <CurrencyValues
+                                value={Number(d.gross_margin ?? 0)}
+                                currency={cur}
+                              />
                             </strong>
                           </span>
                           {seesCompanyFinance && (
@@ -1764,16 +2326,22 @@ export function DocsList({
                           )}
                           <span>
                             Mês:{" "}
-                            <strong className="text-foreground">{d.source_month ?? "—"}</strong>
+                            <strong className="text-foreground">
+                              {d.source_month ?? "—"}
+                            </strong>
                           </span>
                           <span>
                             Envio:{" "}
-                            <strong className="text-foreground">{d.tracking_status ?? "—"}</strong>
+                            <strong className="text-foreground">
+                              {d.tracking_status ?? "—"}
+                            </strong>
                           </span>
                           {d.tracking_code && (
                             <span className="sm:col-span-2">
                               Rastreio:{" "}
-                              <strong className="text-foreground">{d.tracking_code}</strong>
+                              <strong className="text-foreground">
+                                {d.tracking_code}
+                              </strong>
                             </span>
                           )}
                           {(d.notes || d.source_payload?.observations) && (
@@ -1823,7 +2391,11 @@ export function DocsList({
                               <SelectItem
                                 key={option.value}
                                 value={option.value}
-                                className={option.value === "cancelado" ? "text-destructive" : ""}
+                                className={
+                                  option.value === "cancelado"
+                                    ? "text-destructive"
+                                    : ""
+                                }
                               >
                                 {option.label}
                               </SelectItem>
@@ -1841,30 +2413,75 @@ export function DocsList({
                       )}
                       {!stockOnly && (
                         <span className="font-semibold">
-                          <CurrencyValues value={Number(d.total ?? 0)} currency={cur} />
+                          <CurrencyValues
+                            value={Number(d.total ?? 0)}
+                            currency={cur}
+                          />
                         </span>
                       )}
                     </div>
                   </div>
-                    {canUseLineCosts && !isQuote && docLines.length > 0 && (
-                      <div className="overflow-x-auto rounded-lg border p-3 text-xs">
-                        <p className="mb-2 font-medium">Custos dos produtos ({cur})</p>
-                        <table className="w-full text-left">
-                          <thead><tr className="border-b"><th className="py-1 pr-3">Produto</th><th className="py-1 pr-3 text-right">Qtd.</th><th className="py-1 pr-3 text-right">Custo por unidade</th><th className="py-1 text-right">Custo do produto</th></tr></thead>
-                          <tbody>{docLines.map((line: any) => {
-                            const unitCost = (costsByLine.get(line.id) as any)?.unit_cost;
-                            return <tr key={line.id} className="border-b last:border-0">
-                              <td className="py-1 pr-3">{line.description}</td>
-                              <td className="py-1 pr-3 text-right">{formatNumber(Number(line.quantity ?? 0))}</td>
-                              <td className="py-1 pr-3 text-right">{unitCost == null ? "—" : formatMoney(Number(unitCost), cur)}</td>
-                              <td className="py-1 text-right">{unitCost == null ? "—" : formatMoney(round2(Number(unitCost) * Number(line.quantity ?? 0)), cur)}</td>
-                            </tr>;
-                          })}</tbody>
-                        </table>
-                      </div>
-                    )}
+                  {canUseLineCosts && !isQuote && docLines.length > 0 && (
+                    <div className="overflow-x-auto rounded-lg border p-3 text-xs">
+                      <p className="mb-2 font-medium">
+                        Custos dos produtos ({cur})
+                      </p>
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="py-1 pr-3">Produto</th>
+                            <th className="py-1 pr-3 text-right">Qtd.</th>
+                            <th className="py-1 pr-3 text-right">
+                              Custo por unidade
+                            </th>
+                            <th className="py-1 text-right">
+                              Custo do produto
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {docLines.map((line: any) => {
+                            const unitCost = (costsByLine.get(line.id) as any)
+                              ?.unit_cost;
+                            return (
+                              <tr
+                                key={line.id}
+                                className="border-b last:border-0"
+                              >
+                                <td className="py-1 pr-3">
+                                  {line.description}
+                                </td>
+                                <td className="py-1 pr-3 text-right">
+                                  {formatNumber(Number(line.quantity ?? 0))}
+                                </td>
+                                <td className="py-1 pr-3 text-right">
+                                  {unitCost == null
+                                    ? "—"
+                                    : formatMoney(Number(unitCost), cur)}
+                                </td>
+                                <td className="py-1 text-right">
+                                  {unitCost == null
+                                    ? "—"
+                                    : formatMoney(
+                                        round2(
+                                          Number(unitCost) *
+                                            Number(line.quantity ?? 0),
+                                        ),
+                                        cur,
+                                      )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                   {!isQuote && !stockOnly && !cancelled && (
-                    <PaymentMeter paid={Number(d.amount_paid || 0)} total={Number(d.total || 0)} />
+                    <PaymentMeter
+                      paid={Number(d.amount_paid || 0)}
+                      total={Number(d.total || 0)}
+                    />
                   )}
                   <div className="flex min-h-10 flex-wrap items-center gap-2 border-t pt-3">
                     {!isQuote && (
@@ -1877,10 +2494,25 @@ export function DocsList({
                         <Eye className="mr-1 h-4 w-4" /> Ver detalhes
                       </Button>
                     )}
+                    {!isQuote &&
+                      !catalogRequest &&
+                      !cancelled &&
+                      operations.data?.includes("payments.create") && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setPaymentOrderId(d.id)}
+                        >
+                          <Wallet className="mr-1 h-4 w-4" /> Lançar pagamento
+                        </Button>
+                      )}
                     {!catalogRequest && (
                       <>
                         <div className="flex items-center gap-1.5">
-                          <span className="text-xs text-muted-foreground">Formato da nota</span>
+                          <span className="text-xs text-muted-foreground">
+                            Formato da nota
+                          </span>
                           <Select
                             value={printOverrides[d.id] ?? printFormat}
                             onValueChange={(value) =>
@@ -1915,7 +2547,8 @@ export function DocsList({
                             variant="ghost"
                             onClick={() => void printComplete(d, "internal")}
                           >
-                            <FileText className="mr-1 h-4 w-4" /> Relatório interno
+                            <FileText className="mr-1 h-4 w-4" /> Relatório
+                            interno
                           </Button>
                         )}
                         {!isQuote && (
@@ -1947,38 +2580,29 @@ export function DocsList({
                     >
                       <Send className="mr-1 h-4 w-4" /> WhatsApp
                     </Button>
-                    {!cancelled && kind === "orcamento" && !d.converted_order_id && (
-                      <>
-                        <Button type="button" size="sm" onClick={() => openPayments(d, "venda")}>
-                          <Wallet className="mr-1 h-4 w-4" /> Converter em venda
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => openPayments(d, "pre_pedido")}
-                        >
-                          <FileText className="mr-1 h-4 w-4" /> Gerar pré-pedido
-                        </Button>
-                      </>
-                    )}
-                    {!cancelled && !isQuote && onEdit && (
-                      <Button type="button" size="sm" variant="ghost" onClick={() => editInPdv(d)}>
-                        <Pencil className="mr-1 h-4 w-4" />
-                        {catalogRequest ? "Revisar solicitação" : "Editar pedido"}
-                      </Button>
-                    )}
-                    {!cancelled && !isQuote && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="text-destructive"
-                        onClick={() => setDeleteDoc(d)}
-                      >
-                        <Trash2 className="mr-1 h-4 w-4" /> Excluir
-                      </Button>
-                    )}
+                    {!cancelled &&
+                      kind === "orcamento" &&
+                      !d.converted_order_id && (
+                        <>
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => openPayments(d, "venda")}
+                          >
+                            <Wallet className="mr-1 h-4 w-4" /> Converter em
+                            venda
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => openPayments(d, "pre_pedido")}
+                          >
+                            <FileText className="mr-1 h-4 w-4" /> Gerar
+                            pré-pedido
+                          </Button>
+                        </>
+                      )}
                     {!cancelled && isQuote && (
                       <Button
                         type="button"
@@ -2000,43 +2624,73 @@ export function DocsList({
         </div>
       )}
 
+      {paymentOrderId && (
+        <OrderPaymentDialog
+          key={paymentOrderId}
+          orderId={paymentOrderId}
+          onClose={() => setPaymentOrderId(null)}
+        />
+      )}
+      {editingOrderId && (
+        <OrderEditDialog
+          key={editingOrderId}
+          orderId={editingOrderId}
+          onClose={() => setEditingOrderId(null)}
+        />
+      )}
+
       <Dialog open={!!detailDoc} onOpenChange={(o) => !o && setDetailDoc(null)}>
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              Detalhes {isCatalogRequest(detailDoc) ? "da solicitação" : "do pedido"}{" "}
+              Detalhes{" "}
+              {isCatalogRequest(detailDoc) ? "da solicitação" : "do pedido"}{" "}
               {orderNumber(detailDoc?.number, detailDoc?.revision_no)}
             </DialogTitle>
           </DialogHeader>
-          {detailDoc && onEdit && detailDoc.status !== "cancelado" && (
+          {detailDoc && detailDoc.status !== "cancelado" && (
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
                 variant="outline"
+                disabled={detailQuery.isLoading || !detailQuery.data?.can_edit}
                 onClick={() => {
-                  editInPdv(detailDoc);
+                  setEditingOrderId(detailDoc.id);
                   setDetailDoc(null);
                 }}
               >
                 <Pencil className="mr-2 h-4 w-4" />
-                {isCatalogRequest(detailDoc) ? "Revisar e gerar pedido" : "Editar pedido"}
+                {detailQuery.data?.requires_approval
+                  ? "Solicitar alteração"
+                  : isCatalogRequest(detailDoc)
+                    ? "Revisar e gerar pedido"
+                    : "Editar pedido"}
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 className="text-destructive"
+                disabled={!detailQuery.data?.can_delete}
                 onClick={() => {
                   setDeleteDoc(detailDoc);
                   setDetailDoc(null);
                 }}
               >
                 <Trash2 className="mr-2 h-4 w-4" />
-                {isCatalogRequest(detailDoc) ? "Excluir solicitação" : "Excluir pedido"}
+                {isCatalogRequest(detailDoc)
+                  ? "Excluir solicitação"
+                  : "Excluir pedido"}
               </Button>
             </div>
           )}
           {detailQuery.isLoading ? (
-            <p className="text-sm text-muted-foreground">Carregando detalhes…</p>
+            <p className="text-sm text-muted-foreground">
+              Carregando detalhes…
+            </p>
+          ) : detailQuery.error ? (
+            <p role="alert" className="text-destructive">
+              {(detailQuery.error as Error).message}
+            </p>
           ) : (
             detailQuery.data && (
               <div className="space-y-4 text-sm">
@@ -2076,13 +2730,17 @@ export function DocsList({
                     </p>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Data de emissão</span>
+                    <span className="text-muted-foreground">
+                      Data de emissão
+                    </span>
                     <p className="font-medium">
                       {formatDate(detailDoc.order_date ?? detailDoc.created_at)}
                     </p>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Previsão de entrega</span>
+                    <span className="text-muted-foreground">
+                      Previsão de entrega
+                    </span>
                     <p className="font-medium">
                       {detailDoc.delivery_deadline
                         ? formatDate(detailDoc.delivery_deadline)
@@ -2099,7 +2757,11 @@ export function DocsList({
                   </div>
                 </div>
                 {detailDoc.delivery_token && (
-                  <DeliveryQr token={detailDoc.delivery_token} number={detailDoc.number} compact />
+                  <DeliveryQr
+                    token={detailDoc.delivery_token}
+                    number={detailDoc.number}
+                    compact
+                  />
                 )}
                 <div className="overflow-x-auto rounded-lg border">
                   <table className="w-full text-left">
@@ -2112,76 +2774,122 @@ export function DocsList({
                         <th className="p-3 text-right">Qtd.</th>
                         {detailQuery.data.total != null && (
                           <>
-                            <th className="p-3 text-right">Preço unitário no pedido</th>
-                            <th className="p-3 text-right">Pago por unidade até agora</th>
+                            <th className="p-3 text-right">
+                              Preço unitário no pedido
+                            </th>
+                            <th className="p-3 text-right">
+                              Pago por unidade até agora
+                            </th>
                             <th className="p-3 text-right">Valor total</th>
                           </>
                         )}
                       </tr>
                     </thead>
                     <tbody>
-                      {(detailQuery.data.items ?? []).map((i: any, idx: number) => (
-                        <tr key={idx} className="border-b last:border-0">
-                          <td className="p-3">
-                            <p className="font-medium">{i.description}</p>
-                            <p className="text-xs text-muted-foreground">{i.sku ?? "Sem SKU"}</p>
-                          </td>
-                          <td className="p-3">{i.product ?? "—"}</td>
-                          <td className="p-3">{i.subcategory ?? "—"}</td>
-                          <td className="p-3">{i.supplier ?? "—"}</td>
-                          <td className="p-3 text-right">{i.quantity}</td>
-                          {detailQuery.data.total != null && (
-                            <>
-                              <td className="p-3 text-right">
-                                <CurrencyValues
-                                  value={Number(i.unit_price ?? 0)}
-                                  currency={detailQuery.data.currency}
-                                />
-                              </td>
-                              <td className="p-3 text-right">
-                                <CurrencyValues
-                                  value={
-                                    Number(i.quantity ?? 0) > 0 &&
-                                    Number(detailQuery.data.total ?? 0) > 0
-                                      ? (Number(i.total ?? 0) / Number(i.quantity)) *
-                                        Math.min(
-                                          1,
-                                          Number(detailQuery.data.paid ?? 0) /
-                                            Number(detailQuery.data.total),
-                                        )
-                                      : 0
-                                  }
-                                  currency={detailQuery.data.currency}
-                                />
-                              </td>
-                              <td className="p-3 text-right">
-                                <CurrencyValues
-                                  value={Number(i.total ?? 0)}
-                                  currency={detailQuery.data.currency}
-                                />
-                              </td>
-                            </>
-                          )}
-                        </tr>
-                      ))}
+                      {(detailQuery.data.items ?? []).map(
+                        (i: any, idx: number) => (
+                          <tr key={idx} className="border-b last:border-0">
+                            <td className="p-3">
+                              <p className="font-medium">{i.description}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {i.sku ?? "Sem SKU"}
+                              </p>
+                            </td>
+                            <td className="p-3">{i.product ?? "—"}</td>
+                            <td className="p-3">{i.subcategory ?? "—"}</td>
+                            <td className="p-3">{i.supplier ?? "—"}</td>
+                            <td className="p-3 text-right">{i.quantity}</td>
+                            {detailQuery.data.total != null && (
+                              <>
+                                <td className="p-3 text-right">
+                                  <CurrencyValues
+                                    value={Number(i.unit_price ?? 0)}
+                                    currency={detailQuery.data.currency}
+                                  />
+                                </td>
+                                <td className="p-3 text-right">
+                                  <CurrencyValues
+                                    value={
+                                      Number(i.quantity ?? 0) > 0 &&
+                                      Number(detailQuery.data.total ?? 0) > 0
+                                        ? (Number(i.total ?? 0) /
+                                            Number(i.quantity)) *
+                                          Math.min(
+                                            1,
+                                            Number(detailQuery.data.paid ?? 0) /
+                                              Number(detailQuery.data.total),
+                                          )
+                                        : 0
+                                    }
+                                    currency={detailQuery.data.currency}
+                                  />
+                                </td>
+                                <td className="p-3 text-right">
+                                  <CurrencyValues
+                                    value={Number(i.total ?? 0)}
+                                    currency={detailQuery.data.currency}
+                                  />
+                                </td>
+                              </>
+                            )}
+                          </tr>
+                        ),
+                      )}
                     </tbody>
                   </table>
                 </div>
                 {canUseLineCosts && linesOf(detailDoc.id).length > 0 && (
                   <div className="overflow-x-auto rounded-lg border p-3">
-                    <p className="mb-2 font-medium">Custos dos produtos ({detailQuery.data.currency ?? detailDoc.currency ?? "BRL"})</p>
+                    <p className="mb-2 font-medium">
+                      Custos dos produtos (
+                      {detailQuery.data.currency ?? detailDoc.currency ?? "BRL"}
+                      )
+                    </p>
                     <table className="w-full text-left">
-                      <thead><tr className="border-b"><th className="p-2">Produto</th><th className="p-2 text-right">Qtd.</th><th className="p-2 text-right">Custo por unidade</th><th className="p-2 text-right">Custo do produto</th></tr></thead>
-                      <tbody>{linesOf(detailDoc.id).map((line: any) => {
-                        const unitCost = (costsByLine.get(line.id) as any)?.unit_cost;
-                        const currency = (detailQuery.data.currency ?? detailDoc.currency ?? "BRL") as Currency;
-                        return <tr key={line.id} className="border-b last:border-0">
-                          <td className="p-2">{line.description}</td>
-                          <td className="p-2 text-right">{formatNumber(Number(line.quantity ?? 0))}</td>
-                          <td className="p-2 text-right">{unitCost == null ? "—" : formatMoney(Number(unitCost), currency)}</td>
-                          <td className="p-2 text-right">{unitCost == null ? "—" : formatMoney(round2(Number(unitCost) * Number(line.quantity ?? 0)), currency)}</td>
-                        </tr>;
-                      })}</tbody>
+                      <thead>
+                        <tr className="border-b">
+                          <th className="p-2">Produto</th>
+                          <th className="p-2 text-right">Qtd.</th>
+                          <th className="p-2 text-right">Custo por unidade</th>
+                          <th className="p-2 text-right">Custo do produto</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {linesOf(detailDoc.id).map((line: any) => {
+                          const unitCost = (costsByLine.get(line.id) as any)
+                            ?.unit_cost;
+                          const currency = (detailQuery.data.currency ??
+                            detailDoc.currency ??
+                            "BRL") as Currency;
+                          return (
+                            <tr
+                              key={line.id}
+                              className="border-b last:border-0"
+                            >
+                              <td className="p-2">{line.description}</td>
+                              <td className="p-2 text-right">
+                                {formatNumber(Number(line.quantity ?? 0))}
+                              </td>
+                              <td className="p-2 text-right">
+                                {unitCost == null
+                                  ? "—"
+                                  : formatMoney(Number(unitCost), currency)}
+                              </td>
+                              <td className="p-2 text-right">
+                                {unitCost == null
+                                  ? "—"
+                                  : formatMoney(
+                                      round2(
+                                        Number(unitCost) *
+                                          Number(line.quantity ?? 0),
+                                      ),
+                                      currency,
+                                    )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
                     </table>
                   </div>
                 )}
@@ -2227,30 +2935,65 @@ export function DocsList({
                     )}
                   </div>
                 )}
-                {canIssueCredit && detailDoc?.customer_id && creditableItems.length > 0 && (
-                  <div className="rounded-lg border p-3">
-                    <p className="font-medium">Produto enviado a menos</p>
-                    <p className="mb-3 text-xs text-muted-foreground">
-                      Gera crédito pelo valor cobrado das unidades faltantes, sem alterar a nota original.
-                    </p>
-                    <div className="grid gap-2 sm:grid-cols-[2fr_1fr_2fr_auto] sm:items-end">
-                      <div>
-                        <Label>Produto</Label>
-                        <Select value={shortItemId} onValueChange={setShortItemId}>
-                          <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                          <SelectContent>{creditableItems.map((item) => (
-                            <SelectItem key={item.id} value={item.id}>{item.description} · {item.quantity} un.</SelectItem>
-                          ))}</SelectContent>
-                        </Select>
+                {canIssueCredit &&
+                  detailDoc?.customer_id &&
+                  creditableItems.length > 0 && (
+                    <div className="rounded-lg border p-3">
+                      <p className="font-medium">Produto enviado a menos</p>
+                      <p className="mb-3 text-xs text-muted-foreground">
+                        Gera crédito pelo valor cobrado das unidades faltantes,
+                        sem alterar a nota original.
+                      </p>
+                      <div className="grid gap-2 sm:grid-cols-[2fr_1fr_2fr_auto] sm:items-end">
+                        <div>
+                          <Label>Produto</Label>
+                          <Select
+                            value={shortItemId}
+                            onValueChange={setShortItemId}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {creditableItems.map((item) => (
+                                <SelectItem key={item.id} value={item.id}>
+                                  {item.description} · {item.quantity} un.
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label>Quantidade faltante</Label>
+                          <Input
+                            value={shortQuantity}
+                            onChange={(event) =>
+                              setShortQuantity(event.target.value)
+                            }
+                            inputMode="decimal"
+                          />
+                        </div>
+                        <div>
+                          <Label>Motivo</Label>
+                          <Input
+                            value={shortReason}
+                            onChange={(event) =>
+                              setShortReason(event.target.value)
+                            }
+                            placeholder="Ex.: 2 unidades não enviadas"
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={confirmShortDeliveryCredit}
+                          disabled={busy}
+                        >
+                          Gerar crédito
+                        </Button>
                       </div>
-                      <div><Label>Quantidade faltante</Label><Input value={shortQuantity}
-                        onChange={(event) => setShortQuantity(event.target.value)} inputMode="decimal" /></div>
-                      <div><Label>Motivo</Label><Input value={shortReason}
-                        onChange={(event) => setShortReason(event.target.value)} placeholder="Ex.: 2 unidades não enviadas" /></div>
-                      <Button type="button" variant="outline" onClick={confirmShortDeliveryCredit} disabled={busy}>Gerar crédito</Button>
                     </div>
-                  </div>
-                )}
+                  )}
                 <div className="space-y-3 rounded-lg border p-3">
                   <div className="flex items-center gap-2 font-medium">
                     <Wallet className="h-4 w-4" /> Cotações registradas
@@ -2258,12 +3001,20 @@ export function DocsList({
                   <div className="rounded-md bg-muted/50 p-3">
                     <p className="font-medium">
                       Cotação na criação{" "}
-                      {isCatalogRequest(detailDoc) ? "da solicitação" : "do pedido"}
+                      {isCatalogRequest(detailDoc)
+                        ? "da solicitação"
+                        : "do pedido"}
                     </p>
-                    <p>{exchangeSnapshotText(detailQuery.data.exchange_rates_snapshot)}</p>
+                    <p>
+                      {exchangeSnapshotText(
+                        detailQuery.data.exchange_rates_snapshot,
+                      )}
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       {detailQuery.data.exchange_rate_locked_at
-                        ? new Date(detailQuery.data.exchange_rate_locked_at).toLocaleString("pt-BR")
+                        ? new Date(
+                            detailQuery.data.exchange_rate_locked_at,
+                          ).toLocaleString("pt-BR")
                         : "Pedidos anteriores podem não ter uma cotação histórica salva."}
                       {detailQuery.data.exchange_rate_source
                         ? ` · ${detailQuery.data.exchange_rate_source}`
@@ -2273,67 +3024,88 @@ export function DocsList({
                   {!isCatalogRequest(detailDoc) &&
                     ((detailQuery.data.registeredPayments ?? []).length ? (
                       <div className="grid gap-2">
-                        {detailQuery.data.registeredPayments.map((payment: any, index: number) => (
-                          <div key={payment.id} className="rounded-md border p-3">
-                            <div className="flex flex-wrap items-start gap-2">
-                              <div className="mr-auto">
-                                <p className="font-medium">
-                                  Pagamento {index + 1} ·{" "}
-                                  <CurrencyValues
-                                    value={Number(payment.received_amount ?? payment.amount)}
-                                    currency={payment.received_currency ?? payment.currency}
-                                    layout="inline"
-                                  />
-                                </p>
-                                {payment.status === "cancelado" && (
-                                  <Badge variant="destructive" className="mt-1">
-                                    Registro cancelado
-                                  </Badge>
+                        {detailQuery.data.registeredPayments.map(
+                          (payment: any, index: number) => (
+                            <div
+                              key={payment.id}
+                              className="rounded-md border p-3"
+                            >
+                              <div className="flex flex-wrap items-start gap-2">
+                                <div className="mr-auto">
+                                  <p className="font-medium">
+                                    Pagamento {index + 1} ·{" "}
+                                    <CurrencyValues
+                                      value={Number(
+                                        payment.received_amount ??
+                                          payment.amount,
+                                      )}
+                                      currency={
+                                        payment.received_currency ??
+                                        payment.currency
+                                      }
+                                      layout="inline"
+                                    />
+                                  </p>
+                                  {payment.status === "cancelado" && (
+                                    <Badge
+                                      variant="destructive"
+                                      className="mt-1"
+                                    >
+                                      Registro cancelado
+                                    </Badge>
+                                  )}
+                                </div>
+                                {payment.status === "pago" && (
+                                  <>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => openPaymentEdit(payment)}
+                                    >
+                                      <Pencil className="mr-1 h-3.5 w-3.5" />{" "}
+                                      Editar
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-destructive hover:text-destructive"
+                                      onClick={() => {
+                                        setPaymentToCancel(payment);
+                                        setPaymentCancelReason("");
+                                      }}
+                                    >
+                                      <Ban className="mr-1 h-3.5 w-3.5" />{" "}
+                                      Cancelar registro
+                                    </Button>
+                                  </>
                                 )}
                               </div>
-                              {payment.status === "pago" && (
-                                <>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => openPaymentEdit(payment)}
-                                  >
-                                    <Pencil className="mr-1 h-3.5 w-3.5" /> Editar
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-destructive hover:text-destructive"
-                                    onClick={() => {
-                                      setPaymentToCancel(payment);
-                                      setPaymentCancelReason("");
-                                    }}
-                                  >
-                                    <Ban className="mr-1 h-3.5 w-3.5" /> Cancelar registro
-                                  </Button>
-                                </>
+                              <p className="text-xs text-muted-foreground">
+                                {payment.method} ·{" "}
+                                {formatDate(
+                                  payment.paid_at ?? payment.created_at,
+                                )}
+                              </p>
+                              <p className="mt-1">
+                                {exchangeSnapshotText(
+                                  payment.exchange_rates_snapshot,
+                                )}
+                              </p>
+                              {payment.exchange_rate_source && (
+                                <p className="text-xs text-muted-foreground">
+                                  {payment.exchange_rate_locked_at
+                                    ? new Date(
+                                        payment.exchange_rate_locked_at,
+                                      ).toLocaleString("pt-BR")
+                                    : ""}
+                                  {` · ${payment.exchange_rate_source}`}
+                                </p>
                               )}
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                              {payment.method} · {formatDate(payment.paid_at ?? payment.created_at)}
-                            </p>
-                            <p className="mt-1">
-                              {exchangeSnapshotText(payment.exchange_rates_snapshot)}
-                            </p>
-                            {payment.exchange_rate_source && (
-                              <p className="text-xs text-muted-foreground">
-                                {payment.exchange_rate_locked_at
-                                  ? new Date(payment.exchange_rate_locked_at).toLocaleString(
-                                      "pt-BR",
-                                    )
-                                  : ""}
-                                {` · ${payment.exchange_rate_source}`}
-                              </p>
-                            )}
-                          </div>
-                        ))}
+                          ),
+                        )}
                       </div>
                     ) : (
                       <p className="text-xs text-muted-foreground">
@@ -2348,7 +3120,9 @@ export function DocsList({
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <div className="min-w-56 flex-1">
-                        <Label htmlFor="payment-proof-file">Enviar foto ou documento</Label>
+                        <Label htmlFor="payment-proof-file">
+                          Enviar foto ou documento
+                        </Label>
                         <Input
                           id="payment-proof-file"
                           type="file"
@@ -2362,7 +3136,9 @@ export function DocsList({
                           }}
                         />
                         {uploadingProof && (
-                          <p className="mt-1 text-xs text-muted-foreground">Enviando comprovante…</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Enviando comprovante…
+                          </p>
                         )}
                       </div>
                       <Input
@@ -2412,7 +3188,8 @@ export function DocsList({
                       </div>
                     ) : (
                       <p className="text-xs text-amber-700">
-                        O pedido só poderá ser marcado como pago depois do envio do comprovante.
+                        O pedido só poderá ser marcado como pago depois do envio
+                        do comprovante.
                       </p>
                     )}
                     <div className="space-y-3 rounded-lg border p-3">
@@ -2427,18 +3204,27 @@ export function DocsList({
                               setReceivedExchangeMode("automatic");
                               return;
                             }
-                            const snapshot = detailQuery.data?.exchange_rates_snapshot;
+                            const snapshot =
+                              detailQuery.data?.exchange_rates_snapshot;
                             const usd = Number(snapshot?.USD);
-                            setReceivedManualBrl(String(
-                              usd > 0 && Number(snapshot.BRL) > 0
-                                ? Number((Number(snapshot.BRL) / usd).toFixed(6))
-                                : (rates.convert(1, "USD", "BRL") ?? ""),
-                            ));
-                            setReceivedManualPyg(String(
-                              usd > 0 && Number(snapshot.PYG) > 0
-                                ? Number((Number(snapshot.PYG) / usd).toFixed(6))
-                                : (rates.convert(1, "USD", "PYG") ?? ""),
-                            ));
+                            setReceivedManualBrl(
+                              String(
+                                usd > 0 && Number(snapshot.BRL) > 0
+                                  ? Number(
+                                      (Number(snapshot.BRL) / usd).toFixed(6),
+                                    )
+                                  : (rates.convert(1, "USD", "BRL") ?? ""),
+                              ),
+                            );
+                            setReceivedManualPyg(
+                              String(
+                                usd > 0 && Number(snapshot.PYG) > 0
+                                  ? Number(
+                                      (Number(snapshot.PYG) / usd).toFixed(6),
+                                    )
+                                  : (rates.convert(1, "USD", "PYG") ?? ""),
+                              ),
+                            );
                             setReceivedExchangeMode("manual");
                           }}
                         >
@@ -2450,30 +3236,42 @@ export function DocsList({
                       {receivedExchangeMode === "manual" ? (
                         <div className="grid gap-3 sm:grid-cols-2">
                           <div>
-                            <Label htmlFor="payment-manual-brl">1 dólar em reais (R$)</Label>
+                            <Label htmlFor="payment-manual-brl">
+                              1 dólar em reais (R$)
+                            </Label>
                             <Input
                               id="payment-manual-brl"
                               value={receivedManualBrl}
-                              onChange={(event) => setReceivedManualBrl(event.target.value)}
+                              onChange={(event) =>
+                                setReceivedManualBrl(event.target.value)
+                              }
                               inputMode="decimal"
                             />
                           </div>
                           <div>
-                            <Label htmlFor="payment-manual-pyg">1 dólar em guaranis (Gs.)</Label>
+                            <Label htmlFor="payment-manual-pyg">
+                              1 dólar em guaranis (Gs.)
+                            </Label>
                             <Input
                               id="payment-manual-pyg"
                               value={receivedManualPyg}
-                              onChange={(event) => setReceivedManualPyg(event.target.value)}
+                              onChange={(event) =>
+                                setReceivedManualPyg(event.target.value)
+                              }
                               inputMode="decimal"
                             />
                           </div>
                           <p className="text-xs text-muted-foreground sm:col-span-2">
-                            Esta cotação será salva apenas neste pagamento e usada para calcular o valor abatido.
+                            Esta cotação será salva apenas neste pagamento e
+                            usada para calcular o valor abatido.
                           </p>
                         </div>
                       ) : (
                         <p className="text-xs text-muted-foreground">
-                          Cotação do pedido: {exchangeSnapshotText(detailQuery.data?.exchange_rates_snapshot)}
+                          Cotação do pedido:{" "}
+                          {exchangeSnapshotText(
+                            detailQuery.data?.exchange_rates_snapshot,
+                          )}
                         </p>
                       )}
                     </div>
@@ -2481,7 +3279,10 @@ export function DocsList({
                       <div>
                         <Label>
                           Valor recebido (
-                          {isPix(receivedMethod) ? "BRL � R$" : (detailDoc?.currency ?? "BRL")})
+                          {isPix(receivedMethod)
+                            ? "BRL � R$"
+                            : (detailDoc?.currency ?? "BRL")}
+                          )
                         </Label>
                         <Input
                           value={receivedAmount}
@@ -2502,7 +3303,11 @@ export function DocsList({
                         />
                         {manualPaymentPreviewCredit != null && (
                           <p className="mt-1 text-xs font-medium">
-                            Valor abatido com este câmbio: {formatMoney(round2(manualPaymentPreviewCredit), (detailDoc?.currency ?? "BRL") as Currency)}
+                            Valor abatido com este câmbio:{" "}
+                            {formatMoney(
+                              round2(manualPaymentPreviewCredit),
+                              (detailDoc?.currency ?? "BRL") as Currency,
+                            )}
                           </p>
                         )}
                         <p className="mt-1 text-xs text-muted-foreground">
@@ -2515,13 +3320,34 @@ export function DocsList({
                         </p>
                         {detailDoc?.customer_id && (
                           <div className="mt-3 rounded-lg border bg-primary/5 p-3">
-                            <p className="text-sm font-medium">Crédito do cliente: {formatMoney(selectedCustomerCredit, detailQuery.data.currency)}</p>
+                            <p className="text-sm font-medium">
+                              Crédito do cliente:{" "}
+                              {formatMoney(
+                                selectedCustomerCredit,
+                                detailQuery.data.currency,
+                              )}
+                            </p>
                             <div className="mt-2 flex flex-wrap gap-2">
-                              <Input className="max-w-44" aria-label="Valor do crédito a abater"
-                                value={creditUseAmount} onChange={(event) => setCreditUseAmount(event.target.value)}
-                                inputMode="decimal" placeholder="Valor a abater" />
-                              <Button type="button" variant="secondary" onClick={confirmCustomerCredit}
-                                disabled={busy || selectedCustomerCredit <= 0 || Number(detailQuery.data.receivable ?? 0) <= 0}>
+                              <Input
+                                className="max-w-44"
+                                aria-label="Valor do crédito a abater"
+                                value={creditUseAmount}
+                                onChange={(event) =>
+                                  setCreditUseAmount(event.target.value)
+                                }
+                                inputMode="decimal"
+                                placeholder="Valor a abater"
+                              />
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={confirmCustomerCredit}
+                                disabled={
+                                  busy ||
+                                  selectedCustomerCredit <= 0 ||
+                                  Number(detailQuery.data.receivable ?? 0) <= 0
+                                }
+                              >
                                 Usar crédito
                               </Button>
                             </div>
@@ -2574,7 +3400,11 @@ export function DocsList({
                           type="button"
                           variant="outline"
                           onClick={() =>
-                            window.open(`/recibo/${cashReceiptToken}`, "_blank", "noopener")
+                            window.open(
+                              `/recibo/${cashReceiptToken}`,
+                              "_blank",
+                              "noopener",
+                            )
                           }
                         >
                           <FileText className="mr-2 size-4" /> Gerar arquivo
@@ -2611,11 +3441,15 @@ export function DocsList({
                           {entry.changed_by_name ?? "Usuário"} ·{" "}
                           {new Date(entry.created_at).toLocaleString("pt-BR")}
                         </p>
-                        <p className="text-muted-foreground">{entry.note ?? entry.action}</p>
+                        <p className="text-muted-foreground">
+                          {entry.note ?? entry.action}
+                        </p>
                       </div>
                     ))
                   ) : (
-                    <p className="text-xs text-muted-foreground">Nenhuma alteração registrada.</p>
+                    <p className="text-xs text-muted-foreground">
+                      Nenhuma alteração registrada.
+                    </p>
                   )}
                 </div>
                 {detailQuery.data.cancel_reason && (
@@ -2629,20 +3463,26 @@ export function DocsList({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!paymentToEdit} onOpenChange={(open) => !open && setPaymentToEdit(null)}>
+      <Dialog
+        open={!!paymentToEdit}
+        onOpenChange={(open) => !open && setPaymentToEdit(null)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Editar pagamento</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            O saldo e a situação do pedido serão recalculados. A alteração ficará registrada no
-            histórico.
+            O saldo e a situação do pedido serão recalculados. A alteração
+            ficará registrada no histórico.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <Label>
                 Valor recebido (
-                {isPix(paymentEditMethod) ? "BRL � R$" : (detailDoc?.currency ?? "BRL")})
+                {isPix(paymentEditMethod)
+                  ? "BRL � R$"
+                  : (detailDoc?.currency ?? "BRL")}
+                )
               </Label>
               <Input
                 value={paymentEditAmount}
@@ -2691,29 +3531,41 @@ export function DocsList({
           </div>
           {paymentEditMethod.trim().toLowerCase() !== "dinheiro" && (
             <p className="text-xs text-muted-foreground">
-              Para trocar para uma forma sem dinheiro, mantenha um comprovante vinculado ou envie um
-              novo comprovante antes de salvar.
+              Para trocar para uma forma sem dinheiro, mantenha um comprovante
+              vinculado ou envie um novo comprovante antes de salvar.
             </p>
           )}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setPaymentToEdit(null)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPaymentToEdit(null)}
+            >
               Voltar
             </Button>
-            <Button type="button" disabled={busy} onClick={() => void confirmPaymentEdit()}>
-              {busy && <Loader2 className="mr-1 h-4 w-4 animate-spin" />} Salvar correção
+            <Button
+              type="button"
+              disabled={busy}
+              onClick={() => void confirmPaymentEdit()}
+            >
+              {busy && <Loader2 className="mr-1 h-4 w-4 animate-spin" />} Salvar
+              correção
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!paymentToCancel} onOpenChange={(open) => !open && setPaymentToCancel(null)}>
+      <Dialog
+        open={!!paymentToCancel}
+        onOpenChange={(open) => !open && setPaymentToCancel(null)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Cancelar registro de pagamento?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            O valor voltará ao saldo em aberto do pedido. O pagamento e o comprovante continuarão
-            visíveis no histórico como cancelados.
+            O valor voltará ao saldo em aberto do pedido. O pagamento e o
+            comprovante continuarão visíveis no histórico como cancelados.
           </p>
           <div>
             <Label>Motivo do cancelamento</Label>
@@ -2724,7 +3576,11 @@ export function DocsList({
             />
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setPaymentToCancel(null)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPaymentToCancel(null)}
+            >
               Manter pagamento
             </Button>
             <Button
@@ -2733,23 +3589,31 @@ export function DocsList({
               disabled={busy}
               onClick={() => void confirmPaymentCancel()}
             >
-              {busy && <Loader2 className="mr-1 h-4 w-4 animate-spin" />} Cancelar pagamento
+              {busy && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{" "}
+              Cancelar pagamento
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!proofToDelete} onOpenChange={(open) => !open && setProofToDelete(null)}>
+      <Dialog
+        open={!!proofToDelete}
+        onOpenChange={(open) => !open && setProofToDelete(null)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Excluir comprovante?</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            O comprovante enviado por engano será removido do pedido. Esta ação não pode ser
-            desfeita.
+            O comprovante enviado por engano será removido do pedido. Esta ação
+            não pode ser desfeita.
           </p>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setProofToDelete(null)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setProofToDelete(null)}
+            >
               Manter comprovante
             </Button>
             <Button
@@ -2758,28 +3622,41 @@ export function DocsList({
               disabled={busy}
               onClick={() => void confirmProofDelete()}
             >
-              {busy && <Loader2 className="mr-1 h-4 w-4 animate-spin" />} Excluir comprovante
+              {busy && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{" "}
+              Excluir comprovante
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!deleteDoc} onOpenChange={(open) => !open && setDeleteDoc(null)}>
+      <Dialog
+        open={!!deleteDoc}
+        onOpenChange={(open) => !open && setDeleteDoc(null)}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Excluir pedido {orderNumber(deleteDoc?.number, deleteDoc?.revision_no)}
+              Excluir pedido{" "}
+              {orderNumber(deleteDoc?.number, deleteDoc?.revision_no)}
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            A exclusão ajusta estoque e financeiro e fica registrada no histórico.
+            A exclusão ajusta estoque e financeiro e fica registrada no
+            histórico.
           </p>
           <div>
             <Label>Motivo da exclusão</Label>
-            <Input value={deleteReason} onChange={(e) => setDeleteReason(e.target.value)} />
+            <Input
+              value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)}
+            />
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDeleteDoc(null)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteDoc(null)}
+            >
               Cancelar
             </Button>
             <Button
@@ -2799,7 +3676,9 @@ export function DocsList({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {payTarget === "venda" ? "Faturar com pagamentos" : "Gerar pré-pedido"}
+              {payTarget === "venda"
+                ? "Faturar com pagamentos"
+                : "Gerar pré-pedido"}
             </DialogTitle>
           </DialogHeader>
           {payTarget === "venda" ? (
@@ -2837,7 +3716,11 @@ export function DocsList({
                 </div>
                 <div>
                   <Label>
-                    Valor ({isPix(payMethod) ? "BRL � R$" : (payOpen?.currency ?? "BRL")})
+                    Valor (
+                    {isPix(payMethod)
+                      ? "BRL � R$"
+                      : (payOpen?.currency ?? "BRL")}
+                    )
                   </Label>
                   <div className="flex gap-2">
                     <Input
@@ -2860,9 +3743,12 @@ export function DocsList({
                           ? exchangeConvert(received, from, target, snapshot)
                           : rates.convert(received, from, target);
                         if (converted === null)
-                          return void toast.error("Cota��o para este pagamento indispon�vel.");
+                          return void toast.error(
+                            "Cota��o para este pagamento indispon�vel.",
+                          );
                         const v = round2(converted);
-                        if (!(v > 0)) return void toast.error("Informe um valor válido.");
+                        if (!(v > 0))
+                          return void toast.error("Informe um valor válido.");
                         setPayments((p) => [
                           ...p,
                           {
@@ -2892,19 +3778,27 @@ export function DocsList({
               </div>
               <ul className="space-y-1">
                 {payments.map((p, i) => (
-                  <li key={i} className="flex items-center justify-between rounded border p-2">
+                  <li
+                    key={i}
+                    className="flex items-center justify-between rounded border p-2"
+                  >
                     <span>{p.method}</span>
                     <span className="flex items-center gap-2">
                       <CurrencyValues
                         value={p.received_amount ?? p.amount}
-                        currency={p.received_currency ?? ((payOpen?.currency ?? "BRL") as Currency)}
+                        currency={
+                          p.received_currency ??
+                          ((payOpen?.currency ?? "BRL") as Currency)
+                        }
                         layout="inline"
                       />
                       <Button
                         type="button"
                         size="sm"
                         variant="ghost"
-                        onClick={() => setPayments((prev) => prev.filter((_, x) => x !== i))}
+                        onClick={() =>
+                          setPayments((prev) => prev.filter((_, x) => x !== i))
+                        }
                       >
                         Remover
                       </Button>
@@ -2912,7 +3806,11 @@ export function DocsList({
                   </li>
                 ))}
               </ul>
-              <p className={paid === payTotal ? "text-primary" : "text-destructive"}>
+              <p
+                className={
+                  paid === payTotal ? "text-primary" : "text-destructive"
+                }
+              >
                 Falta pagar:{" "}
                 <CurrencyValues
                   value={Math.max(0, round2(payTotal - paid))}
@@ -2923,8 +3821,8 @@ export function DocsList({
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              O pré-pedido reserva o estoque dos itens, sem baixa e sem lançamento financeiro. O
-              orçamento continua salvo no histórico.
+              O pré-pedido reserva o estoque dos itens, sem baixa e sem
+              lançamento financeiro. O orçamento continua salvo no histórico.
             </p>
           )}
           <DialogFooter>
@@ -2933,7 +3831,8 @@ export function DocsList({
               onClick={confirmPayments}
               disabled={busy || (payTarget === "venda" && paid !== payTotal)}
             >
-              {busy && <Loader2 className="mr-1 h-4 w-4 animate-spin" />} Confirmar
+              {busy && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{" "}
+              Confirmar
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2943,12 +3842,15 @@ export function DocsList({
       <Dialog open={!!cancelDoc} onOpenChange={(o) => !o && setCancelDoc(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{isQuote ? "Recusar orçamento" : "Cancelar documento"}</DialogTitle>
+            <DialogTitle>
+              {isQuote ? "Recusar orçamento" : "Cancelar documento"}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-2 text-sm">
             <p className="text-muted-foreground">
-              O pedido sairá das contagens e das listas operacionais. O estoque volta e os
-              lançamentos financeiros são cancelados; a ação permanece no histórico de auditoria.
+              O pedido sairá das contagens e das listas operacionais. O estoque
+              volta e os lançamentos financeiros são cancelados; a ação
+              permanece no histórico de auditoria.
             </p>
             <Label htmlFor="motivo">Motivo (obrigatório)</Label>
             <Input
@@ -2986,8 +3888,8 @@ export function DocsList({
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  A sugestão considera primeiro a cidade e o estado do cliente. Você pode escolher
-                  manualmente qualquer outro estoque.
+                  A sugestão considera primeiro a cidade e o estado do cliente.
+                  Você pode escolher manualmente qualquer outro estoque.
                 </p>
               </>
             )}
@@ -2999,7 +3901,8 @@ export function DocsList({
               onClick={confirmCancel}
               disabled={busy || cancelReason.trim().length < 5}
             >
-              {busy && <Loader2 className="mr-1 h-4 w-4 animate-spin" />} Confirmar
+              {busy && <Loader2 className="mr-1 h-4 w-4 animate-spin" />}{" "}
+              Confirmar
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3028,14 +3931,20 @@ export function OrderHistoryList() {
     queryKey: ["history-order-version", selectedOrderId],
     enabled: !!selectedOrderId,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).rpc("sales_order_detail", {
-        p_order_id: selectedOrderId,
-      });
+      const { data, error } = await (supabase as any).rpc(
+        "sales_order_detail",
+        {
+          p_order_id: selectedOrderId,
+        },
+      );
       if (error) throw error;
       return data as any;
     },
   });
-  if (isLoading) return <p className="text-sm text-muted-foreground">Carregando histórico…</p>;
+  if (isLoading)
+    return (
+      <p className="text-sm text-muted-foreground">Carregando histórico…</p>
+    );
   if (!data.length)
     return (
       <EmptyState
@@ -3051,7 +3960,9 @@ export function OrderHistoryList() {
           role="button"
           tabIndex={0}
           className="cursor-pointer transition-colors hover:border-primary/40 hover:bg-primary/[0.02]"
-          onClick={() => setSelectedOrderId(entry.new_order_id || entry.order_id)}
+          onClick={() =>
+            setSelectedOrderId(entry.new_order_id || entry.order_id)
+          }
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault();
@@ -3062,9 +3973,12 @@ export function OrderHistoryList() {
           <CardContent className="flex flex-wrap items-start justify-between gap-3 pt-4">
             <div>
               <p className="font-medium">
-                Pedido {orderNumber(entry.orders?.number)} · versão {entry.revision_no}
+                Pedido {orderNumber(entry.orders?.number)} · versão{" "}
+                {entry.revision_no}
               </p>
-              <p className="text-sm text-muted-foreground">{entry.note ?? entry.action}</p>
+              <p className="text-sm text-muted-foreground">
+                {entry.note ?? entry.action}
+              </p>
             </div>
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
               <span>
@@ -3076,7 +3990,10 @@ export function OrderHistoryList() {
           </CardContent>
         </Card>
       ))}
-      <Dialog open={!!selectedOrderId} onOpenChange={(open) => !open && setSelectedOrderId(null)}>
+      <Dialog
+        open={!!selectedOrderId}
+        onOpenChange={(open) => !open && setSelectedOrderId(null)}
+      >
         <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Detalhes da versão do pedido</DialogTitle>
@@ -3084,17 +4001,24 @@ export function OrderHistoryList() {
           {selectedQuery.isLoading ? (
             <p className="text-sm text-muted-foreground">Carregando versão…</p>
           ) : selectedQuery.error ? (
-            <p className="text-sm text-destructive">Não foi possível abrir esta versão.</p>
+            <p className="text-sm text-destructive">
+              Não foi possível abrir esta versão.
+            </p>
           ) : selectedQuery.data ? (
             <div className="space-y-4">
               <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 text-sm sm:grid-cols-3">
                 <div>
                   <span className="block text-muted-foreground">Cliente</span>
-                  <strong>{selectedQuery.data.customer?.name ?? "Venda balcão"}</strong>
+                  <strong>
+                    {selectedQuery.data.customer?.name ?? "Venda balcão"}
+                  </strong>
                 </div>
                 <div>
                   <span className="block text-muted-foreground">Situação</span>
-                  <strong>{selectedQuery.data.workflow_stage ?? selectedQuery.data.status}</strong>
+                  <strong>
+                    {selectedQuery.data.workflow_stage ??
+                      selectedQuery.data.status}
+                  </strong>
                 </div>
                 <div>
                   <span className="block text-muted-foreground">Total</span>
@@ -3123,7 +4047,9 @@ export function OrderHistoryList() {
                 </div>
                 <div>
                   <span className="block text-muted-foreground">Estoque</span>
-                  <strong>{selectedQuery.data.warehouse?.name ?? "Não definido"}</strong>
+                  <strong>
+                    {selectedQuery.data.warehouse?.name ?? "Não definido"}
+                  </strong>
                 </div>
               </div>
               <div className="overflow-x-auto rounded-lg border">
@@ -3137,34 +4063,36 @@ export function OrderHistoryList() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(selectedQuery.data.items ?? []).map((item: any, index: number) => (
-                      <TableRow key={`${item.description}-${index}`}>
-                        <TableCell>{item.description}</TableCell>
-                        <TableCell className="text-right">
-                          {formatNumber(item.quantity, 3)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {item.unit_price == null ? (
-                            "Restrito"
-                          ) : (
-                            <CurrencyValues
-                              value={item.unit_price}
-                              currency={selectedQuery.data.currency}
-                            />
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {item.total == null ? (
-                            "Restrito"
-                          ) : (
-                            <CurrencyValues
-                              value={item.total}
-                              currency={selectedQuery.data.currency}
-                            />
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {(selectedQuery.data.items ?? []).map(
+                      (item: any, index: number) => (
+                        <TableRow key={`${item.description}-${index}`}>
+                          <TableCell>{item.description}</TableCell>
+                          <TableCell className="text-right">
+                            {formatNumber(item.quantity, 3)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {item.unit_price == null ? (
+                              "Restrito"
+                            ) : (
+                              <CurrencyValues
+                                value={item.unit_price}
+                                currency={selectedQuery.data.currency}
+                              />
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {item.total == null ? (
+                              "Restrito"
+                            ) : (
+                              <CurrencyValues
+                                value={item.total}
+                                currency={selectedQuery.data.currency}
+                              />
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ),
+                    )}
                   </TableBody>
                 </Table>
               </div>

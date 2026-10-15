@@ -1,3 +1,7 @@
+import { MemberGrantEditor } from "@/components/admin/MemberGrantEditor";
+import { RolesPermissionsSection } from "@/components/team/RolesPermissionsSection";
+import { OrderApprovals } from "@/components/admin/OrderApprovals";
+import { AddMemberDialog } from "@/components/team/AddMemberDialog";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -5,10 +9,19 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Eye, KeyRound, Search, ShieldCheck } from "lucide-react";
-import { adminListMembers, adminMemberDetail, adminUpdateMember } from "@/lib/admin.functions";
+import {
+  adminListMembers,
+  adminMemberDetail,
+  adminUpdateMember,
+} from "@/lib/admin.functions";
 import { useCurrentUser, ROLE_LABELS, type AppRole } from "@/hooks/useAuth";
 import { setViewAs } from "@/hooks/useImpersonation";
-import { formatDate, formatDateTime, formatMoney, initials } from "@/lib/format";
+import {
+  formatDate,
+  formatDateTime,
+  formatMoney,
+  initials,
+} from "@/lib/format";
 import { CurrencyValues } from "@/components/common/CurrencyValues";
 import { PageHeader, EmptyState } from "@/components/common/PageHeader";
 import { DivisionAccessPanel } from "@/components/admin/DivisionAccessPanel";
@@ -34,12 +47,14 @@ export const Route = createFileRoute("/_authenticated/admin")({
       { title: "Visão interna do administrador — OS" },
       {
         name: "description",
-        content: "Área exclusiva do administrador para acompanhar e editar tudo de cada membro.",
+        content:
+          "Área exclusiva do administrador para acompanhar e editar tudo de cada membro.",
       },
       { property: "og:title", content: "Visão interna do administrador — OS" },
       {
         property: "og:description",
-        content: "Área exclusiva do administrador para acompanhar e editar tudo de cada membro.",
+        content:
+          "Área exclusiva do administrador para acompanhar e editar tudo de cada membro.",
       },
     ],
   }),
@@ -114,7 +129,10 @@ function AdminArea() {
   if (!isAdmin) {
     return (
       <div>
-        <PageHeader title="Visão interna" description="Área exclusiva da administração." />
+        <PageHeader
+          title="Visão interna"
+          description="Área exclusiva da administração."
+        />
         <EmptyState
           title="Acesso restrito"
           description="Somente administradores e superadministradores podem abrir esta área."
@@ -145,7 +163,9 @@ function AdminArea() {
       toast.success("Dados do membro atualizados.");
       setNewEmail("");
       setNewPassword("");
-      await queryClient.invalidateQueries({ queryKey: ["admin-member", selected] });
+      await queryClient.invalidateQueries({
+        queryKey: ["admin-member", selected],
+      });
       await queryClient.invalidateQueries({ queryKey: ["admin-members"] });
     } catch (e: any) {
       toast.error(e?.message ?? "Não foi possível salvar.");
@@ -160,10 +180,19 @@ function AdminArea() {
     <div>
       <PageHeader
         title="Visão interna (administração)"
+        actions={<AddMemberDialog />}
         description="Área exclusiva de administradores: veja e edite tudo de cada membro, incluindo acesso e resultados."
       />
 
+      <details className="my-4 rounded-lg border p-4">
+        <summary className="cursor-pointer font-semibold">
+          Cargos, níveis e permissões
+        </summary>
+        <RolesPermissionsSection canWrite />
+      </details>
+      <OrderApprovals />
       <DivisionAccessPanel />
+      {selected && <MemberGrantEditor key={selected} userId={selected} />}
       <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
         <div className="surface-card flex max-h-[75vh] flex-col">
           <div className="relative border-b p-3">
@@ -199,9 +228,13 @@ function AdminArea() {
                 )}
               </button>
             ))}
-            {members.isLoading && <p className="p-4 text-sm text-muted-foreground">Carregando…</p>}
+            {members.isLoading && (
+              <p className="p-4 text-sm text-muted-foreground">Carregando…</p>
+            )}
             {!members.isLoading && list.length === 0 && (
-              <p className="p-4 text-sm text-muted-foreground">Nenhum membro encontrado.</p>
+              <p className="p-4 text-sm text-muted-foreground">
+                Nenhum membro encontrado.
+              </p>
             )}
           </div>
         </div>
@@ -247,7 +280,9 @@ function AdminArea() {
                     <Input
                       className="mt-1.5"
                       value={form.full_name ?? ""}
-                      onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, full_name: e.target.value })
+                      }
                     />
                   </div>
                   <div>
@@ -255,7 +290,9 @@ function AdminArea() {
                     <Input
                       className="mt-1.5"
                       value={form.email ?? ""}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, email: e.target.value })
+                      }
                     />
                   </div>
                   <div>
@@ -263,7 +300,9 @@ function AdminArea() {
                     <Input
                       className="mt-1.5"
                       value={form.phone ?? ""}
-                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, phone: e.target.value })
+                      }
                     />
                   </div>
                   <div>
@@ -271,7 +310,9 @@ function AdminArea() {
                     <Input
                       className="mt-1.5"
                       value={form.cargo ?? ""}
-                      onChange={(e) => setForm({ ...form, cargo: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, cargo: e.target.value })
+                      }
                     />
                   </div>
                   <div>
@@ -279,19 +320,41 @@ function AdminArea() {
                     <Input
                       className="mt-1.5"
                       value={form.setor ?? ""}
-                      onChange={(e) => setForm({ ...form, setor: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, setor: e.target.value })
+                      }
                     />
                   </div>
                   <div>
                     <Label>Perfis de acesso</Label>
                     <div className="mt-1.5 grid grid-cols-2 gap-2 rounded-md border p-2">
-                      {ROLE_VALUES.map((r) => <label key={r} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={roles.includes(r)} onChange={(e) => setRoles((current) => e.target.checked ? [...current, r] : current.filter((item) => item !== r))} />{ROLE_LABELS[r]}</label>)}
+                      {ROLE_VALUES.map((r) => (
+                        <label
+                          key={r}
+                          className="flex items-center gap-2 text-sm"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={roles.includes(r)}
+                            onChange={(e) =>
+                              setRoles((current) =>
+                                e.target.checked
+                                  ? [...current, r]
+                                  : current.filter((item) => item !== r),
+                              )
+                            }
+                          />
+                          {ROLE_LABELS[r]}
+                        </label>
+                      ))}
                     </div>
                   </div>
                   <div className="flex items-center gap-3 pt-2">
                     <Switch
                       checked={!!form.is_active}
-                      onCheckedChange={(v) => setForm({ ...form, is_active: v })}
+                      onCheckedChange={(v) =>
+                        setForm({ ...form, is_active: v })
+                      }
                     />
                     <span className="text-sm">Membro ativo</span>
                   </div>
@@ -307,20 +370,29 @@ function AdminArea() {
                       label="Último acesso"
                       value={formatDateTime(d.account?.last_sign_in_at)}
                     />
-                    <Info label="Conta criada em" value={formatDate(d.account?.created_at)} />
+                    <Info
+                      label="Conta criada em"
+                      value={formatDate(d.account?.created_at)}
+                    />
                     <Info
                       label="Forma de entrada"
-                      value={(d.account?.providers ?? []).filter(Boolean).join(", ")}
+                      value={(d.account?.providers ?? [])
+                        .filter(Boolean)
+                        .join(", ")}
                     />
                     <Info
                       label="E-mail confirmado"
                       value={d.account?.email_confirmed_at ? "Sim" : "Não"}
                     />
-                    <Info label="Conversas internas" value={d.conversationsCount} />
+                    <Info
+                      label="Conversas internas"
+                      value={d.conversationsCount}
+                    />
                   </div>
                   <p className="mt-3 text-xs text-muted-foreground">
-                    A senha é guardada criptografada e não pode ser lida por ninguém, nem pela
-                    administração. Para dar acesso, defina uma nova senha abaixo e envie ao membro.
+                    A senha é guardada criptografada e não pode ser lida por
+                    ninguém, nem pela administração. Para dar acesso, defina uma
+                    nova senha abaixo e envie ao membro.
                   </p>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <div>
@@ -353,7 +425,9 @@ function AdminArea() {
                         name: d.profile?.full_name ?? "membro",
                         roles: (d.roles?.length ? d.roles : roles) as AppRole[],
                       });
-                      toast.success("Agora você vê o sistema como este membro.");
+                      toast.success(
+                        "Agora você vê o sistema como este membro.",
+                      );
                       void navigate({ to: "/painel" });
                     }}
                   >
@@ -367,9 +441,13 @@ function AdminArea() {
 
               <TabsContent value="remuneracao" className="mt-4 space-y-4">
                 <section>
-                  <p className="mb-2 text-sm font-medium">Acordos de remuneração</p>
+                  <p className="mb-2 text-sm font-medium">
+                    Acordos de remuneração
+                  </p>
                   {d.compensations.length === 0 && (
-                    <p className="text-sm text-muted-foreground">Nenhum acordo cadastrado.</p>
+                    <p className="text-sm text-muted-foreground">
+                      Nenhum acordo cadastrado.
+                    </p>
                   )}
                   <div className="space-y-2">
                     {d.compensations.map((c: any) => (
@@ -378,7 +456,8 @@ function AdminArea() {
                         className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm"
                       >
                         <span>
-                          {c.label || c.comp_type} — {c.products?.name ?? "Todas as categorias"}
+                          {c.label || c.comp_type} —{" "}
+                          {c.products?.name ?? "Todas as categorias"}
                         </span>
                         <span className="font-medium">
                           {c.comp_type === "percentual" ? (
@@ -397,9 +476,13 @@ function AdminArea() {
                   </div>
                 </section>
                 <section>
-                  <p className="mb-2 text-sm font-medium">Lançamentos da folha</p>
+                  <p className="mb-2 text-sm font-medium">
+                    Lançamentos da folha
+                  </p>
                   {d.payroll.length === 0 && (
-                    <p className="text-sm text-muted-foreground">Nenhum lançamento.</p>
+                    <p className="text-sm text-muted-foreground">
+                      Nenhum lançamento.
+                    </p>
                   )}
                   <div className="space-y-2">
                     {d.payroll.map((p: any) => (
@@ -410,7 +493,11 @@ function AdminArea() {
                         <span>
                           {p.entry_type} — {p.description ?? "sem descrição"}
                         </span>
-                        <CurrencyValues value={Number(p.amount)} currency={p.currency} emphasize />
+                        <CurrencyValues
+                          value={Number(p.amount)}
+                          currency={p.currency}
+                          emphasize
+                        />
                       </div>
                     ))}
                   </div>
@@ -418,7 +505,9 @@ function AdminArea() {
                 <section>
                   <p className="mb-2 text-sm font-medium">Bonificações</p>
                   {d.bonuses.length === 0 && (
-                    <p className="text-sm text-muted-foreground">Nenhuma bonificação.</p>
+                    <p className="text-sm text-muted-foreground">
+                      Nenhuma bonificação.
+                    </p>
                   )}
                   <div className="space-y-2">
                     {d.bonuses.map((b: any) => (
@@ -427,15 +516,23 @@ function AdminArea() {
                         className="flex items-center justify-between gap-2 rounded-lg border p-3 text-sm"
                       >
                         <span>{b.description ?? "Bonificação"}</span>
-                        <CurrencyValues value={Number(b.amount)} currency={b.currency} emphasize />
+                        <CurrencyValues
+                          value={Number(b.amount)}
+                          currency={b.currency}
+                          emphasize
+                        />
                       </div>
                     ))}
                   </div>
                 </section>
                 <section>
-                  <p className="mb-2 text-sm font-medium">Investimentos do membro</p>
+                  <p className="mb-2 text-sm font-medium">
+                    Investimentos do membro
+                  </p>
                   {d.investments.length === 0 && (
-                    <p className="text-sm text-muted-foreground">Nenhum investimento.</p>
+                    <p className="text-sm text-muted-foreground">
+                      Nenhum investimento.
+                    </p>
                   )}
                   <div className="space-y-2">
                     {d.investments.map((i: any) => (
@@ -446,7 +543,11 @@ function AdminArea() {
                         <span>
                           {i.name} <Badge variant="secondary">{i.scope}</Badge>
                         </span>
-                        <CurrencyValues value={Number(i.amount)} currency={i.currency} emphasize />
+                        <CurrencyValues
+                          value={Number(i.amount)}
+                          currency={i.currency}
+                          emphasize
+                        />
                       </div>
                     ))}
                   </div>
@@ -455,7 +556,9 @@ function AdminArea() {
 
               <TabsContent value="resultados" className="mt-4 space-y-4">
                 <section>
-                  <p className="mb-2 text-sm font-medium">Pedidos ({d.orders.length})</p>
+                  <p className="mb-2 text-sm font-medium">
+                    Pedidos ({d.orders.length})
+                  </p>
                   <div className="space-y-2">
                     {d.orders.map((o: any) => (
                       <div
@@ -466,16 +569,24 @@ function AdminArea() {
                           #{o.number} — {o.customers?.name ?? "sem cliente"}{" "}
                           <Badge variant="secondary">{o.status}</Badge>
                         </span>
-                        <CurrencyValues value={Number(o.total)} currency={o.currency} emphasize />
+                        <CurrencyValues
+                          value={Number(o.total)}
+                          currency={o.currency}
+                          emphasize
+                        />
                       </div>
                     ))}
                     {d.orders.length === 0 && (
-                      <p className="text-sm text-muted-foreground">Nenhum pedido.</p>
+                      <p className="text-sm text-muted-foreground">
+                        Nenhum pedido.
+                      </p>
                     )}
                   </div>
                 </section>
                 <section>
-                  <p className="mb-2 text-sm font-medium">Orçamentos ({d.quotes.length})</p>
+                  <p className="mb-2 text-sm font-medium">
+                    Orçamentos ({d.quotes.length})
+                  </p>
                   <div className="space-y-2">
                     {d.quotes.map((q: any) => (
                       <div
@@ -483,13 +594,20 @@ function AdminArea() {
                         className="flex items-center justify-between gap-2 rounded-lg border p-3 text-sm"
                       >
                         <span>
-                          #{q.number} <Badge variant="secondary">{q.status}</Badge>
+                          #{q.number}{" "}
+                          <Badge variant="secondary">{q.status}</Badge>
                         </span>
-                        <CurrencyValues value={Number(q.total)} currency={q.currency} emphasize />
+                        <CurrencyValues
+                          value={Number(q.total)}
+                          currency={q.currency}
+                          emphasize
+                        />
                       </div>
                     ))}
                     {d.quotes.length === 0 && (
-                      <p className="text-sm text-muted-foreground">Nenhum orçamento.</p>
+                      <p className="text-sm text-muted-foreground">
+                        Nenhum orçamento.
+                      </p>
                     )}
                   </div>
                 </section>
@@ -506,7 +624,9 @@ function AdminArea() {
                         <span>
                           {o.customers?.name ?? "sem contato"} —{" "}
                           {o.products?.name ?? "sem categoria"}{" "}
-                          <Badge variant="secondary">{o.commercial_status}</Badge>
+                          <Badge variant="secondary">
+                            {o.commercial_status}
+                          </Badge>
                         </span>
                         <span className="font-medium">
                           <CurrencyValues
@@ -517,7 +637,9 @@ function AdminArea() {
                       </div>
                     ))}
                     {d.opportunities.length === 0 && (
-                      <p className="text-sm text-muted-foreground">Nenhuma oportunidade.</p>
+                      <p className="text-sm text-muted-foreground">
+                        Nenhuma oportunidade.
+                      </p>
                     )}
                   </div>
                 </section>
@@ -525,7 +647,9 @@ function AdminArea() {
 
               <TabsContent value="atividade" className="mt-4 space-y-4">
                 <section>
-                  <p className="mb-2 text-sm font-medium">Categorias vinculadas</p>
+                  <p className="mb-2 text-sm font-medium">
+                    Categorias vinculadas
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     {d.products.map((p: any) => (
                       <Badge key={p.id} variant="secondary">
@@ -533,7 +657,9 @@ function AdminArea() {
                       </Badge>
                     ))}
                     {d.products.length === 0 && (
-                      <p className="text-sm text-muted-foreground">Nenhuma categoria vinculada.</p>
+                      <p className="text-sm text-muted-foreground">
+                        Nenhuma categoria vinculada.
+                      </p>
                     )}
                   </div>
                 </section>
@@ -547,12 +673,15 @@ function AdminArea() {
                       >
                         <span>{t.title}</span>
                         <span className="text-muted-foreground">
-                          {formatDate(t.due_at)} <Badge variant="secondary">{t.status}</Badge>
+                          {formatDate(t.due_at)}{" "}
+                          <Badge variant="secondary">{t.status}</Badge>
                         </span>
                       </div>
                     ))}
                     {d.tasks.length === 0 && (
-                      <p className="text-sm text-muted-foreground">Nenhuma tarefa.</p>
+                      <p className="text-sm text-muted-foreground">
+                        Nenhuma tarefa.
+                      </p>
                     )}
                   </div>
                 </section>
@@ -568,7 +697,9 @@ function AdminArea() {
                       </div>
                     ))}
                     {d.activities.length === 0 && (
-                      <p className="text-sm text-muted-foreground">Nenhuma interação registrada.</p>
+                      <p className="text-sm text-muted-foreground">
+                        Nenhuma interação registrada.
+                      </p>
                     )}
                   </div>
                 </section>

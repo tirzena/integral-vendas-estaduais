@@ -1,0 +1,1 @@
+ALTER TABLE private.seller_creation_context DROP CONSTRAINT seller_creation_context_operation_check; ALTER TABLE private.seller_creation_context ADD CONSTRAINT seller_creation_context_operation_check CHECK(operation IN('create_sale','register_payment','edit_order'));

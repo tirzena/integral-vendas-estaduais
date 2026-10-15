@@ -53,10 +53,14 @@ export const Route = createFileRoute("/_authenticated/crm/")({
       { title: "CRM por categoria — OS" },
       {
         name: "description",
-        content: "Funil de vendas separado por categoria, com etapas, valores e responsáveis.",
+        content:
+          "Funil de vendas separado por categoria, com etapas, valores e responsáveis.",
       },
       { property: "og:title", content: "CRM por categoria — OS" },
-      { property: "og:description", content: "Funil de vendas separado por categoria." },
+      {
+        property: "og:description",
+        content: "Funil de vendas separado por categoria.",
+      },
     ],
   }),
   component: Crm,
@@ -66,7 +70,8 @@ type ViewMode = "kanban" | "lista" | "tabela";
 
 function Crm() {
   const { productId, current, products, setProductId } = useProductScope();
-  const { userId, isAdmin } = useCurrentUser();
+  const { userId, isAdmin, roles } = useCurrentUser();
+  const sellerPortal = roles.includes("vendedor") && !isAdmin;
   const estadualAccess = useEstadualAccess();
   const { options: peopleOptions, nameOf } = usePeople();
   const queryClient = useQueryClient();
@@ -89,31 +94,49 @@ function Crm() {
     enabled: Boolean(userId) && (!isAll || productIds.length > 0),
     queryFn: async () => {
       if (!isAdmin) {
-        const { data: scoped, error } = await (supabase as any).rpc("estadual_seller_crm_data");
+        const { data: scoped, error } = await (supabase as any).rpc(
+          "estadual_seller_crm_data",
+        );
         if (error) throw error;
         const allowed = new Set(productIds);
         return {
-          pipelines: (scoped?.pipelines ?? []).filter((p: any) => allowed.has(p.product_id)),
-          stages: (scoped?.stages ?? []).filter((s: any) => allowed.has(s.pipelines?.product_id)),
-          cards: (scoped?.cards ?? []).filter((c: any) => allowed.has(c.product_id)),
+          pipelines: (scoped?.pipelines ?? []).filter((p: any) =>
+            allowed.has(p.product_id),
+          ),
+          stages: (scoped?.stages ?? []).filter((s: any) =>
+            allowed.has(s.pipelines?.product_id),
+          ),
+          cards: (scoped?.cards ?? []).filter((c: any) =>
+            allowed.has(c.product_id),
+          ),
           customers: scoped?.customers ?? [],
         };
       }
       const { data: pipelines, error: pipelineError } = await supabase
-        .from("pipelines").select("id,name,product_id")
-        .in("product_id", productIds).eq("is_default", true);
+        .from("pipelines")
+        .select("id,name,product_id")
+        .in("product_id", productIds)
+        .eq("is_default", true);
       if (pipelineError) throw pipelineError;
       const pipelineIds = (pipelines ?? []).map((p) => p.id);
       const [stagesRes, cardsRes, customersRes] = await Promise.all([
         pipelineIds.length
-          ? supabase.from("pipeline_stages").select("*, pipelines(product_id)")
-              .in("pipeline_id", pipelineIds).order("position")
+          ? supabase
+              .from("pipeline_stages")
+              .select("*, pipelines(product_id)")
+              .in("pipeline_id", pipelineIds)
+              .order("position")
           : Promise.resolve({ data: [] as any[], error: null }),
-        supabase.from("customer_products")
+        supabase
+          .from("customer_products")
           .select("*, customers(name, phone), products(name, main_currency)")
           .in("product_id", productIds),
-        supabase.from("customers").select("id,name")
-          .is("deleted_at", null).order("name").limit(500),
+        supabase
+          .from("customers")
+          .select("id,name")
+          .is("deleted_at", null)
+          .order("name")
+          .limit(500),
       ]);
       if (stagesRes.error || cardsRes.error || customersRes.error)
         throw stagesRes.error ?? cardsRes.error ?? customersRes.error;
@@ -126,12 +149,17 @@ function Crm() {
     },
   });
 
-  const stages = data?.stages ?? [];
+  const stages = useMemo(() => data?.stages ?? [], [data?.stages]);
   const rawCards = data?.cards ?? [];
   // Cada vendedor enxerga apenas os contatos sob a responsabilidade dele.
-  const ownedCards = isAdmin ? rawCards : rawCards.filter((c: any) => c.owner_id === userId);
+  const ownedCards = isAdmin
+    ? rawCards
+    : rawCards.filter((c: any) => c.owner_id === userId);
   const cards = useMemo(
-    () => ownedCards.filter((c: any) => inPeriod(c.created_at ?? c.entered_at, period)),
+    () =>
+      ownedCards.filter((c: any) =>
+        inPeriod(c.created_at ?? c.entered_at, period),
+      ),
     [ownedCards, period],
   );
   const currentPipeline = isAll
@@ -150,41 +178,63 @@ function Crm() {
   }, [cards]);
 
   const summary = useMemo(() => {
-    const typeOf = (c: any) => stages.find((s: any) => s.id === c.stage_id)?.stage_type ?? "aberto";
+    const typeOf = (c: any) =>
+      stages.find((s: any) => s.id === c.stage_id)?.stage_type ?? "aberto";
     const firstStageIds = new Set(
       stages.filter((s: any) => s.position === 1).map((s: any) => s.id),
     );
-    const won = cards.filter((c: any) => typeOf(c) === "ganho" || typeOf(c) === "posvenda");
+    const won = cards.filter(
+      (c: any) => typeOf(c) === "ganho" || typeOf(c) === "posvenda",
+    );
     const lost = cards.filter((c: any) => typeOf(c) === "perdido");
     const open = cards.filter((c: any) => typeOf(c) === "aberto");
     const untouched = open.filter(
-      (c: any) => !c.owner_id || (firstStageIds.has(c.stage_id) && !c.last_contact_at),
+      (c: any) =>
+        !c.owner_id || (firstStageIds.has(c.stage_id) && !c.last_contact_at),
     );
     return [
       { label: "Leads no período", value: cards.length },
       { label: "Em atendimento", value: open.length - untouched.length },
-      { label: "Ninguém atendeu", value: untouched.length, tone: "warn" as const },
+      {
+        label: "Ninguém atendeu",
+        value: untouched.length,
+        tone: "warn" as const,
+      },
       { label: "Geraram venda", value: won.length, tone: "good" as const },
       { label: "Não geraram", value: lost.length, tone: "bad" as const },
       {
         label: "Conversão",
-        value: cards.length ? `${Math.round((won.length / cards.length) * 100)}%` : "0%",
+        value: cards.length
+          ? `${Math.round((won.length / cards.length) * 100)}%`
+          : "0%",
       },
     ];
   }, [cards, stages]);
 
-  const stageName = (id: string) => stages.find((s: any) => s.id === id)?.name ?? "—";
+  const stageName = (id: string) =>
+    stages.find((s: any) => s.id === id)?.name ?? "—";
 
   // Cada categoria tem seu próprio funil: agrupamos etapas de mesmo nome para
   // não repetir colunas quando várias categorias são exibidas juntas.
   const groupedStages = useMemo(() => {
-    const groups: { key: string; name: string; position: number; ids: string[] }[] = [];
+    const groups: {
+      key: string;
+      name: string;
+      position: number;
+      ids: string[];
+    }[] = [];
     [...stages]
       .sort((a: any, b: any) => a.position - b.position)
       .forEach((s: any) => {
         const found = groups.find((g) => g.name === s.name);
         if (found) found.ids.push(s.id);
-        else groups.push({ key: s.name, name: s.name, position: s.position, ids: [s.id] });
+        else
+          groups.push({
+            key: s.name,
+            name: s.name,
+            position: s.position,
+            ids: [s.id],
+          });
       });
     return groups;
   }, [stages]);
@@ -201,7 +251,8 @@ function Crm() {
   // Ao mudar de etapa, só oferecemos as etapas do funil da própria categoria.
   const stagesForCard = (card: any) => {
     const pipelineId =
-      card.pipeline_id ?? data?.pipelines.find((p: any) => p.product_id === card.product_id)?.id;
+      card.pipeline_id ??
+      data?.pipelines.find((p: any) => p.product_id === card.product_id)?.id;
     const own = stages.filter((s: any) => s.pipeline_id === pipelineId);
     return own.length ? own : currentStages;
   };
@@ -213,8 +264,18 @@ function Crm() {
   async function moveCard(cardId: string, stageId: string) {
     if (!estadualAccess.canWrite) return;
     try {
+      if (sellerPortal) {
+        const result = await (supabase as any).rpc("estadual_seller_crm_move", {
+          p_card_id: cardId,
+          p_stage_id: stageId,
+        });
+        if (result.error) throw result.error;
+        await queryClient.invalidateQueries({ queryKey: ["crm"] });
+        return;
+      }
       const result = await moveOpportunity({ data: { cardId, stageId } });
-      if (result.meta?.sent) toast.success("Lead qualificado e evento enviado à Meta.");
+      if (result.meta?.sent)
+        toast.success("Lead qualificado e evento enviado à Meta.");
       queryClient.invalidateQueries({ queryKey: ["crm", productId] });
     } catch {
       toast.error("Não foi possível mover a oportunidade.");
@@ -236,11 +297,17 @@ function Crm() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!estadualAccess.canWrite) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
+    if (!estadualAccess.canWrite)
+      return void toast.error(
+        "Seu acesso ao Vendas Estaduais é somente leitura.",
+      );
     const next: Record<string, string> = {};
-    if (!form.product_id && isAll) next["product_id"] = "Selecione a categoria.";
-    if (mode === "existente" && !form.customer_id) next["customer_id"] = "Selecione um contato.";
-    if (mode === "novo" && !form.name?.trim()) next["name"] = "Informe o nome do contato.";
+    if (!form.product_id && isAll)
+      next["product_id"] = "Selecione a categoria.";
+    if (mode === "existente" && !form.customer_id)
+      next["customer_id"] = "Selecione um contato.";
+    if (mode === "novo" && !form.name?.trim())
+      next["name"] = "Informe o nome do contato.";
     if (form.potential_value && isNaN(Number(form.potential_value)))
       next["potential_value"] = "Informe um valor numérico.";
     setErrors(next);
@@ -254,47 +321,70 @@ function Crm() {
     setSaving(true);
     try {
       if (!isAdmin) {
-        const { error } = await (supabase as any).rpc("estadual_seller_crm_create", {
-          p_request: {
-            product_id: targetProductId,
-            customer_id: mode === "existente" ? form.customer_id : undefined,
-            name: mode === "novo" ? form.name?.trim() : undefined,
-            phone: form.phone || null,
-            email: form.email || null,
-            document: form.document || null,
-            city: form.city || null,
-            lead_origin: form.lead_origin || null,
-            potential_value: form.potential_value ? Number(form.potential_value) : null,
-            currency: form.currency ?? "BRL",
-            notes: form.notes || null,
+        const { error } = await (supabase as any).rpc(
+          "estadual_seller_crm_create",
+          {
+            p_request: {
+              product_id: targetProductId,
+              customer_id: mode === "existente" ? form.customer_id : undefined,
+              name: mode === "novo" ? form.name?.trim() : undefined,
+              phone: form.phone || null,
+              email: form.email || null,
+              document: form.document || null,
+              city: form.city || null,
+              lead_origin: form.lead_origin || null,
+              potential_value: form.potential_value
+                ? Number(form.potential_value)
+                : null,
+              currency: form.currency ?? "BRL",
+              notes: form.notes || null,
+            },
           },
-        });
+        );
         if (error) throw error;
       } else {
-        const pipeline = data?.pipelines.find((p: any) => p.product_id === targetProductId);
+        const pipeline = data?.pipelines.find(
+          (p: any) => p.product_id === targetProductId,
+        );
         const firstStage = pipeline
-          ? (stages.find((stage: any) => stage.pipeline_id === pipeline.id)?.id ?? null)
+          ? (stages.find((stage: any) => stage.pipeline_id === pipeline.id)
+              ?.id ?? null)
           : null;
-        if (!firstStage) throw new Error("A categoria ainda não tem etapas de funil.");
+        if (!firstStage)
+          throw new Error("A categoria ainda não tem etapas de funil.");
         let customerId = form.customer_id as string | undefined;
         if (mode === "novo") {
-          const { data: created, error } = await supabase.from("customers").insert({
-            name: form.name.trim(), phone: form.phone || null,
-            whatsapp: form.phone || null, email: form.email || null,
-            document: form.document || null, city: form.city || null,
-            origin: form.lead_origin || null, created_by: userId ?? null,
-          }).select("id").single();
-          if (error || !created) throw error ?? new Error("Não foi possível cadastrar o contato.");
+          const { data: created, error } = await supabase
+            .from("customers")
+            .insert({
+              name: form.name.trim(),
+              phone: form.phone || null,
+              whatsapp: form.phone || null,
+              email: form.email || null,
+              document: form.document || null,
+              city: form.city || null,
+              origin: form.lead_origin || null,
+              created_by: userId ?? null,
+            })
+            .select("id")
+            .single();
+          if (error || !created)
+            throw error ?? new Error("Não foi possível cadastrar o contato.");
           customerId = created.id;
         }
         const { error } = await supabase.from("customer_products").insert({
-          customer_id: customerId!, product_id: targetProductId,
-          pipeline_id: pipeline?.id ?? null, stage_id: firstStage,
+          customer_id: customerId!,
+          product_id: targetProductId,
+          pipeline_id: pipeline?.id ?? null,
+          stage_id: firstStage,
           owner_id: form.owner_id || userId || null,
           commercial_status: "em_negociacao",
           lead_origin: form.lead_origin || null,
-          potential_value: form.potential_value ? Number(form.potential_value) : null,
-          currency: form.currency ?? "BRL", notes: form.notes || null,
+          potential_value: form.potential_value
+            ? Number(form.potential_value)
+            : null,
+          currency: form.currency ?? "BRL",
+          notes: form.notes || null,
         });
         if (error) throw error;
       }
@@ -362,7 +452,10 @@ function Crm() {
               </ToggleGroup>
             )}
             <PeriodFilter value={period} onChange={setPeriod} />
-            <Button disabled={!estadualAccess.canWrite} onClick={() => setOpen(true)}>
+            <Button
+              disabled={!estadualAccess.canWrite}
+              onClick={() => setOpen(true)}
+            >
               <Plus className="mr-2 size-4" /> Nova oportunidade
             </Button>
           </div>
@@ -392,7 +485,9 @@ function Crm() {
       ) : effectiveView === "kanban" ? (
         <div className="flex gap-4 overflow-x-auto pb-4">
           {listStages.map((stage: any) => {
-            const stageCards = cards.filter((c: any) => stage.ids.includes(c.stage_id));
+            const stageCards = cards.filter((c: any) =>
+              stage.ids.includes(c.stage_id),
+            );
             const stageTotal = stage.ids.reduce(
               (sum: number, stageId: string) => sum + (totals[stageId] ?? 0),
               0,
@@ -403,9 +498,13 @@ function Crm() {
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => {
                   if (dragging) {
-                    const card = cards.find((item: any) => item.id === dragging);
+                    const card = cards.find(
+                      (item: any) => item.id === dragging,
+                    );
                     const destination = card
-                      ? stagesForCard(card).find((item: any) => item.name === stage.name)
+                      ? stagesForCard(card).find(
+                          (item: any) => item.name === stage.name,
+                        )
                       : null;
                     if (destination) moveCard(dragging, destination.id);
                   }
@@ -442,16 +541,26 @@ function Crm() {
                         {card.customers?.name ?? "Contato"}
                       </p>
                       <p className="truncate text-xs text-muted-foreground">
-                        {card.customers?.phone ?? card.whatsapp_number ?? "sem telefone"}
+                        {card.customers?.phone ??
+                          card.whatsapp_number ??
+                          "sem telefone"}
                       </p>
                       <p className="truncate text-[11px] text-muted-foreground">
-                        Responsável: {card.owner_id ? nameOf(card.owner_id) : "sem responsável"}
+                        Responsável:{" "}
+                        {card.owner_id
+                          ? nameOf(card.owner_id)
+                          : "sem responsável"}
                       </p>
                       <div className="mt-2 flex items-center justify-between">
                         <span className="text-xs font-medium">
-                          <CurrencyValues value={card.potential_value} currency={card.currency} />
+                          <CurrencyValues
+                            value={card.potential_value}
+                            currency={card.currency}
+                          />
                         </span>
-                        {card.is_demo && <Badge variant="outline">Fictício</Badge>}
+                        {card.is_demo && (
+                          <Badge variant="outline">Fictício</Badge>
+                        )}
                       </div>
                       {card.next_action_at && (
                         <p className="mt-1 text-[11px] text-muted-foreground">
@@ -468,16 +577,24 @@ function Crm() {
       ) : effectiveView === "lista" ? (
         <div className="space-y-6">
           {listStages.map((stage) => {
-            const stageCards = cards.filter((c: any) => stage.ids.includes(c.stage_id));
+            const stageCards = cards.filter((c: any) =>
+              stage.ids.includes(c.stage_id),
+            );
             const currency = isAll ? "BRL" : (current?.main_currency ?? "BRL");
-            const stageTotal = stage.ids.reduce((acc, sid) => acc + (totals[sid] ?? 0), 0);
+            const stageTotal = stage.ids.reduce(
+              (acc, sid) => acc + (totals[sid] ?? 0),
+              0,
+            );
             return (
               <div key={stage.key}>
                 <div className="mb-2 flex items-center gap-2">
                   <p className="text-sm font-semibold">{stage.name}</p>
                   <Badge variant="secondary">{stageCards.length}</Badge>
                   <span className="text-xs text-muted-foreground">
-                    <CurrencyValues value={stageTotal} currency={currency as any} />
+                    <CurrencyValues
+                      value={stageTotal}
+                      currency={currency as any}
+                    />
                   </span>
                 </div>
                 {stageCards.length === 0 ? (
@@ -500,17 +617,25 @@ function Crm() {
                             {card.customers?.name ?? "Contato"}
                           </Link>
                           <p className="truncate text-xs text-muted-foreground">
-                            {card.customers?.phone ?? card.whatsapp_number ?? "sem telefone"}
+                            {card.customers?.phone ??
+                              card.whatsapp_number ??
+                              "sem telefone"}
                             {card.lead_origin ? ` · ${card.lead_origin}` : ""}
                             {isAll && ` · ${productName(card.product_id)}`}
                           </p>
                           <p className="truncate text-xs text-muted-foreground">
-                            Responsável: {card.owner_id ? nameOf(card.owner_id) : "sem responsável"}
+                            Responsável:{" "}
+                            {card.owner_id
+                              ? nameOf(card.owner_id)
+                              : "sem responsável"}
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium">
-                            <CurrencyValues value={card.potential_value} currency={card.currency} />
+                            <CurrencyValues
+                              value={card.potential_value}
+                              currency={card.currency}
+                            />
                           </span>
                           <Select
                             value={card.stage_id ?? ""}
@@ -531,7 +656,10 @@ function Crm() {
                             variant="outline"
                             size="sm"
                             onClick={() =>
-                              navigate({ to: "/crm/$id", params: { id: card.customer_id } })
+                              navigate({
+                                to: "/crm/$id",
+                                params: { id: card.customer_id },
+                              })
                             }
                           >
                             Abrir
@@ -578,10 +706,17 @@ function Crm() {
                       </Badge>
                     )}
                   </TableCell>
-                  {isAll && <TableCell>{productName(card.product_id)}</TableCell>}
-                  <TableCell>{card.customers?.phone ?? card.whatsapp_number ?? "—"}</TableCell>
+                  {isAll && (
+                    <TableCell>{productName(card.product_id)}</TableCell>
+                  )}
                   <TableCell>
-                    <Select value={card.stage_id ?? ""} onValueChange={(v) => moveCard(card.id, v)}>
+                    {card.customers?.phone ?? card.whatsapp_number ?? "—"}
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      value={card.stage_id ?? ""}
+                      onValueChange={(v) => moveCard(card.id, v)}
+                    >
                       <SelectTrigger className="h-8 w-44">
                         <SelectValue placeholder={stageName(card.stage_id)} />
                       </SelectTrigger>
@@ -618,16 +753,26 @@ function Crm() {
                   </TableCell>
                   <TableCell>{card.lead_origin ?? "—"}</TableCell>
                   <TableCell>
-                    <CurrencyValues value={card.potential_value} currency={card.currency} />
+                    <CurrencyValues
+                      value={card.potential_value}
+                      currency={card.currency}
+                    />
                   </TableCell>
                   <TableCell>
-                    {card.next_action_at ? formatDate(card.next_action_at) : "—"}
+                    {card.next_action_at
+                      ? formatDate(card.next_action_at)
+                      : "—"}
                   </TableCell>
                   <TableCell className="text-right">
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => navigate({ to: "/crm/$id", params: { id: card.customer_id } })}
+                      onClick={() =>
+                        navigate({
+                          to: "/crm/$id",
+                          params: { id: card.customer_id },
+                        })
+                      }
                     >
                       Abrir
                     </Button>
@@ -644,7 +789,8 @@ function Crm() {
           <DialogHeader>
             <DialogTitle>Nova oportunidade</DialogTitle>
             <DialogDescription>
-              Cadastre um novo contato no funil. Ao aprovar um orçamento, ele vira cliente.
+              Cadastre um novo contato no funil. Ao aprovar um orçamento, ele
+              vira cliente.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={submit} className="space-y-4">
@@ -653,7 +799,9 @@ function Crm() {
                 <Label>Categoria *</Label>
                 <Select
                   value={form.product_id ?? ""}
-                  onValueChange={(v) => setForm((f: any) => ({ ...f, product_id: v }))}
+                  onValueChange={(v) =>
+                    setForm((f: any) => ({ ...f, product_id: v }))
+                  }
                 >
                   <SelectTrigger className="mt-1.5">
                     <SelectValue placeholder="Selecione a categoria" />
@@ -667,7 +815,9 @@ function Crm() {
                   </SelectContent>
                 </Select>
                 {errors["product_id"] && (
-                  <p className="mt-1 text-xs text-destructive">{errors["product_id"]}</p>
+                  <p className="mt-1 text-xs text-destructive">
+                    {errors["product_id"]}
+                  </p>
                 )}
               </div>
             )}
@@ -695,10 +845,14 @@ function Crm() {
                   <Input
                     className="mt-1.5"
                     value={form.name ?? ""}
-                    onChange={(e) => setForm((f: any) => ({ ...f, name: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((f: any) => ({ ...f, name: e.target.value }))
+                    }
                   />
                   {errors["name"] && (
-                    <p className="mt-1 text-xs text-destructive">{errors["name"]}</p>
+                    <p className="mt-1 text-xs text-destructive">
+                      {errors["name"]}
+                    </p>
                   )}
                 </div>
                 <div>
@@ -706,7 +860,9 @@ function Crm() {
                   <Input
                     className="mt-1.5"
                     value={form.phone ?? ""}
-                    onChange={(e) => setForm((f: any) => ({ ...f, phone: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((f: any) => ({ ...f, phone: e.target.value }))
+                    }
                   />
                 </div>
                 <div>
@@ -714,7 +870,9 @@ function Crm() {
                   <Input
                     className="mt-1.5"
                     value={form.email ?? ""}
-                    onChange={(e) => setForm((f: any) => ({ ...f, email: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((f: any) => ({ ...f, email: e.target.value }))
+                    }
                   />
                 </div>
                 <div>
@@ -722,7 +880,9 @@ function Crm() {
                   <Input
                     className="mt-1.5"
                     value={form.document ?? ""}
-                    onChange={(e) => setForm((f: any) => ({ ...f, document: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((f: any) => ({ ...f, document: e.target.value }))
+                    }
                   />
                 </div>
                 <div>
@@ -730,7 +890,9 @@ function Crm() {
                   <Input
                     className="mt-1.5"
                     value={form.city ?? ""}
-                    onChange={(e) => setForm((f: any) => ({ ...f, city: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((f: any) => ({ ...f, city: e.target.value }))
+                    }
                   />
                 </div>
               </div>
@@ -739,7 +901,9 @@ function Crm() {
                 <Label>Contato *</Label>
                 <Select
                   value={form.customer_id ?? ""}
-                  onValueChange={(v) => setForm((f: any) => ({ ...f, customer_id: v }))}
+                  onValueChange={(v) =>
+                    setForm((f: any) => ({ ...f, customer_id: v }))
+                  }
                 >
                   <SelectTrigger className="mt-1.5">
                     <SelectValue placeholder="Selecione o contato" />
@@ -753,7 +917,9 @@ function Crm() {
                   </SelectContent>
                 </Select>
                 {errors["customer_id"] && (
-                  <p className="mt-1 text-xs text-destructive">{errors["customer_id"]}</p>
+                  <p className="mt-1 text-xs text-destructive">
+                    {errors["customer_id"]}
+                  </p>
                 )}
                 {(data?.customers ?? []).length === 0 && (
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -769,17 +935,26 @@ function Crm() {
                 <Input
                   className="mt-1.5"
                   value={form.potential_value ?? ""}
-                  onChange={(e) => setForm((f: any) => ({ ...f, potential_value: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((f: any) => ({
+                      ...f,
+                      potential_value: e.target.value,
+                    }))
+                  }
                 />
                 {errors["potential_value"] && (
-                  <p className="mt-1 text-xs text-destructive">{errors["potential_value"]}</p>
+                  <p className="mt-1 text-xs text-destructive">
+                    {errors["potential_value"]}
+                  </p>
                 )}
               </div>
               <div>
                 <Label>Moeda</Label>
                 <Select
                   value={form.currency ?? "BRL"}
-                  onValueChange={(v) => setForm((f: any) => ({ ...f, currency: v }))}
+                  onValueChange={(v) =>
+                    setForm((f: any) => ({ ...f, currency: v }))
+                  }
                 >
                   <SelectTrigger className="mt-1.5">
                     <SelectValue />
@@ -799,7 +974,9 @@ function Crm() {
                 <Label>Responsável</Label>
                 <Select
                   value={form.owner_id ?? ""}
-                  onValueChange={(v) => setForm((f: any) => ({ ...f, owner_id: v }))}
+                  onValueChange={(v) =>
+                    setForm((f: any) => ({ ...f, owner_id: v }))
+                  }
                 >
                   <SelectTrigger className="mt-1.5">
                     <SelectValue placeholder="Selecione o responsável" />
@@ -821,7 +998,9 @@ function Crm() {
                 className="mt-1.5"
                 placeholder="Indicação, anúncio, feira…"
                 value={form.lead_origin ?? ""}
-                onChange={(e) => setForm((f: any) => ({ ...f, lead_origin: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f: any) => ({ ...f, lead_origin: e.target.value }))
+                }
               />
             </div>
             <div>
@@ -829,15 +1008,22 @@ function Crm() {
               <Textarea
                 className="mt-1.5"
                 value={form.notes ?? ""}
-                onChange={(e) => setForm((f: any) => ({ ...f, notes: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f: any) => ({ ...f, notes: e.target.value }))
+                }
               />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+              >
                 Cancelar
               </Button>
               <Button type="submit" disabled={saving}>
-                {saving && <Loader2 className="mr-2 size-4 animate-spin" />} Salvar
+                {saving && <Loader2 className="mr-2 size-4 animate-spin" />}{" "}
+                Salvar
               </Button>
             </DialogFooter>
           </form>
