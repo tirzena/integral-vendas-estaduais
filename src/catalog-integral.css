@@ -1,7 +1,7 @@
 /* Catalog uses the same dark tokens and brand accents as the Integral shell.
    Scope portal content too, so dialogs and selects keep this identity. */
 .integral-catalog {
-  color-scheme: dark;
+  color-scheme: inherit;
   color: var(--foreground);
   --brand-emerald: #2ce7a1;
   --brand-magenta: #f50067;
@@ -54,9 +54,9 @@ main.integral-catalog {
 .integral-catalog-brand small { display: block; margin-top: 4px; color: var(--muted-foreground); font-size: 12px; overflow-wrap: anywhere; }
 .integral-catalog-brand-action { display: flex; align-items: center; gap: 8px; flex: none; color: var(--catalog-brand-color); font-size: 12px; font-weight: 700; }
 .integral-catalog-filters { padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
-.integral-catalog-product { border-color: #425865; box-shadow: 0 10px 40px rgb(0 0 0 / 16%); }
+.integral-catalog-product { border-color: var(--border); box-shadow: 0 10px 40px rgb(0 0 0 / 16%); }
 .integral-catalog-product:hover, .integral-catalog-product:focus-within { border-color: var(--primary); }
-.integral-catalog input, .integral-catalog textarea, .integral-catalog [data-slot="select-trigger"] { background-color: #081219; }
+.integral-catalog input, .integral-catalog textarea, .integral-catalog [data-slot="select-trigger"] { background-color: var(--background); color: var(--foreground); }
 @media (max-width: 560px) {
   .integral-catalog-brands { grid-template-columns: 1fr; }
   .integral-catalog-brand { padding: 14px 16px; }
@@ -110,3 +110,5 @@ main.integral-catalog {
 @media (prefers-reduced-motion: reduce) {
   .catalog-site-button::after { animation: none; }
 }
+
+:root:not(.dark) .integral-catalog-brand-action { color: var(--primary); }
