@@ -23,6 +23,8 @@ export function OrderPaymentDialog({ orderId, onClose }: { orderId: string; onCl
     [proof, setProof] = useState(""),
     [notes, setNotes] = useState(""),
     [busy, setBusy] = useState(false);
+  const [creditAmount, setCreditAmount] = useState("");
+  const creditRequest = useRef({ key: "", id: crypto.randomUUID() });
   const [proofPath, setProofPath] = useState("");
   const [uploading, setUploading] = useState(false);
   const [cashSigned, setCashSigned] = useState(false);
@@ -36,6 +38,54 @@ export function OrderPaymentDialog({ orderId, onClose }: { orderId: string; onCl
       return r.data;
     },
   });
+  const credit = useQuery({
+    queryKey: ["order-credit-context", orderId],
+    enabled: !!query.data,
+    staleTime: 15000,
+    queryFn: async () => {
+      const r = await (supabase as any).rpc("integral_order_credit_context", {
+        p_order_id: orderId,
+      });
+      if (r.error) throw r.error;
+      return r.data;
+    },
+  });
+  async function requestCredit() {
+    if (busy || uploading) return;
+    const value = Number(creditAmount.replace(",", "."));
+    if (
+      !Number.isFinite(value) ||
+      value <= 0 ||
+      value > Number(credit.data?.available ?? 0) ||
+      value >
+        Math.max(0, Number(query.data?.receivable ?? 0) - Number(credit.data?.pending_amount ?? 0))
+    )
+      return void toast.error(
+        "Informe um valor dentro do crédito disponível e do saldo livre do pedido.",
+      );
+    const key = JSON.stringify({ orderId, value, notes });
+    if (creditRequest.current.key !== key) creditRequest.current = { key, id: crypto.randomUUID() };
+    setBusy(true);
+    try {
+      const r = await (supabase as any).rpc("integral_request_customer_credit", {
+        p_order_id: orderId,
+        p_amount: value,
+        p_request_id: creditRequest.current.id,
+        p_note: notes.trim() || null,
+      });
+      if (r.error) throw r.error;
+      setCreditAmount("");
+      creditRequest.current = { key: "", id: crypto.randomUUID() };
+      await client.invalidateQueries();
+      toast.success(
+        "Uso de crédito enviado para aprovação financeira. O saldo do cliente ainda não foi debitado.",
+      );
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   async function submit() {
     if (busy || uploading) return;
     if (!proofPath && !(method !== "dinheiro" && /^https:\/\//i.test(proof)))
@@ -115,6 +165,91 @@ export function OrderPaymentDialog({ orderId, onClose }: { orderId: string; onCl
                   {formatMoney(Number(data.receivable), cur)}
                 </p>
               </div>
+              <section className="space-y-2 rounded-lg border p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-medium text-sm">Crédito do cliente</p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy || credit.isFetching}
+                    onClick={() => credit.refetch()}
+                  >
+                    Atualizar saldo
+                  </Button>
+                </div>
+                {credit.isLoading ? (
+                  <p className="text-sm">Consultando crédito…</p>
+                ) : credit.isError ? (
+                  <p role="alert" className="text-sm text-destructive">
+                    Não foi possível consultar o crédito. Tente atualizar o saldo.
+                  </p>
+                ) : !credit.data?.has_customer ? (
+                  <p className="text-xs text-muted-foreground">
+                    Este pedido precisa estar vinculado a um cliente para consultar e usar crédito.
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-sm">
+                      Disponível: <strong>{formatMoney(Number(credit.data.available), cur)}</strong>
+                    </p>
+                    {!!Number(credit.data.reserved) && (
+                      <p className="text-xs text-muted-foreground">
+                        Em análise: {formatMoney(Number(credit.data.reserved), cur)} de crédito
+                        reservado.
+                      </p>
+                    )}
+                    {credit.data.balances
+                      ?.filter((row: any) => row.currency !== cur && Number(row.balance) > 0)
+                      .map((row: any) => (
+                        <p className="text-xs text-muted-foreground" key={row.currency}>
+                          Saldo em {row.currency}: {formatMoney(Number(row.balance), row.currency)}.
+                          O abatimento usa a moeda deste pedido.
+                        </p>
+                      ))}
+                    <label className="grid gap-1 text-sm">
+                      Quanto deseja usar ({cur})
+                      <Input
+                        inputMode="decimal"
+                        value={creditAmount}
+                        disabled={busy}
+                        onChange={(event) => setCreditAmount(event.target.value)}
+                      />
+                    </label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={
+                        busy ||
+                        uploading ||
+                        !data.can_pay ||
+                        data.order?.approval_status !== "approved" ||
+                        !(Number(creditAmount.replace(",", ".")) > 0) ||
+                        Number(credit.data.available) <= 0
+                      }
+                      onClick={requestCredit}
+                    >
+                      Solicitar uso de crédito
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      O valor fica reservado para este pedido e só é debitado do cliente após a
+                      conferência financeira. Em caso de recusa, a reserva é liberada.
+                    </p>
+                  </>
+                )}
+              </section>
+              {!!Number(credit.data?.pending_amount) && (
+                <p className="text-sm text-muted-foreground">
+                  Lançamentos aguardando financeiro:{" "}
+                  {formatMoney(Number(credit.data.pending_amount), cur)}. Saldo livre para novos
+                  lançamentos:{" "}
+                  {formatMoney(
+                    Math.max(0, Number(data.receivable) - Number(credit.data.pending_amount)),
+                    cur,
+                  )}
+                  .
+                </p>
+              )}
               <label className="grid gap-1 text-sm">
                 Forma de pagamento
                 <select
@@ -198,7 +333,7 @@ export function OrderPaymentDialog({ orderId, onClose }: { orderId: string; onCl
                   </label>
                 </div>
               )}
-              {data.order?.approval_status && data.order.approval_status !== "approved" && (
+              {data.order?.approval_status !== "approved" && (
                 <p role="alert" className="text-sm text-destructive">
                   Aguarde a aprovação do pedido antes de registrar pagamentos.
                 </p>
@@ -222,10 +357,7 @@ export function OrderPaymentDialog({ orderId, onClose }: { orderId: string; onCl
           </Button>
           <Button
             disabled={
-              busy ||
-              uploading ||
-              !data?.can_pay ||
-              (data.order?.approval_status && data.order.approval_status !== "approved")
+              busy || uploading || !data?.can_pay || data.order?.approval_status !== "approved"
             }
             onClick={submit}
           >

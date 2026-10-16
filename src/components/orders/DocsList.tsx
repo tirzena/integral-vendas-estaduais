@@ -2,6 +2,7 @@ import { matchesOrderReview, orderReviewStage, orderReviewLabels, usePendingPaym
 import { CommissionBreakdown } from "@/components/orders/CommissionBreakdown";
 import { OrderReviewStatus } from "@/components/orders/OrderReviewStatus";
 import { readAllRows } from "@/lib/read-all-rows";
+import { PaymentProofLink } from "@/components/orders/PaymentProofFile";
 import { OrderPaymentDialog } from "@/components/orders/OrderPaymentDialog";
 import { OrderEditDialog } from "@/components/orders/OrderEditDialog";
 import { scopeOrdersByProduct } from "@/lib/order-product-scope";
@@ -1468,13 +1469,13 @@ export function DocsList({
       return void toast.error("Informe o motivo da exclusão.");
     setBusy(true);
     try {
-      await deleteOrderWithReservationRepair({
+      const result: any = await deleteOrderWithReservationRepair({
         data: { orderId: deleteDoc.id, reason: deleteReason },
       });
       setDeleteDoc(null);
       setDeleteReason("");
       await queryClient.invalidateQueries();
-      toast.success("Pedido excluído e registrado no histórico.");
+      toast.success(result?.pending ? "Solicitação de cancelamento enviada para aprovação. O pedido foi preservado." : "Pedido excluído e registrado no histórico.");
     } catch (e: any) {
       toast.error(e?.message ?? "Não foi possível excluir o pedido.");
     } finally {
@@ -2514,6 +2515,12 @@ export function DocsList({
                         <Eye className="mr-1 h-4 w-4" /> Ver detalhes
                       </Button>
                     )}
+                    {!isQuote && !cancelled && (d.seller_id === userId || isAdmin) && (
+                      <>
+                        {operations.data?.includes("orders.edit_open") && <Button type="button" size="icon" variant="outline" aria-label="Editar pedido" title="Editar pedido ou solicitar alteração" onClick={()=>setEditingOrderId(d.id)}><Pencil className="size-4" /></Button>}
+                        {operations.data?.includes("orders.delete") && <Button type="button" size="icon" variant="outline" className="text-destructive" aria-label="Excluir pedido" title="Excluir pedido ou solicitar cancelamento" onClick={()=>{setDeleteReason("");setDeleteDoc(d);}}><Trash2 className="size-4" /></Button>}
+                      </>
+                    )}
                     {!isQuote &&
                       !catalogRequest &&
                       !cancelled &&
@@ -3083,32 +3090,6 @@ export function DocsList({
                                     </Badge>
                                   )}
                                 </div>
-                                {payment.status === "pago" && (
-                                  <>
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => openPaymentEdit(payment)}
-                                    >
-                                      <Pencil className="mr-1 h-3.5 w-3.5" />{" "}
-                                      Editar
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      className="text-destructive hover:text-destructive"
-                                      onClick={() => {
-                                        setPaymentToCancel(payment);
-                                        setPaymentCancelReason("");
-                                      }}
-                                    >
-                                      <Ban className="mr-1 h-3.5 w-3.5" />{" "}
-                                      Cancelar registro
-                                    </Button>
-                                  </>
-                                )}
                               </div>
                               <p className="text-xs text-muted-foreground">
                                 {payment.method} ·{" "}
@@ -3143,319 +3124,15 @@ export function DocsList({
                 </div>
                 {!isCatalogRequest(detailDoc) && (
                   <div className="space-y-3 rounded-lg border p-3">
-                    <div className="flex items-center gap-2 font-medium">
-                      <Upload className="h-4 w-4" /> Comprovantes de pagamento
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <div className="min-w-56 flex-1">
-                        <Label htmlFor="payment-proof-file">
-                          Enviar foto ou documento
-                        </Label>
-                        <Input
-                          id="payment-proof-file"
-                          type="file"
-                          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-                          disabled={uploadingProof}
-                          aria-label="Escolher comprovante para anexar ao pagamento"
-                          onChange={(event) => {
-                            const file = event.target.files?.[0];
-                            if (file) void uploadProof(file);
-                            event.currentTarget.value = "";
-                          }}
-                        />
-                        {uploadingProof && (
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            Enviando comprovante…
-                          </p>
-                        )}
+                    <p className="font-medium">Comprovantes de pagamento</p>
+                    <p className="text-xs text-muted-foreground">Registre pagamentos e solicite o uso de crédito pelo botão Lançar pagamento na lista. Os valores só são abatidos após a conferência financeira.</p>
+                    {(detailQuery.data?.proofs ?? []).map((proof: any) => (
+                      <div key={proof.id} className="text-sm">
+                        {proof.proof_type === "credito_cliente" ? <span>{proof.file_name || "Uso de crédito do cliente"}</span>
+                          : proof.proof_type === "recibo_sistema" ? <a className="text-primary underline" href={"/recibo/"+encodeURIComponent(proof.file_path)} target="_blank" rel="noopener noreferrer">{proof.file_name || "Recibo do sistema"}</a> : proof.file_path ? <PaymentProofLink path={proof.file_path} name={proof.file_name} />
+                          : proof.external_url ? <a className="text-primary underline" href={proof.external_url} target="_blank" rel="noopener noreferrer">{proof.file_name || "Abrir comprovante"}</a> : null}
                       </div>
-                      <Input
-                        className="min-w-56 flex-1"
-                        value={proofUrl}
-                        onChange={(e) => setProofUrl(e.target.value)}
-                        placeholder="Ou cole o link do comprovante"
-                      />
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        disabled={uploadingProof}
-                        onClick={() => void addProofLink()}
-                      >
-                        Registrar link
-                      </Button>
-                    </div>
-                    {(detailQuery.data.proofs ?? []).length ? (
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {detailQuery.data.proofs.map((proof: any) => (
-                          <div key={proof.id} className="flex min-w-0 gap-1">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className="min-w-0 flex-1 justify-start"
-                              onClick={() => void openProof(proof)}
-                            >
-                              <FileText className="mr-2 h-4 w-4 shrink-0" />
-                              <span className="truncate">
-                                {proof.file_name ?? "Abrir comprovante"}
-                              </span>
-                            </Button>
-                            {!proof.payment_id && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                aria-label={`Excluir ${proof.file_name ?? "comprovante"}`}
-                                className="text-destructive hover:text-destructive"
-                                onClick={() => setProofToDelete(proof)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-amber-700">
-                        O pedido só poderá ser marcado como pago depois do envio
-                        do comprovante.
-                      </p>
-                    )}
-                    <div className="space-y-3 rounded-lg border p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <Label>Câmbio deste pagamento</Label>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            if (receivedExchangeMode === "manual") {
-                              setReceivedExchangeMode("automatic");
-                              return;
-                            }
-                            const snapshot =
-                              detailQuery.data?.exchange_rates_snapshot;
-                            const usd = Number(snapshot?.USD);
-                            setReceivedManualBrl(
-                              String(
-                                usd > 0 && Number(snapshot.BRL) > 0
-                                  ? Number(
-                                      (Number(snapshot.BRL) / usd).toFixed(6),
-                                    )
-                                  : (rates.convert(1, "USD", "BRL") ?? ""),
-                              ),
-                            );
-                            setReceivedManualPyg(
-                              String(
-                                usd > 0 && Number(snapshot.PYG) > 0
-                                  ? Number(
-                                      (Number(snapshot.PYG) / usd).toFixed(6),
-                                    )
-                                  : (rates.convert(1, "USD", "PYG") ?? ""),
-                              ),
-                            );
-                            setReceivedExchangeMode("manual");
-                          }}
-                        >
-                          {receivedExchangeMode === "manual"
-                            ? "Usar cotação do pedido"
-                            : "Informar câmbio manual"}
-                        </Button>
-                      </div>
-                      {receivedExchangeMode === "manual" ? (
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <div>
-                            <Label htmlFor="payment-manual-brl">
-                              1 dólar em reais (R$)
-                            </Label>
-                            <Input
-                              id="payment-manual-brl"
-                              value={receivedManualBrl}
-                              onChange={(event) =>
-                                setReceivedManualBrl(event.target.value)
-                              }
-                              inputMode="decimal"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="payment-manual-pyg">
-                              1 dólar em guaranis (Gs.)
-                            </Label>
-                            <Input
-                              id="payment-manual-pyg"
-                              value={receivedManualPyg}
-                              onChange={(event) =>
-                                setReceivedManualPyg(event.target.value)
-                              }
-                              inputMode="decimal"
-                            />
-                          </div>
-                          <p className="text-xs text-muted-foreground sm:col-span-2">
-                            Esta cotação será salva apenas neste pagamento e
-                            usada para calcular o valor abatido.
-                          </p>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">
-                          Cotação do pedido:{" "}
-                          {exchangeSnapshotText(
-                            detailQuery.data?.exchange_rates_snapshot,
-                          )}
-                        </p>
-                      )}
-                    </div>
-                    <div className="grid gap-2 border-t pt-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-                      <div>
-                        <Label>
-                          Valor recebido (
-                          {isPix(receivedMethod)
-                            ? "BRL � R$"
-                            : (detailDoc?.currency ?? "BRL")}
-                          )
-                        </Label>
-                        <Input
-                          value={receivedAmount}
-                          onChange={(e) => setReceivedAmount(e.target.value)}
-                          onBlur={() => {
-                            const amount = toNumber(receivedAmount);
-                            if (amount > 0)
-                              setReceivedAmount(
-                                amount.toLocaleString("pt-BR", {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                }),
-                              );
-                          }}
-                          inputMode="decimal"
-                          autoComplete="off"
-                          placeholder="0,00"
-                        />
-                        {manualPaymentPreviewCredit != null && (
-                          <p className="mt-1 text-xs font-medium">
-                            Valor abatido com este câmbio:{" "}
-                            {formatMoney(
-                              round2(manualPaymentPreviewCredit),
-                              (detailDoc?.currency ?? "BRL") as Currency,
-                            )}
-                          </p>
-                        )}
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Saldo em aberto:{" "}
-                          <CurrencyValues
-                            value={Number(detailQuery.data.receivable ?? 0)}
-                            currency={detailQuery.data.currency}
-                            layout="inline"
-                          />
-                        </p>
-                        {detailDoc?.customer_id && (
-                          <div className="mt-3 rounded-lg border bg-primary/5 p-3">
-                            <p className="text-sm font-medium">
-                              Crédito do cliente:{" "}
-                              {formatMoney(
-                                selectedCustomerCredit,
-                                detailQuery.data.currency,
-                              )}
-                            </p>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              <Input
-                                className="max-w-44"
-                                aria-label="Valor do crédito a abater"
-                                value={creditUseAmount}
-                                onChange={(event) =>
-                                  setCreditUseAmount(event.target.value)
-                                }
-                                inputMode="decimal"
-                                placeholder="Valor a abater"
-                              />
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                onClick={confirmCustomerCredit}
-                                disabled={
-                                  busy ||
-                                  selectedCustomerCredit <= 0 ||
-                                  Number(detailQuery.data.receivable ?? 0) <= 0
-                                }
-                              >
-                                Usar crédito
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      <div>
-                        <Label>Forma de pagamento</Label>
-                        <Select
-                          value={receivedMethod}
-                          onValueChange={(value) => {
-                            setReceivedMethod(value);
-                            setReceivedAmount("");
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {PAYMENT_METHODS.map((method) => (
-                              <SelectItem key={method} value={method}>
-                                {method}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label>Data do pagamento</Label>
-                        <Input
-                          type="date"
-                          value={receivedDate}
-                          onChange={(e) => setReceivedDate(e.target.value)}
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        disabled={busy || uploadingProof}
-                        onClick={() => void confirmPartialPayment()}
-                      >
-                        Dar baixa
-                      </Button>
-                    </div>
-                    {cashReceiptToken && (
-                      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
-                        <span className="mr-auto text-sm font-medium">
-                          Recibo em dinheiro gerado e registrado.
-                        </span>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() =>
-                            window.open(
-                              `/recibo/${cashReceiptToken}`,
-                              "_blank",
-                              "noopener",
-                            )
-                          }
-                        >
-                          <FileText className="mr-2 size-4" /> Gerar arquivo
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={async () => {
-                            await navigator.clipboard.writeText(
-                              `${window.location.origin}/recibo/${cashReceiptToken}`,
-                            );
-                            toast.success("Link do recibo copiado.");
-                          }}
-                        >
-                          <Link2 className="mr-2 size-4" /> Copiar link
-                        </Button>
-                      </div>
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                      {receivedMethod.trim().toLowerCase() === "dinheiro"
-                        ? "Em dinheiro, o sistema gera o recibo. Nos demais meios, anexe o comprovante antes da baixa."
-                        : "Pagamentos parciais abatem o saldo. O pedido só muda para Pago quando o valor total for quitado."}
-                    </p>
+                    ))}
                   </div>
                 )}
                 <div className="space-y-2 rounded-lg border p-3">

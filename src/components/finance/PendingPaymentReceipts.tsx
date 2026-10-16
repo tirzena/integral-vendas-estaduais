@@ -50,7 +50,9 @@ export function usePendingReceiptCount(productId = "todos") {
     refetchInterval: 60_000,
     queryFn: async () => {
       const result = await (supabase as any).rpc("integral_pending_payment_receipts", {
-        p_product_id: productId === "todos" ? null : productId, p_offset: 0, p_limit: 1,
+        p_product_id: productId === "todos" ? null : productId,
+        p_offset: 0,
+        p_limit: 1,
       });
       if (result.error) throw result.error;
       return Number(result.data.total);
@@ -98,7 +100,10 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
   });
   const confirm = useMutation({
     mutationFn: async (receipt: Receipt) => {
-      if (!canDecide) throw new Error("Acesso de consulta. Apenas Zé e Bia podem confirmar.");
+      if (!canDecide)
+        throw new Error(
+          "Acesso de consulta. Apenas os responsáveis financeiros autorizados podem confirmar.",
+        );
       const result = await (supabase as any).rpc("finance_confirm_seller_payment", {
         p_payment_id: receipt.payment_id,
       });
@@ -123,6 +128,7 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
             "sales-docs",
             "sales-order-detail",
             "payment-order-context",
+            "order-credit-context",
             "orders-history-feed",
             "warehouse_inventory",
             "inventory_items",
@@ -135,11 +141,14 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
   });
   async function review(decision: "reject" | "request_changes" | "adjust") {
     if (!selected || reviewBusy || confirm.isPending || !canDecide) return;
-    if (reason.trim().length < 5) return void toast.error("Informe a justificativa (mínimo 5 caracteres).");
+    if (reason.trim().length < 5)
+      return void toast.error("Informe a justificativa (mínimo 5 caracteres).");
     setReviewBusy(true);
     try {
       const result = await (supabase as any).rpc("integral_review_payment", {
-        p_payment: selected.payment_id, p_decision: decision, p_reason: reason.trim(),
+        p_payment: selected.payment_id,
+        p_decision: decision,
+        p_reason: reason.trim(),
         p_expected_amount: Number(selected.amount),
         p_amount: decision === "adjust" ? Number(editAmount) : null,
         p_paid_at: decision === "adjust" ? editDate || null : null,
@@ -148,12 +157,18 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
       if (result.error) throw result.error;
       setSelected(null);
       await client.invalidateQueries();
-      toast.success(decision === "adjust"
-        ? "Ajuste salvo. Revise o comprovante antes de confirmar. Vendedor notificado."
-        : decision === "reject" ? "Pagamento reprovado. Vendedor notificado."
-        : "Correção solicitada. Vendedor notificado para registrar novamente com comprovante.");
-    } catch (error) { toast.error((error as Error).message); }
-    finally { setReviewBusy(false); }
+      toast.success(
+        decision === "adjust"
+          ? "Ajuste salvo. Revise o comprovante antes de confirmar. Vendedor notificado."
+          : decision === "reject"
+            ? "Pagamento reprovado. Vendedor notificado."
+            : "Correção solicitada. Vendedor notificado para registrar novamente com comprovante.",
+      );
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setReviewBusy(false);
+    }
   }
   if (!allowed) return null;
   if (viewAs)
@@ -164,7 +179,9 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
     );
   const proofLinks = (receipt: Receipt) =>
     receipt.proofs.map((proof) =>
-      proof.path && proof.type !== "recibo_sistema" ? (
+      proof.type === "credito_cliente" ? (
+        <span key={proof.id}>{proof.name || "Solicitação de uso de crédito do cliente"}</span>
+      ) : proof.path && proof.type !== "recibo_sistema" ? (
         <PaymentProofLink key={proof.id} path={proof.path} name={proof.name} />
       ) : proof.url && /^https:\/\//i.test(proof.url) ? (
         <a
@@ -227,7 +244,10 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
                   {formatDate(receipt.paid_at || receipt.created_at)}
                 </p>
               </div>
-              <Button disabled={confirm.isPending || reviewBusy} onClick={() => setSelected(receipt)}>
+              <Button
+                disabled={confirm.isPending || reviewBusy}
+                onClick={() => setSelected(receipt)}
+              >
                 {canDecide ? "Conferir pagamento" : "Ver pagamento"}
               </Button>
             </div>
@@ -296,7 +316,9 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
           </DialogHeader>
           {selected && (
             <fieldset disabled={!canDecide} className="space-y-3 text-sm">
-              {!canDecide && <p>Acesso de consulta. Somente Zé e Bia podem decidir sobre pagamentos.</p>}
+              {!canDecide && (
+                <p>Acesso de consulta. Somente Zé e Bia podem decidir sobre pagamentos.</p>
+              )}
               <p>
                 Pedido #{selected.order_number} ·{" "}
                 {selected.customer_name || "Cliente não informado"}
@@ -314,21 +336,68 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
               <p>Crédito no pedido: {formatMoney(Number(selected.amount), selected.currency)}</p>
               <div className="flex flex-wrap gap-3">{proofLinks(selected)}</div>
               <details className="rounded-lg border p-3">
-                <summary className="cursor-pointer font-medium">Ajustar os dados antes da confirmação</summary>
+                <summary className="cursor-pointer font-medium">
+                  Ajustar os dados antes da confirmação
+                </summary>
                 <div className="mt-3 grid gap-3">
-                  <label>Valor creditado no pedido ({selected.currency})<Input type="number" min="0.01" step="0.01" value={editAmount} onChange={e => setEditAmount(e.target.value)} /></label>
-                  <label>Data do pagamento<Input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} /></label>
-                  <label>Forma de pagamento<Input value={editMethod} onChange={e => setEditMethod(e.target.value)} /></label>
-                  <p className="text-xs text-muted-foreground">O câmbio do pedido é preservado. Salvar ajustes mantém o pagamento pendente para nova conferência do comprovante.</p>
-                  <Button variant="outline" disabled={reviewBusy || confirm.isPending} onClick={() => review("adjust")}>Salvar ajuste e conferir novamente</Button>
+                  <label>
+                    Valor creditado no pedido ({selected.currency})
+                    <Input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={editAmount}
+                      onChange={(e) => setEditAmount(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Data do pagamento
+                    <Input
+                      type="date"
+                      value={editDate}
+                      onChange={(e) => setEditDate(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Forma de pagamento
+                    <Input value={editMethod} onChange={(e) => setEditMethod(e.target.value)} />
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    O câmbio do pedido é preservado. Salvar ajustes mantém o pagamento pendente para
+                    nova conferência do comprovante.
+                  </p>
+                  <Button
+                    variant="outline"
+                    disabled={reviewBusy || confirm.isPending}
+                    onClick={() => review("adjust")}
+                  >
+                    Salvar ajuste e conferir novamente
+                  </Button>
                 </div>
               </details>
-              <label className="grid gap-1">Justificativa para ajuste, recusa ou devolução
-                <Input value={reason} onChange={e => setReason(e.target.value)} placeholder="Descreva o que precisa ser corrigido" />
+              <label className="grid gap-1">
+                Justificativa para ajuste, recusa ou devolução
+                <Input
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Descreva o que precisa ser corrigido"
+                />
               </label>
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" disabled={reviewBusy || confirm.isPending} onClick={() => review("request_changes")}>Solicitar correção</Button>
-                <Button variant="destructive" disabled={reviewBusy || confirm.isPending} onClick={() => review("reject")}>Reprovar pagamento</Button>
+                <Button
+                  variant="outline"
+                  disabled={reviewBusy || confirm.isPending}
+                  onClick={() => review("request_changes")}
+                >
+                  Solicitar correção
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={reviewBusy || confirm.isPending}
+                  onClick={() => review("reject")}
+                >
+                  Reprovar pagamento
+                </Button>
               </div>
             </fieldset>
           )}
