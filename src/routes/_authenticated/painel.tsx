@@ -1,7 +1,7 @@
 import { useOperationalAccess } from "@/hooks/useOperationalAccess";
 import { CompanyReadOnlyView } from "@/components/finance/CompanyReadOnlyView";
 import { LogisticsConsole } from "@/components/orders/LogisticsConsole";
-import { DashboardApprovalNotice } from "@/components/finance/OrderApprovalQueue";
+import { SellerApprovalSummary } from "@/components/dashboard/SellerApprovalSummary";
 import { getPurchasePositions } from "@/lib/purchase-position.functions";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState } from "react";
@@ -925,7 +925,6 @@ function PainelBase() {
 
   return (
     <div>
-      <DashboardApprovalNotice />
       <PageHeader
         title={seesCompanySales ? "Controle estadual" : "Visão operacional"}
         description={
@@ -1221,6 +1220,7 @@ function PainelBase() {
           </div>
         </article>
       </section>
+      <SellerApprovalSummary />
       <StateStockMap locations={allInventoryByWarehouse} canOpenStock={canOpen("/produtos")}
         selection={territory} committedSelection={selectedTerritory}
         onSelectionChange={(next) => { setSelectedTerritory(next); setHoveredTerritory(null); }}
