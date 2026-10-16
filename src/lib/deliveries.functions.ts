@@ -137,86 +137,21 @@ export const getManagedDeliveries = createServerFn({ method: "GET" })
     };
   });
 
-/** Metadados mínimos, apenas para entregas já autorizadas, sem valores comerciais. */
+/** Metadados mínimos das entregas, autorizados e lidos em uma única consulta. */
 export const getDeliveryFilterMetadata = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((data: unknown) => z.object({ ids: z.array(z.string().uuid()).max(500) }).parse(data))
   .handler(async ({ data, context }) => {
-    const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
-    const permission = await db.rpc("app_has_cap", {
-      _uid: context.userId,
-      _cap: "deliveries_manage",
-    });
-    if (permission.error) throw new Error("Não foi possível validar acesso aos filtros.");
-    if (!permission.data) {
-      const assigned = await context.supabase.rpc("my_deliveries");
-      if (
-        assigned.error ||
-        data.ids.some(
-          (id) => !(assigned.data ?? []).some((r: { order_id: string }) => r.order_id === id),
-        )
-      )
-        throw new Error("Entrega não autorizada.");
+    const { data: metadata, error } = await (context.supabase as any).rpc(
+      "integral_delivery_filter_metadata",
+      { p_order_ids: [...new Set(data.ids)] },
+    );
+    if (error) {
+      console.error("[deliveries] filter metadata failed", { code: error.code, message: error.message });
+      throw new Error("Não foi possível consultar os filtros das entregas. Tente novamente.");
     }
-    if (!data.ids.length)
-      return {
-        orders: [],
-        people: [],
-        teams: [],
-        teamMembers: [],
-        items: [],
-        suppliers: [],
-        lines: [],
-      };
-    const orders = await db
-      .from("orders")
-      .select("id,seller_id,origin,order_date,created_at")
-      .in("id", data.ids)
-      .is("deleted_at", null)
-      .is("superseded_at", null);
-    const lines = await db
-      .from("order_items")
-      .select("order_id,item_id,description,quantity")
-      .in(
-        "order_id",
-        (orders.data ?? []).map((o) => o.id),
-      );
-    if (orders.error || lines.error)
-      throw new Error("Não foi possível consultar os filtros das entregas.");
-    const sellerIds = [
-      ...new Set((orders.data ?? []).map((o) => o.seller_id).filter(Boolean)),
-    ] as string[];
-    const itemIds = [
-      ...new Set((lines.data ?? []).map((o) => o.item_id).filter(Boolean)),
-    ] as string[];
-    const items = itemIds.length
-      ? await db.from("inventory_items").select("id,name,supplier_id").in("id", itemIds)
-      : { data: [], error: null };
-    const members = sellerIds.length
-      ? await db.from("team_members").select("team_id,user_id").in("user_id", sellerIds)
-      : { data: [], error: null };
-    const people = sellerIds.length
-      ? await db.from("profiles").select("id,full_name").in("id", sellerIds)
-      : { data: [], error: null };
-    const supplierIds = [
-      ...new Set((items.data ?? []).map((i) => i.supplier_id).filter(Boolean)),
-    ] as string[];
-    const teamIds = [...new Set((members.data ?? []).map((m) => m.team_id))];
-    const suppliers = supplierIds.length
-      ? await db.from("suppliers").select("id,name").in("id", supplierIds)
-      : { data: [], error: null };
-    const teams = teamIds.length
-      ? await db.from("teams").select("id,name").in("id", teamIds)
-      : { data: [], error: null };
-    for (const r of [items, members, people, suppliers, teams])
-      if (r.error) throw new Error("Não foi possível consultar os filtros operacionais.");
-    return {
-      orders: orders.data ?? [],
-      lines: lines.data ?? [],
-      items: items.data ?? [],
-      teamMembers: members.data ?? [],
-      people: people.data ?? [],
-      suppliers: suppliers.data ?? [],
-      teams: teams.data ?? [],
+    return metadata as {
+      orders: any[]; people: any[]; teams: any[]; teamMembers: any[];
+      items: any[]; suppliers: any[]; lines: any[];
     };
   });
