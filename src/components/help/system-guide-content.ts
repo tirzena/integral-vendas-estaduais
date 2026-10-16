@@ -1155,13 +1155,13 @@ export const guideChapters: GuideChapter[] = [
     id: "estudo",
     title: "Guia de estudo dos produtos",
     group: "Conhecimento",
-    route: "/guia-de-estudo",
+    route: "/produtos#guia-de-estudo",
     scope: "both",
     summary: "Consulte as informações de produto vinculadas ao catálogo.",
     steps: [
       {
         title: "Busque o produto",
-        text: "Abra Guia de estudo e utilize os filtros e a busca por nome, categoria ou marca disponíveis.",
+        text: "Abra Catálogo → Guia de estudo e utilize os filtros e a busca por nome, categoria ou marca disponíveis.",
       },
       {
         title: "Abra as informações",

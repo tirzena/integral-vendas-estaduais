@@ -101,7 +101,6 @@ export const NAV_GROUPS = [
     items: [
       { to: "/equipe", label: "Vendedores", icon: UsersRound },
       { to: "/tarefas", label: "Tarefas", icon: ClipboardList },
-      { to: "/guia-de-estudo", label: "Guia de estudo", icon: BookOpen },
       { to: "/como-usar", label: "Como usar o sistema", icon: BookOpen },
       { to: "/avisos", label: "Notificações", icon: Megaphone },
       { to: "/chat", label: "Chat interno", icon: MessagesSquare },
@@ -168,7 +167,7 @@ function NavList({ onNavigate, collapsed }: { onNavigate?: () => void; collapsed
                 label: operational.companyObserver ? "Consulta financeira" : "Meus pagamentos",
                 icon: Coins,
               },
-              { to: "/guia-de-estudo", label: "Guia de estudo", icon: BookOpen },
+              { to: "/produtos", label: "Catálogo", icon: Package },
               { to: "/como-usar", label: "Como usar o sistema", icon: BookOpen },
               { to: "/configuracoes", label: "Meu perfil e acesso", icon: Settings },
             ],
