@@ -85,8 +85,8 @@ export function MemberCatalogCreator({
         if (!open && !saving) onClose();
       }}
     >
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[90dvh] flex-col overflow-hidden p-0 sm:max-w-2xl">
+        <DialogHeader className="shrink-0 px-6 pt-6">
           <DialogTitle>
             {layout === "lista" ? "Nova tabela de vendas" : "Novo catálogo online"}
           </DialogTitle>
@@ -95,96 +95,95 @@ export function MemberCatalogCreator({
             direção.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={save}>
-          <fieldset disabled={saving} className="space-y-4">
-            <div>
-              <Label htmlFor="member-catalog-title">Título *</Label>
-              <Input
-                id="member-catalog-title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                minLength={2}
-                maxLength={120}
-                required
-                placeholder={
-                  layout === "lista" ? "Minha tabela de vendas" : "Meu catálogo de produtos"
-                }
-              />
-            </div>
-            <div>
-              <Label htmlFor="member-catalog-description">Descrição</Label>
-              <Input
-                id="member-catalog-description"
-                value={description}
-                maxLength={2000}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+        <form onSubmit={save} className="flex min-h-0 flex-col overflow-hidden">
+          <div className="min-h-0 overflow-y-auto overscroll-contain px-6 pb-5">
+            <fieldset disabled={saving} className="min-w-0 space-y-4">
               <div>
-                <Label htmlFor="member-catalog-currency">Moeda de apresentação</Label>
-                <select
-                  id="member-catalog-currency"
-                  className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-                  value={currency}
-                  onChange={(e) => setCurrency(e.target.value)}
-                >
-                  <option value="BRL">Real (BRL)</option>
-                  <option value="USD">Dólar (USD)</option>
-                  <option value="PYG">Guarani (PYG)</option>
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="member-catalog-whatsapp">WhatsApp de contato</Label>
+                <Label htmlFor="member-catalog-title">Título *</Label>
                 <Input
-                  id="member-catalog-whatsapp"
-                  value={whatsapp}
-                  maxLength={30}
-                  onChange={(e) => setWhatsapp(e.target.value)}
-                  placeholder="Código do país + DDD + número"
+                  id="member-catalog-title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  minLength={2}
+                  maxLength={120}
+                  required
+                  placeholder={
+                    layout === "lista" ? "Minha tabela de vendas" : "Meu catálogo de produtos"
+                  }
                 />
               </div>
-            </div>
-            <p className="rounded-lg bg-muted p-3 text-xs text-muted-foreground">
-              As imagens e os preços vêm do cadastro dos produtos. Valores em outra moeda são
-              convertidos para a moeda de apresentação; um preço em reais continua igual quando
-              apresentado em reais. Este material não altera produtos ou estoque.
-            </p>
-            <CatalogProductPicker
-              items={items}
-              categories={categories}
-              subcategories={subcategories}
-              selected={selected}
-              onChange={setSelected}
-            />
-            <p className="text-xs text-muted-foreground">
-              Ao criar, o material fica publicado para compartilhar por link. Os pedidos continuam
-              sujeitos à aprovação.
-            </p>
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={shared} onCheckedChange={(value) => setShared(value === true)} />
-              Mostrar este material para os demais membros
-            </label>
-            <p className="text-xs text-muted-foreground">
-              Desmarque para aparecer apenas em seus materiais dentro do sistema. O link publicado
-              continua disponível para enviar ao cliente.
-            </p>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={onClose}>
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                disabled={saving || !selected.length || title.trim().length < 2}
-              >
-                {saving
-                  ? "Criando…"
-                  : layout === "lista"
-                    ? "Criar tabela de vendas"
-                    : "Criar catálogo online"}
-              </Button>
-            </DialogFooter>
-          </fieldset>
+              <div>
+                <Label htmlFor="member-catalog-description">Descrição</Label>
+                <Input
+                  id="member-catalog-description"
+                  value={description}
+                  maxLength={2000}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="member-catalog-currency">Moeda de apresentação</Label>
+                  <select
+                    id="member-catalog-currency"
+                    className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+                    value={currency}
+                    onChange={(e) => setCurrency(e.target.value)}
+                  >
+                    <option value="BRL">Real (BRL)</option>
+                    <option value="USD">Dólar (USD)</option>
+                    <option value="PYG">Guarani (PYG)</option>
+                  </select>
+                </div>
+                <div>
+                  <Label htmlFor="member-catalog-whatsapp">WhatsApp de contato</Label>
+                  <Input
+                    id="member-catalog-whatsapp"
+                    value={whatsapp}
+                    maxLength={30}
+                    onChange={(e) => setWhatsapp(e.target.value)}
+                    placeholder="Código do país + DDD + número"
+                  />
+                </div>
+              </div>
+              <p className="rounded-lg bg-muted p-3 text-xs text-muted-foreground">
+                As imagens e os preços vêm do cadastro dos produtos. Valores em outra moeda são
+                convertidos para a moeda de apresentação; um preço em reais continua igual quando
+                apresentado em reais. Este material não altera produtos ou estoque.
+              </p>
+              <CatalogProductPicker
+                items={items}
+                categories={categories}
+                subcategories={subcategories}
+                selected={selected}
+                onChange={setSelected}
+              />
+              <p className="text-xs text-muted-foreground">
+                Ao criar, o material fica publicado para compartilhar por link. Os pedidos continuam
+                sujeitos à aprovação.
+              </p>
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox checked={shared} onCheckedChange={(value) => setShared(value === true)} />
+                Mostrar este material para os demais membros
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Desmarque para aparecer apenas em seus materiais dentro do sistema. O link publicado
+                continua disponível para enviar ao cliente.
+              </p>
+            </fieldset>
+          </div>
+          <DialogFooter className="shrink-0 border-t bg-background px-6 py-4">
+            <Button type="button" variant="outline" disabled={saving} onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={saving || !selected.length || title.trim().length < 2}>
+              {saving
+                ? "Criando…"
+                : layout === "lista"
+                  ? "Criar tabela de vendas"
+                  : "Criar catálogo online"}
+            </Button>
+          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
