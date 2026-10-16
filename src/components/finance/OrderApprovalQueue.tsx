@@ -103,6 +103,12 @@ export function OrderApprovalQueue() {
       return void toast.error("Descreva a decisão ou o ajuste (mínimo 5 caracteres).");
     if (selected.seller_id === queue.userId)
       return void toast.error("Outro responsável deve revisar seu pedido.");
+    if (
+      action === "approve" &&
+      mode === "exception" &&
+      (!amount.trim() || !Number.isFinite(Number(amount)) || Number(amount) < 0)
+    )
+      return void toast.error("Informe um valor válido para a comissão excepcional.");
     setBusy(true);
     try {
       let savedAdjustments = false;
@@ -135,6 +141,9 @@ export function OrderApprovalQueue() {
           });
           if (adjusted.error) throw adjusted.error;
           savedAdjustments = true;
+        } else if (action === "adjust") {
+          toast.info("Nenhum dado do pedido foi alterado.");
+          return;
         }
       }
       if (action !== "adjust" && !savedAdjustments) {
@@ -428,11 +437,30 @@ function HistoryChanges({ before, after }: { before: any; after: any }) {
   );
   const display = (v: any) =>
     v == null || v === "" ? "Não informado" : (historyValues[String(v)] ?? String(v));
-  return changed.length ? (
+  const oldItems: any[] = Array.isArray(before?.items) ? before.items : [];
+  const newItems: any[] = Array.isArray(after?.items) ? after.items : [];
+  const itemChanges = newItems.flatMap((item) => {
+    const previous = oldItems.find((old) => old.id === item.id);
+    if (!previous) return [];
+    return ["quantity", "unit_price", "discount", "commission_amount"]
+      .filter((key) => JSON.stringify(previous[key]) !== JSON.stringify(item[key]))
+      .map((key) => ({
+        id: `${item.id}-${key}`,
+        label: `${item.description || "Produto"} · ${historyLabels[key] || "Comissão"}`,
+        before: previous[key],
+        after: item[key],
+      }));
+  });
+  return changed.length || itemChanges.length ? (
     <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
       {changed.map((key) => (
         <li key={key}>
           {historyLabels[key]}: {display(oldOrder[key])} → {display(newOrder[key])}
+        </li>
+      ))}
+      {itemChanges.map((change) => (
+        <li key={change.id}>
+          {change.label}: {display(change.before)} → {display(change.after)}
         </li>
       ))}
     </ul>
