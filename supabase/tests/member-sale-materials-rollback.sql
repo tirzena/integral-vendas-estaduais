@@ -1,0 +1,34 @@
+BEGIN;
+DO $$
+DECLARE a uuid:=gen_random_uuid();b uuid:=gen_random_uuid();prod uuid:=gen_random_uuid();item uuid:=gen_random_uuid();req uuid:=gen_random_uuid();private_mat jsonb;shared_mat jsonb;again jsonb;before_item jsonb;
+BEGIN
+ INSERT INTO auth.users(id,email,created_at) VALUES(a,'materials-a-'||a||'@example.invalid',now()),(b,'materials-b-'||b||'@example.invalid',now());
+ UPDATE public.profiles SET is_active=true WHERE id IN(a,b);
+ INSERT INTO public.user_roles(user_id,role) VALUES(a,'entregador') ON CONFLICT DO NOTHING;
+ DELETE FROM public.user_roles WHERE user_id=a AND role='vendedor';
+ ASSERT NOT EXISTS(SELECT 1 FROM public.user_roles WHERE user_id=a AND role IN('admin','superadmin','vendedor')),'Fixture is not a non-seller member';
+ INSERT INTO public.products(id,name,is_active,is_demo) VALUES(prod,'Material fictício categoria',true,true);
+ INSERT INTO public.inventory_items(id,product_id,name,currency,price_currency,cost,price,quantity,reserved,is_active,is_demo) VALUES(item,prod,'Material fictício produto','USD','BRL',10,380,20,0,true,true);
+ INSERT INTO public.product_users(product_id,user_id) VALUES(prod,a);
+ SELECT to_jsonb(i) INTO before_item FROM public.inventory_items i WHERE id=item;
+ PERFORM set_config('request.jwt.claim.sub',a::text,true);EXECUTE 'SET LOCAL ROLE authenticated';
+ private_mat:=public.integral_member_create_catalog(req,'Catálogo privado fictício','cards',ARRAY[item],'BRL',null,null,true,false);
+ again:=public.integral_member_create_catalog(req,'Catálogo privado fictício','cards',ARRAY[item],'BRL',null,null,true,false);
+ ASSERT private_mat=again,'Retry duplicated material';
+ shared_mat:=public.integral_member_create_catalog(gen_random_uuid(),'Tabela pública fictícia','lista',ARRAY[item],'BRL',null,null,true,true);
+ ASSERT shared_mat->>'layout'='lista','Table layout not persisted';
+ BEGIN PERFORM public.integral_member_create_catalog(gen_random_uuid(),'Inválido','cards',ARRAY[gen_random_uuid()],'BRL');RAISE EXCEPTION 'Unauthorized item accepted';EXCEPTION WHEN insufficient_privilege THEN NULL;END;
+ ASSERT EXISTS(SELECT 1 FROM jsonb_array_elements(public.integral_sales_catalog()->'catalogs') v WHERE v->>'id'=private_mat->>'id'),'Owner cannot see private material';
+ PERFORM set_config('request.jwt.claim.sub',b::text,true);
+ ASSERT NOT EXISTS(SELECT 1 FROM jsonb_array_elements(public.integral_sales_catalog()->'catalogs') v WHERE v->>'id'=private_mat->>'id'),'Private material exposed to other member';
+ ASSERT EXISTS(SELECT 1 FROM jsonb_array_elements(public.integral_sales_catalog()->'catalogs') v WHERE v->>'id'=shared_mat->>'id'),'Shared material absent for another member';
+ EXECUTE 'RESET ROLE';
+ ASSERT (SELECT default_seller_id IS NULL AND NOT orders_enabled FROM public.digital_catalogs WHERE id=(private_mat->>'id')::uuid),'Non-selling role received sales authority';
+ ASSERT (SELECT to_jsonb(i)=before_item FROM public.inventory_items i WHERE id=item),'Product changed during material creation';
+ ASSERT EXISTS(SELECT 1 FROM public.integral_public_member_catalog_items((shared_mat->>'id')::uuid) v WHERE v=item),'Published item missing';
+ ASSERT EXISTS(SELECT 1 FROM public.audit_logs WHERE entity_id=(shared_mat->>'id')::uuid AND user_id=a AND action='created'),'Creation audit missing';
+ PERFORM set_config('request.jwt.claim.sub','',true);
+ DELETE FROM public.product_users WHERE product_id=prod AND user_id=a;
+ ASSERT NOT EXISTS(SELECT 1 FROM public.integral_public_member_catalog_items((shared_mat->>'id')::uuid)),'Revoked grant remains public';
+ ASSERT NOT EXISTS(SELECT 1 FROM private.member_catalog_create_context),'Creation context leaked';
+END $$;ROLLBACK;

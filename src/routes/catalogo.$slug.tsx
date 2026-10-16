@@ -1,3 +1,4 @@
+import { catalogAudience } from "@/lib/catalog-views";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { jsPDF } from "jspdf";
 import { createFileRoute, notFound } from "@tanstack/react-router";
@@ -55,8 +56,10 @@ import {
 } from "@/components/ui/select";
 
 export const Route = createFileRoute("/catalogo/$slug")({
-  loader: async ({ params }) => {
-    const catalog = await getPublicCatalog({ data: { slug: params.slug } });
+  validateSearch: (search: Record<string,unknown>) => ({publico:catalogAudience(search["publico"])}),
+  loaderDeps: ({search}) => ({audience:search.publico}),
+  loader: async ({ params, deps }) => {
+    const catalog = await getPublicCatalog({ data: { slug: params.slug, audience:deps.audience } });
     if (!catalog) throw notFound();
     return catalog;
   },
@@ -203,7 +206,7 @@ function PublicCatalogPage() {
         text: formatMoney(convert(value, from, currency) ?? 0, currency),
       })),
   };
-  const cartKey = `os-cart:${catalog.slug}`;
+  const cartKey = `os-cart:${catalog.slug}:${catalog.audience}`;
 
   const [cart, setCart] = useState<CartLine[]>([]);
   const [search, setSearch] = useState("");
@@ -501,7 +504,7 @@ function PublicCatalogPage() {
             Nenhum produto encontrado com esses filtros.
           </p>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          catalog.layout==="lista" ? <div className="overflow-x-auto rounded-xl border"><table className="w-full min-w-[620px] text-left text-sm"><thead className="bg-muted/50"><tr><th className="p-3">Produto</th><th className="p-3">Unidade</th><th className="p-3">Disponível</th>{catalog.showPrices&&<th className="p-3">Valor de venda</th>}<th className="p-3">Pedido</th></tr></thead><tbody>{filtered.map(item=><tr key={item.id} className="border-t"><td className="p-3"><button type="button" className="flex items-center gap-3 text-left" onClick={()=>setDetail(item)}>{item.image&&<img src={item.image} alt="" loading="lazy" className="size-12 rounded-lg object-cover"/>}<span><strong className="block">{item.name}</strong><span className="text-xs text-muted-foreground">{item.spec}</span></span></button></td><td className="p-3">{item.unit??"un."}</td><td className="p-3">{catalog.showAvailability?item.stock:"—"}</td>{catalog.showPrices&&<td className="p-3">{priceInAllCurrencies(item)??price(item)}</td>}<td className="p-3">{!!item.sellers.length&&<Button size="sm" variant="outline" onClick={()=>setSellerItem(item)}>Fazer pedido</Button>}</td></tr>)}</tbody></table></div> : (<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {filtered.map((item) => (
               <article key={item.id} className="surface-card flex flex-col overflow-hidden p-0">
                 <button
@@ -576,7 +579,7 @@ function PublicCatalogPage() {
                 </div>
               </article>
             ))}
-          </div>
+          </div>)
         )}
 
         {catalog.about && (
@@ -961,6 +964,21 @@ function CheckoutDialog({
 }) {
   const submit = useServerFn(submitCatalogOrder);
   const quoteFreight = useServerFn(quoteCatalogFreight);
+  const convert = (
+    value: number | null | undefined,
+    from: "BRL" | "USD" | "PYG",
+    to: "BRL" | "USD" | "PYG",
+  ) => {
+    const factor = catalog.exchangeRates[`${from}-${to}`];
+    return factor ? Number(value ?? 0) * factor : null;
+  };
+  const rates = {
+    allCurrencies: (value: number, from: "BRL" | "USD" | "PYG") =>
+      (["BRL", "USD", "PYG"] as const).map((currency) => ({
+        currency,
+        text: formatMoney(convert(value, from, currency) ?? 0, currency),
+      })),
+  };
   const [step, setStep] = useState<Step>("cliente");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);

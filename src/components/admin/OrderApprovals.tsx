@@ -5,12 +5,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useCurrentUser } from "@/hooks/useAuth";
+import { useCanReviewOrders } from "@/lib/order-review-flow";
 export function OrderApprovals() {
+  const { userId, viewAs } = useCurrentUser();
+  const access = useCanReviewOrders();
   const client = useQueryClient(),
     [note, setNote] = useState<Record<string, string>>({}),
     [busy, setBusy] = useState<string | null>(null);
   const query = useQuery({
-    queryKey: ["order-change-requests"],
+    queryKey: ["order-change-requests", userId],
+    enabled: !!userId && !viewAs && access.data === true,
     queryFn: async () => {
       const r = await (supabase as any)
         .from("order_change_requests")
@@ -18,10 +23,37 @@ export function OrderApprovals() {
         .eq("status", "pending")
         .order("created_at");
       if (r.error) throw r.error;
-      return r.data as any[];
+      const requests = (r.data ?? []) as any[];
+      if (!requests.length) return requests;
+      const orders = await (supabase as any)
+        .from("orders")
+        .select("id,seller_id")
+        .in("id", [...new Set(requests.map((r) => r.order_id))]);
+      if (orders.error) throw orders.error;
+      return requests.map((r) => ({
+        ...r,
+        current_seller_id: orders.data?.find((o: any) => o.id === r.order_id)?.seller_id,
+      }));
     },
   });
   async function review(id: string, approve: boolean) {
+    const request = query.data?.find((r) => r.id === id);
+    if (
+      !request ||
+      request.requested_by === userId ||
+      request.current_seller_id === userId ||
+      !access.data ||
+      viewAs
+    ) {
+      toast.info(
+        "Outro aprovador deve revisar esta solicitação. Você é o solicitante ou vendedor do pedido.",
+      );
+      return;
+    }
+    if ((note[id] ?? "").trim().length < 5) {
+      toast.error("Informe uma justificativa com pelo menos 5 caracteres.");
+      return;
+    }
     setBusy(id);
     try {
       const r = await (supabase as any).rpc("integral_review_order_change", {
@@ -38,6 +70,7 @@ export function OrderApprovals() {
       setBusy(null);
     }
   }
+  if (!access.data || viewAs) return null;
   return (
     <section className="my-4 space-y-3 rounded-lg border p-4">
       <h2 className="font-semibold">Solicitações de alteração de pedidos</h2>
@@ -91,23 +124,32 @@ export function OrderApprovals() {
                 </p>
               ))}
             </details>
-            <Input
-              placeholder="Justificativa da decisão (mínimo 5 caracteres)"
-              value={note[r.id] ?? ""}
-              onChange={(e) => setNote({ ...note, [r.id]: e.target.value })}
-            />
-            <div className="flex gap-2">
-              <Button disabled={busy === r.id} onClick={() => review(r.id, true)}>
-                Aprovar e aplicar
-              </Button>
-              <Button
-                variant="outline"
-                disabled={busy === r.id}
-                onClick={() => review(r.id, false)}
-              >
-                Rejeitar
-              </Button>
-            </div>
+            {r.requested_by === userId || r.current_seller_id === userId ? (
+              <p role="status" className="rounded-lg bg-muted p-3 text-sm">
+                Você solicitou esta alteração ou é o vendedor do pedido. Outro aprovador autorizado
+                deve revisar em Aprovações → Pedidos. A solicitação continua em análise.
+              </p>
+            ) : (
+              <>
+                <Input
+                  placeholder="Justificativa da decisão (mínimo 5 caracteres)"
+                  value={note[r.id] ?? ""}
+                  onChange={(e) => setNote({ ...note, [r.id]: e.target.value })}
+                />
+                <div className="flex gap-2">
+                  <Button disabled={busy === r.id} onClick={() => review(r.id, true)}>
+                    Aprovar e aplicar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    disabled={busy === r.id}
+                    onClick={() => review(r.id, false)}
+                  >
+                    Rejeitar
+                  </Button>
+                </div>
+              </>
+            )}
           </article>
         ))
       )}

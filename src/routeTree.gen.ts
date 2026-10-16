@@ -11,7 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
-import { Route as AcessoNegadoRouteImport } from './routes/acesso-negado'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedAcessosRouteImport } from './routes/_authenticated/acessos'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
@@ -23,6 +22,7 @@ import { Route as AuthenticatedCambioRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedCategoriasRouteImport } from './routes/_authenticated/categorias'
 import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
 import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
+import { Route as AuthenticatedComoUsarRouteImport } from './routes/_authenticated/como-usar'
 import { Route as AuthenticatedComprasRouteImport } from './routes/_authenticated/compras'
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
 import { Route as AuthenticatedContatosRouteImport } from './routes/_authenticated/contatos'
@@ -38,6 +38,7 @@ import { Route as AuthenticatedGuiaDeEstudoRouteImport } from './routes/_authent
 import { Route as AuthenticatedHierarquiaRouteImport } from './routes/_authenticated/hierarquia'
 import { Route as AuthenticatedIntegracoesRouteImport } from './routes/_authenticated/integracoes'
 import { Route as AuthenticatedInvestimentosRouteImport } from './routes/_authenticated/investimentos'
+import { Route as AuthenticatedManuaisRouteImport } from './routes/_authenticated/manuais'
 import { Route as AuthenticatedPainelRouteImport } from './routes/_authenticated/painel'
 import { Route as AuthenticatedPedidosRouteImport } from './routes/_authenticated/pedidos'
 import { Route as AuthenticatedProdutosRouteImport } from './routes/_authenticated/produtos'
@@ -45,10 +46,13 @@ import { Route as AuthenticatedPromocoesRouteImport } from './routes/_authentica
 import { Route as AuthenticatedRankingRouteImport } from './routes/_authenticated/ranking'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedScriptsRouteImport } from './routes/_authenticated/scripts'
+import { Route as AuthenticatedSemAcessoRouteImport } from './routes/_authenticated/sem-acesso'
 import { Route as AuthenticatedSistemasDivisionaisRouteImport } from './routes/_authenticated/sistemas-divisionais'
+import { Route as AuthenticatedSosRouteImport } from './routes/_authenticated/sos'
 import { Route as AuthenticatedTarefasRouteImport } from './routes/_authenticated/tarefas'
 import { Route as AuthenticatedTrafegoPagoRouteImport } from './routes/_authenticated/trafego-pago'
 import { Route as CatalogoSlugRouteImport } from './routes/catalogo.$slug'
+import { Route as OnboardingClienteRouteImport } from './routes/onboarding.cliente'
 import { Route as PedidoTokenRouteImport } from './routes/pedido.$token'
 import { Route as ReciboTokenRouteImport } from './routes/recibo.$token'
 import { Route as VerificarBatchIdRouteImport } from './routes/verificar.$batchId'
@@ -67,13 +71,6 @@ import { Route as AuthenticatedFornecedoresIdRouteImport } from './routes/_authe
 import { Route as AuthenticatedScriptsIdRouteImport } from './routes/_authenticated/scripts.$id'
 import { Route as AuthenticatedTarefasIdRouteImport } from './routes/_authenticated/tarefas.$id'
 import { Route as ApiDownloadPdfRouteImport } from './routes/api/download/pdf'
-import { Route as ApiPublicDescadastroRouteImport } from './routes/api/public/descadastro'
-import { Route as ApiPublicCampaignsWebhookRouteImport } from './routes/api/public/campaigns/webhook'
-import { Route as ApiPublicEvolutionWebhookRouteImport } from './routes/api/public/evolution/webhook'
-import { Route as ApiPublicGoogleCalendarCallbackRouteImport } from './routes/api/public/google-calendar/callback'
-import { Route as ApiPublicMetaCallbackRouteImport } from './routes/api/public/meta/callback'
-import { Route as ApiPublicMetaSyncRouteImport } from './routes/api/public/meta/sync'
-import { Route as ApiPublicTrackingWebhookRouteImport } from './routes/api/public/tracking/webhook'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -82,11 +79,6 @@ const IndexRoute = IndexRouteImport.update({
 } as any)
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AcessoNegadoRoute = AcessoNegadoRouteImport.update({
-  id: '/acesso-negado',
-  path: '/acesso-negado',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -146,6 +138,11 @@ const AuthenticatedClientesRoute = AuthenticatedClientesRouteImport.update({
   path: '/clientes',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedComoUsarRoute = AuthenticatedComoUsarRouteImport.update({
+  id: '/como-usar',
+  path: '/como-usar',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedComprasRoute = AuthenticatedComprasRouteImport.update({
   id: '/compras',
   path: '/compras',
@@ -203,11 +200,12 @@ const AuthenticatedFornecedoresRoute =
     path: '/fornecedores',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedGuiaDeEstudoRoute = AuthenticatedGuiaDeEstudoRouteImport.update({
-  id: '/guia-de-estudo',
-  path: '/guia-de-estudo',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
+const AuthenticatedGuiaDeEstudoRoute =
+  AuthenticatedGuiaDeEstudoRouteImport.update({
+    id: '/guia-de-estudo',
+    path: '/guia-de-estudo',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedHierarquiaRoute = AuthenticatedHierarquiaRouteImport.update({
   id: '/hierarquia',
   path: '/hierarquia',
@@ -225,6 +223,11 @@ const AuthenticatedInvestimentosRoute =
     path: '/investimentos',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedManuaisRoute = AuthenticatedManuaisRouteImport.update({
+  id: '/manuais',
+  path: '/manuais',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedPainelRoute = AuthenticatedPainelRouteImport.update({
   id: '/painel',
   path: '/painel',
@@ -260,12 +263,22 @@ const AuthenticatedScriptsRoute = AuthenticatedScriptsRouteImport.update({
   path: '/scripts',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedSemAcessoRoute = AuthenticatedSemAcessoRouteImport.update({
+  id: '/sem-acesso',
+  path: '/sem-acesso',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedSistemasDivisionaisRoute =
   AuthenticatedSistemasDivisionaisRouteImport.update({
     id: '/sistemas-divisionais',
     path: '/sistemas-divisionais',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedSosRoute = AuthenticatedSosRouteImport.update({
+  id: '/sos',
+  path: '/sos',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedTarefasRoute = AuthenticatedTarefasRouteImport.update({
   id: '/tarefas',
   path: '/tarefas',
@@ -280,6 +293,11 @@ const AuthenticatedTrafegoPagoRoute =
 const CatalogoSlugRoute = CatalogoSlugRouteImport.update({
   id: '/catalogo/$slug',
   path: '/catalogo/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OnboardingClienteRoute = OnboardingClienteRouteImport.update({
+  id: '/onboarding/cliente',
+  path: '/onboarding/cliente',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PedidoTokenRoute = PedidoTokenRouteImport.update({
@@ -380,49 +398,9 @@ const ApiDownloadPdfRoute = ApiDownloadPdfRouteImport.update({
   path: '/api/download/pdf',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicDescadastroRoute = ApiPublicDescadastroRouteImport.update({
-  id: '/api/public/descadastro',
-  path: '/api/public/descadastro',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicCampaignsWebhookRoute =
-  ApiPublicCampaignsWebhookRouteImport.update({
-    id: '/api/public/campaigns/webhook',
-    path: '/api/public/campaigns/webhook',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicEvolutionWebhookRoute =
-  ApiPublicEvolutionWebhookRouteImport.update({
-    id: '/api/public/evolution/webhook',
-    path: '/api/public/evolution/webhook',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicGoogleCalendarCallbackRoute =
-  ApiPublicGoogleCalendarCallbackRouteImport.update({
-    id: '/api/public/google-calendar/callback',
-    path: '/api/public/google-calendar/callback',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiPublicMetaCallbackRoute = ApiPublicMetaCallbackRouteImport.update({
-  id: '/api/public/meta/callback',
-  path: '/api/public/meta/callback',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicMetaSyncRoute = ApiPublicMetaSyncRouteImport.update({
-  id: '/api/public/meta/sync',
-  path: '/api/public/meta/sync',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPublicTrackingWebhookRoute =
-  ApiPublicTrackingWebhookRouteImport.update({
-    id: '/api/public/tracking/webhook',
-    path: '/api/public/tracking/webhook',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/acesso-negado': typeof AcessoNegadoRoute
   '/auth': typeof AuthRoute
   '/acessos': typeof AuthenticatedAcessosRoute
   '/admin': typeof AuthenticatedAdminRoute
@@ -434,6 +412,7 @@ export interface FileRoutesByFullPath {
   '/categorias': typeof AuthenticatedCategoriasRoute
   '/chat': typeof AuthenticatedChatRoute
   '/clientes': typeof AuthenticatedClientesRouteWithChildren
+  '/como-usar': typeof AuthenticatedComoUsarRoute
   '/compras': typeof AuthenticatedComprasRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/contatos': typeof AuthenticatedContatosRoute
@@ -449,6 +428,7 @@ export interface FileRoutesByFullPath {
   '/hierarquia': typeof AuthenticatedHierarquiaRoute
   '/integracoes': typeof AuthenticatedIntegracoesRoute
   '/investimentos': typeof AuthenticatedInvestimentosRoute
+  '/manuais': typeof AuthenticatedManuaisRoute
   '/painel': typeof AuthenticatedPainelRoute
   '/pedidos': typeof AuthenticatedPedidosRoute
   '/produtos': typeof AuthenticatedProdutosRoute
@@ -456,10 +436,13 @@ export interface FileRoutesByFullPath {
   '/ranking': typeof AuthenticatedRankingRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/scripts': typeof AuthenticatedScriptsRouteWithChildren
+  '/sem-acesso': typeof AuthenticatedSemAcessoRoute
   '/sistemas-divisionais': typeof AuthenticatedSistemasDivisionaisRoute
+  '/sos': typeof AuthenticatedSosRoute
   '/tarefas': typeof AuthenticatedTarefasRouteWithChildren
   '/trafego-pago': typeof AuthenticatedTrafegoPagoRoute
   '/catalogo/$slug': typeof CatalogoSlugRoute
+  '/onboarding/cliente': typeof OnboardingClienteRoute
   '/pedido/$token': typeof PedidoTokenRoute
   '/recibo/$token': typeof ReciboTokenRoute
   '/verificar/$batchId': typeof VerificarBatchIdRoute
@@ -474,21 +457,13 @@ export interface FileRoutesByFullPath {
   '/scripts/$id': typeof AuthenticatedScriptsIdRoute
   '/tarefas/$id': typeof AuthenticatedTarefasIdRoute
   '/api/download/pdf': typeof ApiDownloadPdfRoute
-  '/api/public/descadastro': typeof ApiPublicDescadastroRoute
   '/atendimentos/': typeof AuthenticatedAtendimentosIndexRoute
   '/crm/': typeof AuthenticatedCrmIndexRoute
   '/equipe/': typeof AuthenticatedEquipeIndexRoute
   '/fornecedores/': typeof AuthenticatedFornecedoresIndexRoute
-  '/api/public/campaigns/webhook': typeof ApiPublicCampaignsWebhookRoute
-  '/api/public/evolution/webhook': typeof ApiPublicEvolutionWebhookRoute
-  '/api/public/google-calendar/callback': typeof ApiPublicGoogleCalendarCallbackRoute
-  '/api/public/meta/callback': typeof ApiPublicMetaCallbackRoute
-  '/api/public/meta/sync': typeof ApiPublicMetaSyncRoute
-  '/api/public/tracking/webhook': typeof ApiPublicTrackingWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/acesso-negado': typeof AcessoNegadoRoute
   '/auth': typeof AuthRoute
   '/acessos': typeof AuthenticatedAcessosRoute
   '/admin': typeof AuthenticatedAdminRoute
@@ -499,6 +474,7 @@ export interface FileRoutesByTo {
   '/categorias': typeof AuthenticatedCategoriasRoute
   '/chat': typeof AuthenticatedChatRoute
   '/clientes': typeof AuthenticatedClientesRouteWithChildren
+  '/como-usar': typeof AuthenticatedComoUsarRoute
   '/compras': typeof AuthenticatedComprasRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/contatos': typeof AuthenticatedContatosRoute
@@ -511,6 +487,7 @@ export interface FileRoutesByTo {
   '/hierarquia': typeof AuthenticatedHierarquiaRoute
   '/integracoes': typeof AuthenticatedIntegracoesRoute
   '/investimentos': typeof AuthenticatedInvestimentosRoute
+  '/manuais': typeof AuthenticatedManuaisRoute
   '/painel': typeof AuthenticatedPainelRoute
   '/pedidos': typeof AuthenticatedPedidosRoute
   '/produtos': typeof AuthenticatedProdutosRoute
@@ -518,10 +495,13 @@ export interface FileRoutesByTo {
   '/ranking': typeof AuthenticatedRankingRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/scripts': typeof AuthenticatedScriptsRouteWithChildren
+  '/sem-acesso': typeof AuthenticatedSemAcessoRoute
   '/sistemas-divisionais': typeof AuthenticatedSistemasDivisionaisRoute
+  '/sos': typeof AuthenticatedSosRoute
   '/tarefas': typeof AuthenticatedTarefasRouteWithChildren
   '/trafego-pago': typeof AuthenticatedTrafegoPagoRoute
   '/catalogo/$slug': typeof CatalogoSlugRoute
+  '/onboarding/cliente': typeof OnboardingClienteRoute
   '/pedido/$token': typeof PedidoTokenRoute
   '/recibo/$token': typeof ReciboTokenRoute
   '/verificar/$batchId': typeof VerificarBatchIdRoute
@@ -536,23 +516,15 @@ export interface FileRoutesByTo {
   '/scripts/$id': typeof AuthenticatedScriptsIdRoute
   '/tarefas/$id': typeof AuthenticatedTarefasIdRoute
   '/api/download/pdf': typeof ApiDownloadPdfRoute
-  '/api/public/descadastro': typeof ApiPublicDescadastroRoute
   '/atendimentos': typeof AuthenticatedAtendimentosIndexRoute
   '/crm': typeof AuthenticatedCrmIndexRoute
   '/equipe': typeof AuthenticatedEquipeIndexRoute
   '/fornecedores': typeof AuthenticatedFornecedoresIndexRoute
-  '/api/public/campaigns/webhook': typeof ApiPublicCampaignsWebhookRoute
-  '/api/public/evolution/webhook': typeof ApiPublicEvolutionWebhookRoute
-  '/api/public/google-calendar/callback': typeof ApiPublicGoogleCalendarCallbackRoute
-  '/api/public/meta/callback': typeof ApiPublicMetaCallbackRoute
-  '/api/public/meta/sync': typeof ApiPublicMetaSyncRoute
-  '/api/public/tracking/webhook': typeof ApiPublicTrackingWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
-  '/acesso-negado': typeof AcessoNegadoRoute
   '/auth': typeof AuthRoute
   '/_authenticated/acessos': typeof AuthenticatedAcessosRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
@@ -564,6 +536,7 @@ export interface FileRoutesById {
   '/_authenticated/categorias': typeof AuthenticatedCategoriasRoute
   '/_authenticated/chat': typeof AuthenticatedChatRoute
   '/_authenticated/clientes': typeof AuthenticatedClientesRouteWithChildren
+  '/_authenticated/como-usar': typeof AuthenticatedComoUsarRoute
   '/_authenticated/compras': typeof AuthenticatedComprasRoute
   '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/_authenticated/contatos': typeof AuthenticatedContatosRoute
@@ -579,6 +552,7 @@ export interface FileRoutesById {
   '/_authenticated/hierarquia': typeof AuthenticatedHierarquiaRoute
   '/_authenticated/integracoes': typeof AuthenticatedIntegracoesRoute
   '/_authenticated/investimentos': typeof AuthenticatedInvestimentosRoute
+  '/_authenticated/manuais': typeof AuthenticatedManuaisRoute
   '/_authenticated/painel': typeof AuthenticatedPainelRoute
   '/_authenticated/pedidos': typeof AuthenticatedPedidosRoute
   '/_authenticated/produtos': typeof AuthenticatedProdutosRoute
@@ -586,10 +560,13 @@ export interface FileRoutesById {
   '/_authenticated/ranking': typeof AuthenticatedRankingRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/scripts': typeof AuthenticatedScriptsRouteWithChildren
+  '/_authenticated/sem-acesso': typeof AuthenticatedSemAcessoRoute
   '/_authenticated/sistemas-divisionais': typeof AuthenticatedSistemasDivisionaisRoute
+  '/_authenticated/sos': typeof AuthenticatedSosRoute
   '/_authenticated/tarefas': typeof AuthenticatedTarefasRouteWithChildren
   '/_authenticated/trafego-pago': typeof AuthenticatedTrafegoPagoRoute
   '/catalogo/$slug': typeof CatalogoSlugRoute
+  '/onboarding/cliente': typeof OnboardingClienteRoute
   '/pedido/$token': typeof PedidoTokenRoute
   '/recibo/$token': typeof ReciboTokenRoute
   '/verificar/$batchId': typeof VerificarBatchIdRoute
@@ -604,23 +581,15 @@ export interface FileRoutesById {
   '/_authenticated/scripts/$id': typeof AuthenticatedScriptsIdRoute
   '/_authenticated/tarefas/$id': typeof AuthenticatedTarefasIdRoute
   '/api/download/pdf': typeof ApiDownloadPdfRoute
-  '/api/public/descadastro': typeof ApiPublicDescadastroRoute
   '/_authenticated/atendimentos/': typeof AuthenticatedAtendimentosIndexRoute
   '/_authenticated/crm/': typeof AuthenticatedCrmIndexRoute
   '/_authenticated/equipe/': typeof AuthenticatedEquipeIndexRoute
   '/_authenticated/fornecedores/': typeof AuthenticatedFornecedoresIndexRoute
-  '/api/public/campaigns/webhook': typeof ApiPublicCampaignsWebhookRoute
-  '/api/public/evolution/webhook': typeof ApiPublicEvolutionWebhookRoute
-  '/api/public/google-calendar/callback': typeof ApiPublicGoogleCalendarCallbackRoute
-  '/api/public/meta/callback': typeof ApiPublicMetaCallbackRoute
-  '/api/public/meta/sync': typeof ApiPublicMetaSyncRoute
-  '/api/public/tracking/webhook': typeof ApiPublicTrackingWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/acesso-negado'
     | '/auth'
     | '/acessos'
     | '/admin'
@@ -632,6 +601,7 @@ export interface FileRouteTypes {
     | '/categorias'
     | '/chat'
     | '/clientes'
+    | '/como-usar'
     | '/compras'
     | '/configuracoes'
     | '/contatos'
@@ -647,6 +617,7 @@ export interface FileRouteTypes {
     | '/hierarquia'
     | '/integracoes'
     | '/investimentos'
+    | '/manuais'
     | '/painel'
     | '/pedidos'
     | '/produtos'
@@ -654,10 +625,13 @@ export interface FileRouteTypes {
     | '/ranking'
     | '/relatorios'
     | '/scripts'
+    | '/sem-acesso'
     | '/sistemas-divisionais'
+    | '/sos'
     | '/tarefas'
     | '/trafego-pago'
     | '/catalogo/$slug'
+    | '/onboarding/cliente'
     | '/pedido/$token'
     | '/recibo/$token'
     | '/verificar/$batchId'
@@ -672,21 +646,13 @@ export interface FileRouteTypes {
     | '/scripts/$id'
     | '/tarefas/$id'
     | '/api/download/pdf'
-    | '/api/public/descadastro'
     | '/atendimentos/'
     | '/crm/'
     | '/equipe/'
     | '/fornecedores/'
-    | '/api/public/campaigns/webhook'
-    | '/api/public/evolution/webhook'
-    | '/api/public/google-calendar/callback'
-    | '/api/public/meta/callback'
-    | '/api/public/meta/sync'
-    | '/api/public/tracking/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/acesso-negado'
     | '/auth'
     | '/acessos'
     | '/admin'
@@ -697,6 +663,7 @@ export interface FileRouteTypes {
     | '/categorias'
     | '/chat'
     | '/clientes'
+    | '/como-usar'
     | '/compras'
     | '/configuracoes'
     | '/contatos'
@@ -709,6 +676,7 @@ export interface FileRouteTypes {
     | '/hierarquia'
     | '/integracoes'
     | '/investimentos'
+    | '/manuais'
     | '/painel'
     | '/pedidos'
     | '/produtos'
@@ -716,10 +684,13 @@ export interface FileRouteTypes {
     | '/ranking'
     | '/relatorios'
     | '/scripts'
+    | '/sem-acesso'
     | '/sistemas-divisionais'
+    | '/sos'
     | '/tarefas'
     | '/trafego-pago'
     | '/catalogo/$slug'
+    | '/onboarding/cliente'
     | '/pedido/$token'
     | '/recibo/$token'
     | '/verificar/$batchId'
@@ -734,22 +705,14 @@ export interface FileRouteTypes {
     | '/scripts/$id'
     | '/tarefas/$id'
     | '/api/download/pdf'
-    | '/api/public/descadastro'
     | '/atendimentos'
     | '/crm'
     | '/equipe'
     | '/fornecedores'
-    | '/api/public/campaigns/webhook'
-    | '/api/public/evolution/webhook'
-    | '/api/public/google-calendar/callback'
-    | '/api/public/meta/callback'
-    | '/api/public/meta/sync'
-    | '/api/public/tracking/webhook'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
-    | '/acesso-negado'
     | '/auth'
     | '/_authenticated/acessos'
     | '/_authenticated/admin'
@@ -761,6 +724,7 @@ export interface FileRouteTypes {
     | '/_authenticated/categorias'
     | '/_authenticated/chat'
     | '/_authenticated/clientes'
+    | '/_authenticated/como-usar'
     | '/_authenticated/compras'
     | '/_authenticated/configuracoes'
     | '/_authenticated/contatos'
@@ -776,6 +740,7 @@ export interface FileRouteTypes {
     | '/_authenticated/hierarquia'
     | '/_authenticated/integracoes'
     | '/_authenticated/investimentos'
+    | '/_authenticated/manuais'
     | '/_authenticated/painel'
     | '/_authenticated/pedidos'
     | '/_authenticated/produtos'
@@ -783,10 +748,13 @@ export interface FileRouteTypes {
     | '/_authenticated/ranking'
     | '/_authenticated/relatorios'
     | '/_authenticated/scripts'
+    | '/_authenticated/sem-acesso'
     | '/_authenticated/sistemas-divisionais'
+    | '/_authenticated/sos'
     | '/_authenticated/tarefas'
     | '/_authenticated/trafego-pago'
     | '/catalogo/$slug'
+    | '/onboarding/cliente'
     | '/pedido/$token'
     | '/recibo/$token'
     | '/verificar/$batchId'
@@ -801,36 +769,22 @@ export interface FileRouteTypes {
     | '/_authenticated/scripts/$id'
     | '/_authenticated/tarefas/$id'
     | '/api/download/pdf'
-    | '/api/public/descadastro'
     | '/_authenticated/atendimentos/'
     | '/_authenticated/crm/'
     | '/_authenticated/equipe/'
     | '/_authenticated/fornecedores/'
-    | '/api/public/campaigns/webhook'
-    | '/api/public/evolution/webhook'
-    | '/api/public/google-calendar/callback'
-    | '/api/public/meta/callback'
-    | '/api/public/meta/sync'
-    | '/api/public/tracking/webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
-  AcessoNegadoRoute: typeof AcessoNegadoRoute
   AuthRoute: typeof AuthRoute
   CatalogoSlugRoute: typeof CatalogoSlugRoute
+  OnboardingClienteRoute: typeof OnboardingClienteRoute
   PedidoTokenRoute: typeof PedidoTokenRoute
   ReciboTokenRoute: typeof ReciboTokenRoute
   VerificarBatchIdRoute: typeof VerificarBatchIdRoute
   ApiDownloadPdfRoute: typeof ApiDownloadPdfRoute
-  ApiPublicDescadastroRoute: typeof ApiPublicDescadastroRoute
-  ApiPublicCampaignsWebhookRoute: typeof ApiPublicCampaignsWebhookRoute
-  ApiPublicEvolutionWebhookRoute: typeof ApiPublicEvolutionWebhookRoute
-  ApiPublicGoogleCalendarCallbackRoute: typeof ApiPublicGoogleCalendarCallbackRoute
-  ApiPublicMetaCallbackRoute: typeof ApiPublicMetaCallbackRoute
-  ApiPublicMetaSyncRoute: typeof ApiPublicMetaSyncRoute
-  ApiPublicTrackingWebhookRoute: typeof ApiPublicTrackingWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -847,13 +801,6 @@ declare module '@tanstack/react-router' {
       path: ''
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/acesso-negado': {
-      id: '/acesso-negado'
-      path: '/acesso-negado'
-      fullPath: '/acesso-negado'
-      preLoaderRoute: typeof AcessoNegadoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -931,6 +878,13 @@ declare module '@tanstack/react-router' {
       path: '/clientes'
       fullPath: '/clientes'
       preLoaderRoute: typeof AuthenticatedClientesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/como-usar': {
+      id: '/_authenticated/como-usar'
+      path: '/como-usar'
+      fullPath: '/como-usar'
+      preLoaderRoute: typeof AuthenticatedComoUsarRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/compras': {
@@ -1038,6 +992,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedInvestimentosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/manuais': {
+      id: '/_authenticated/manuais'
+      path: '/manuais'
+      fullPath: '/manuais'
+      preLoaderRoute: typeof AuthenticatedManuaisRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/painel': {
       id: '/_authenticated/painel'
       path: '/painel'
@@ -1087,11 +1048,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedScriptsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/sem-acesso': {
+      id: '/_authenticated/sem-acesso'
+      path: '/sem-acesso'
+      fullPath: '/sem-acesso'
+      preLoaderRoute: typeof AuthenticatedSemAcessoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/sistemas-divisionais': {
       id: '/_authenticated/sistemas-divisionais'
       path: '/sistemas-divisionais'
       fullPath: '/sistemas-divisionais'
       preLoaderRoute: typeof AuthenticatedSistemasDivisionaisRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/sos': {
+      id: '/_authenticated/sos'
+      path: '/sos'
+      fullPath: '/sos'
+      preLoaderRoute: typeof AuthenticatedSosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/tarefas': {
@@ -1113,6 +1088,13 @@ declare module '@tanstack/react-router' {
       path: '/catalogo/$slug'
       fullPath: '/catalogo/$slug'
       preLoaderRoute: typeof CatalogoSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/onboarding/cliente': {
+      id: '/onboarding/cliente'
+      path: '/onboarding/cliente'
+      fullPath: '/onboarding/cliente'
+      preLoaderRoute: typeof OnboardingClienteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pedido/$token': {
@@ -1241,55 +1223,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDownloadPdfRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/public/descadastro': {
-      id: '/api/public/descadastro'
-      path: '/api/public/descadastro'
-      fullPath: '/api/public/descadastro'
-      preLoaderRoute: typeof ApiPublicDescadastroRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/campaigns/webhook': {
-      id: '/api/public/campaigns/webhook'
-      path: '/api/public/campaigns/webhook'
-      fullPath: '/api/public/campaigns/webhook'
-      preLoaderRoute: typeof ApiPublicCampaignsWebhookRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/evolution/webhook': {
-      id: '/api/public/evolution/webhook'
-      path: '/api/public/evolution/webhook'
-      fullPath: '/api/public/evolution/webhook'
-      preLoaderRoute: typeof ApiPublicEvolutionWebhookRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/google-calendar/callback': {
-      id: '/api/public/google-calendar/callback'
-      path: '/api/public/google-calendar/callback'
-      fullPath: '/api/public/google-calendar/callback'
-      preLoaderRoute: typeof ApiPublicGoogleCalendarCallbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/meta/callback': {
-      id: '/api/public/meta/callback'
-      path: '/api/public/meta/callback'
-      fullPath: '/api/public/meta/callback'
-      preLoaderRoute: typeof ApiPublicMetaCallbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/meta/sync': {
-      id: '/api/public/meta/sync'
-      path: '/api/public/meta/sync'
-      fullPath: '/api/public/meta/sync'
-      preLoaderRoute: typeof ApiPublicMetaSyncRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/tracking/webhook': {
-      id: '/api/public/tracking/webhook'
-      path: '/api/public/tracking/webhook'
-      fullPath: '/api/public/tracking/webhook'
-      preLoaderRoute: typeof ApiPublicTrackingWebhookRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
@@ -1399,6 +1332,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedCategoriasRoute: typeof AuthenticatedCategoriasRoute
   AuthenticatedChatRoute: typeof AuthenticatedChatRoute
   AuthenticatedClientesRoute: typeof AuthenticatedClientesRouteWithChildren
+  AuthenticatedComoUsarRoute: typeof AuthenticatedComoUsarRoute
   AuthenticatedComprasRoute: typeof AuthenticatedComprasRoute
   AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
   AuthenticatedContatosRoute: typeof AuthenticatedContatosRoute
@@ -1414,6 +1348,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedHierarquiaRoute: typeof AuthenticatedHierarquiaRoute
   AuthenticatedIntegracoesRoute: typeof AuthenticatedIntegracoesRoute
   AuthenticatedInvestimentosRoute: typeof AuthenticatedInvestimentosRoute
+  AuthenticatedManuaisRoute: typeof AuthenticatedManuaisRoute
   AuthenticatedPainelRoute: typeof AuthenticatedPainelRoute
   AuthenticatedPedidosRoute: typeof AuthenticatedPedidosRoute
   AuthenticatedProdutosRoute: typeof AuthenticatedProdutosRoute
@@ -1421,7 +1356,9 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedRankingRoute: typeof AuthenticatedRankingRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
   AuthenticatedScriptsRoute: typeof AuthenticatedScriptsRouteWithChildren
+  AuthenticatedSemAcessoRoute: typeof AuthenticatedSemAcessoRoute
   AuthenticatedSistemasDivisionaisRoute: typeof AuthenticatedSistemasDivisionaisRoute
+  AuthenticatedSosRoute: typeof AuthenticatedSosRoute
   AuthenticatedTarefasRoute: typeof AuthenticatedTarefasRouteWithChildren
   AuthenticatedTrafegoPagoRoute: typeof AuthenticatedTrafegoPagoRoute
   AuthenticatedConfirmarEntregaTokenRoute: typeof AuthenticatedConfirmarEntregaTokenRoute
@@ -1439,6 +1376,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedCategoriasRoute: AuthenticatedCategoriasRoute,
   AuthenticatedChatRoute: AuthenticatedChatRoute,
   AuthenticatedClientesRoute: AuthenticatedClientesRouteWithChildren,
+  AuthenticatedComoUsarRoute: AuthenticatedComoUsarRoute,
   AuthenticatedComprasRoute: AuthenticatedComprasRoute,
   AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
   AuthenticatedContatosRoute: AuthenticatedContatosRoute,
@@ -1454,6 +1392,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedHierarquiaRoute: AuthenticatedHierarquiaRoute,
   AuthenticatedIntegracoesRoute: AuthenticatedIntegracoesRoute,
   AuthenticatedInvestimentosRoute: AuthenticatedInvestimentosRoute,
+  AuthenticatedManuaisRoute: AuthenticatedManuaisRoute,
   AuthenticatedPainelRoute: AuthenticatedPainelRoute,
   AuthenticatedPedidosRoute: AuthenticatedPedidosRoute,
   AuthenticatedProdutosRoute: AuthenticatedProdutosRoute,
@@ -1461,7 +1400,9 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedRankingRoute: AuthenticatedRankingRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
   AuthenticatedScriptsRoute: AuthenticatedScriptsRouteWithChildren,
+  AuthenticatedSemAcessoRoute: AuthenticatedSemAcessoRoute,
   AuthenticatedSistemasDivisionaisRoute: AuthenticatedSistemasDivisionaisRoute,
+  AuthenticatedSosRoute: AuthenticatedSosRoute,
   AuthenticatedTarefasRoute: AuthenticatedTarefasRouteWithChildren,
   AuthenticatedTrafegoPagoRoute: AuthenticatedTrafegoPagoRoute,
   AuthenticatedConfirmarEntregaTokenRoute:
@@ -1475,20 +1416,13 @@ const AuthenticatedRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
-  AcessoNegadoRoute: AcessoNegadoRoute,
   AuthRoute: AuthRoute,
   CatalogoSlugRoute: CatalogoSlugRoute,
+  OnboardingClienteRoute: OnboardingClienteRoute,
   PedidoTokenRoute: PedidoTokenRoute,
   ReciboTokenRoute: ReciboTokenRoute,
   VerificarBatchIdRoute: VerificarBatchIdRoute,
   ApiDownloadPdfRoute: ApiDownloadPdfRoute,
-  ApiPublicDescadastroRoute: ApiPublicDescadastroRoute,
-  ApiPublicCampaignsWebhookRoute: ApiPublicCampaignsWebhookRoute,
-  ApiPublicEvolutionWebhookRoute: ApiPublicEvolutionWebhookRoute,
-  ApiPublicGoogleCalendarCallbackRoute: ApiPublicGoogleCalendarCallbackRoute,
-  ApiPublicMetaCallbackRoute: ApiPublicMetaCallbackRoute,
-  ApiPublicMetaSyncRoute: ApiPublicMetaSyncRoute,
-  ApiPublicTrackingWebhookRoute: ApiPublicTrackingWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

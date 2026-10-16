@@ -2854,6 +2854,7 @@ export type Database = {
           markup_percent: number
           min_quantity: number
           name: string
+          price_currency: Database["public"]["Enums"]["currency_code"] | null
           price: number | null
           product_id: string | null
           quantity: number
@@ -2890,6 +2891,7 @@ export type Database = {
           markup_percent?: number
           min_quantity?: number
           name: string
+          price_currency?: Database["public"]["Enums"]["currency_code"] | null
           price?: number | null
           product_id?: string | null
           quantity?: number
@@ -2926,6 +2928,7 @@ export type Database = {
           markup_percent?: number
           min_quantity?: number
           name?: string
+          price_currency?: Database["public"]["Enums"]["currency_code"] | null
           price?: number | null
           product_id?: string | null
           quantity?: number

@@ -1,3 +1,5 @@
+import { catalogAudience, type CatalogAudience } from "@/lib/catalog-views";
+import { memberCatalogSalePrice } from "@/lib/member-catalog-pricing";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { catalogPriceBreakdown, type CatalogPriceCurrency } from "@/lib/catalog-pricing";
@@ -25,13 +27,14 @@ async function catalogRates(db: any) {
   return factors;
 }
 function catalogUnitPrice(item: any, rules: any, target: string, factors: Record<string, number>) {
+  if (rules?.member_fixed_sale_prices === true) return memberCatalogSalePrice(item,target,factors);
   const detail = catalogPriceBreakdown(
     item,
     rules,
     target as CatalogPriceCurrency,
     (value, from, to) => {
       const factor = factors[`${from}-${to}`];
-      return factor > 0 ? value * factor : null;
+      return factor != null && factor > 0 ? value * factor : null;
     },
   );
   if (detail.sale == null)
@@ -85,6 +88,8 @@ export type CatalogFreightQuote = {
 };
 
 export type PublicCatalog = {
+  audience: CatalogAudience;
+  layout: "cards" | "lista";
   exchangeRates: Record<string, number>;
   slug: string;
   title: string;
@@ -122,7 +127,7 @@ export type PublicCatalog = {
 
 /** Catálogo digital público: lido por link, sem login. Só devolve dados seguros de vitrine. */
 export const getPublicCatalog = createServerFn({ method: "GET" })
-  .validator((data) => z.object({ slug: z.string() }).parse(data))
+  .validator((data) => z.object({ slug: z.string(), audience: z.enum(["vendedor","cliente"]).optional() }).parse(data))
   .handler(async ({ data }): Promise<PublicCatalog | null> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -146,10 +151,17 @@ export const getPublicCatalog = createServerFn({ method: "GET" })
     let query = supabaseAdmin
       .from("inventory_items")
       .select(
-        "id,name,sku,brand,description,variation,size,weight,volume,unit,image_url,price,cost,tax_percent,extra_cost,currency,quantity,reserved,min_quantity,is_active,product_id,category_id",
+        "id,name,sku,brand,description,variation,size,weight,volume,unit,image_url,price,price_currency,cost,tax_percent,extra_cost,currency,quantity,reserved,min_quantity,is_active,product_id,category_id",
       )
       .eq("is_active", true);
 
+    if ((c["pricing_rules"] as any)?.member_fixed_sale_prices === true) {
+      const allowed = await supabaseAdmin.rpc("integral_public_member_catalog_items" as any, {p_catalog_id:catalog.id});
+      if (allowed.error) throw allowed.error;
+      const ids = (allowed.data ?? []) as string[];
+      if (!ids.length) return null;
+      query = query.in("id", ids);
+    }
     const itemIds = (catalog.item_ids ?? []) as string[];
     const categoryIds = (catalog.category_ids ?? []) as string[];
     const productIds = (catalog.product_ids ?? []) as string[];
@@ -243,7 +255,8 @@ export const getPublicCatalog = createServerFn({ method: "GET" })
     ]);
 
     const offers = (c["offer_item_ids"] ?? []) as string[];
-    const showPrices = catalog.show_prices;
+    const audience = catalogAudience(data.audience);
+    const showPrices = audience === "vendedor" && catalog.show_prices;
 
     const configuredSellerIds = (itemId: string) => {
       const value = configFor(itemId)["sellerIds"];
@@ -335,7 +348,9 @@ export const getPublicCatalog = createServerFn({ method: "GET" })
 
     const sellersFor = (item: (typeof items)[number]) => {
       const configured = configuredSellerIds(item.id);
-      const ids = configured.length
+      const ids = (c["pricing_rules"] as any)?.member_fixed_sale_prices === true
+        ? (catalog.default_seller_id ? [catalog.default_seller_id] : [])
+        : configured.length
         ? configured
         : [...activeSellerIds, ...(catalog.default_seller_id ? [catalog.default_seller_id] : [])];
       return [...new Set(ids)]
@@ -351,7 +366,9 @@ export const getPublicCatalog = createServerFn({ method: "GET" })
     const exchangeRates = await catalogRates(supabaseAdmin);
     return {
       exchangeRates,
+      audience,
       slug: catalog.slug,
+      layout: c["layout"] === "lista" ? "lista" : "cards",
       title: catalog.title,
       description: catalog.description,
       about: str("about"),
@@ -420,7 +437,7 @@ export const getPublicCatalog = createServerFn({ method: "GET" })
               : null,
           sellers: sellersFor(i),
           price: showPrices
-            ? catalogUnitPrice(i, c.pricing_rules, catalog.currency ?? "USD", exchangeRates)
+            ? (() => {try{return catalogUnitPrice(i,c["pricing_rules"],catalog.currency ?? "USD",exchangeRates);}catch{return null;}})()
             : null,
           currency: (catalog.currency ?? "USD") as "BRL" | "USD" | "PYG",
           available: Number(i.quantity ?? 0) - Number(i.reserved ?? 0) > 0,
@@ -821,7 +838,15 @@ async function createCatalogRequest(input: CatalogOrderInput): Promise<CatalogOr
   }
   await enforceCatalogRateLimit(catalog.id);
 
-  const sellerId = input.sellerId || catalog.default_seller_id || null;
+  const memberCatalog = (catalog as any).pricing_rules?.member_fixed_sale_prices === true;
+  let memberAllowedIds: Set<string> | null = null;
+  if (memberCatalog) {
+    const allowed = await supabaseAdmin.rpc("integral_public_member_catalog_items" as any, {p_catalog_id:catalog.id});
+    if (allowed.error) throw allowed.error;
+    memberAllowedIds = new Set((allowed.data ?? []) as string[]);
+    if (!memberAllowedIds.size) throw new Error("Este material não possui produtos disponíveis.");
+  }
+  const sellerId = memberCatalog ? catalog.default_seller_id : input.sellerId || catalog.default_seller_id || null;
   if (sellerId) {
     const [{ data: seller }, { data: sellerRole }] = await Promise.all([
       supabaseAdmin
@@ -846,7 +871,7 @@ async function createCatalogRequest(input: CatalogOrderInput): Promise<CatalogOr
   const { data: inventory, error: inventoryError } = await supabaseAdmin
     .from("inventory_items")
     .select(
-      "id,name,sku,barcode,unit,price,cost,tax_percent,extra_cost,currency,quantity,reserved,is_active,product_id,category_id",
+      "id,name,sku,barcode,unit,price,price_currency,cost,tax_percent,extra_cost,currency,quantity,reserved,is_active,product_id,category_id",
     )
     .in("id", requestedIds);
   if (inventoryError) throw inventoryError;
@@ -862,7 +887,7 @@ async function createCatalogRequest(input: CatalogOrderInput): Promise<CatalogOr
         : catalog.product_ids?.length
           ? !!item.product_id && catalog.product_ids.includes(item.product_id)
           : true;
-    if (!allowed) throw new Error("Um produto do carrinho não pertence a este catálogo.");
+    if (!allowed || (memberAllowedIds && !memberAllowedIds.has(item.id))) throw new Error("Um produto do carrinho não pertence a este catálogo.");
     if (Number(item.quantity) - Number(item.reserved) < line.quantity) {
       throw new Error(`Estoque insuficiente para ${item.name}.`);
     }

@@ -102,22 +102,38 @@ function CatalogViewLinks({ slug }: { slug: string }) {
     { audience: "vendedor" as const, label: "vendedor", description: "Com preços" },
     { audience: "cliente" as const, label: "cliente", description: "Sem preços" },
   ];
-  return <div className="mt-2 grid gap-2">
-    {views.map((view) => <div key={view.audience} className="flex flex-wrap items-center gap-1">
-      <Button size="sm" variant="outline" onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(window.location.origin + catalogViewPath(slug, view.audience));
-          toast.success(`Link ${view.label} copiado.`);
-        } catch { toast.error("Não foi possível copiar o link."); }
-      }}><Copy className="mr-1 size-3" />Link {view.label}</Button>
-      <Button size="sm" variant="outline" asChild>
-        <a href={catalogViewPath(slug, view.audience)} target="_blank" rel="noreferrer">
-          <ExternalLink className="mr-1 size-3" />Ver {view.label}
-        </a>
-      </Button>
-      <span className="text-xs text-muted-foreground">{view.description}</span>
-    </div>)}
-  </div>;
+  return (
+    <div className="mt-2 grid gap-2">
+      {views.map((view) => (
+        <div key={view.audience} className="flex flex-wrap items-center gap-1">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(
+                  window.location.origin + catalogViewPath(slug, view.audience),
+                );
+                toast.success(`Link ${view.label} copiado.`);
+              } catch {
+                toast.error("Não foi possível copiar o link.");
+              }
+            }}
+          >
+            <Copy className="mr-1 size-3" />
+            Link {view.label}
+          </Button>
+          <Button size="sm" variant="outline" asChild>
+            <a href={catalogViewPath(slug, view.audience)} target="_blank" rel="noreferrer">
+              <ExternalLink className="mr-1 size-3" />
+              Ver {view.label}
+            </a>
+          </Button>
+          <span className="text-xs text-muted-foreground">{view.description}</span>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function slugify(s: string) {
@@ -185,12 +201,14 @@ function CatalogPricing({
       <div>
         <p className="mb-2 text-sm font-medium">Padrão para os produtos deste catálogo</p>
         <div className="grid gap-3 sm:grid-cols-4">
-          {([
-            ["freight", "Frete (%)"],
-            ["commission", "Comissão (%)"],
-            ["markup", "Markup (%)"],
-            ["discount", "Desconto (%)"],
-          ] as const).map(([key, label]) => (
+          {(
+            [
+              ["freight", "Frete (%)"],
+              ["commission", "Comissão (%)"],
+              ["markup", "Markup (%)"],
+              ["discount", "Desconto (%)"],
+            ] as const
+          ).map(([key, label]) => (
             <div key={key}>
               <Label className="text-xs">{label}</Label>
               <Input
@@ -296,12 +314,14 @@ function CatalogPricing({
                         onChange={(e) => update("extra", e.target.value)}
                       />
                     </div>
-                    {([
-                      ["freight", "Frete (%)"],
-                      ["commission", "Comissão (%)"],
-                      ["markup", "Markup (%)"],
-                      ["discount", "Desconto (%)"],
-                    ] as const).map(([key, label]) => (
+                    {(
+                      [
+                        ["freight", "Frete (%)"],
+                        ["commission", "Comissão (%)"],
+                        ["markup", "Markup (%)"],
+                        ["discount", "Desconto (%)"],
+                      ] as const
+                    ).map(([key, label]) => (
                       <div key={key}>
                         <Label>{label}</Label>
                         <Input
@@ -414,15 +434,29 @@ function CatalogPricing({
   );
 }
 
-export function CatalogSection({ macros, subs, sellerMode = false, displaySection }: { macros: Macro[]; subs: Sub[]; sellerMode?: boolean; displaySection?: "products" | "catalogs" | "tables" }) {
+export function CatalogSection({
+  macros,
+  subs,
+  sellerMode = false,
+  displaySection,
+}: {
+  macros: Macro[];
+  subs: Sub[];
+  sellerMode?: boolean;
+  displaySection?: "products" | "catalogs" | "tables";
+}) {
   const baseCurrency = useBaseCurrency();
   const { userId, roles, isAdmin } = useCurrentUser();
-  const sellerOnly = sellerMode || (roles.includes("vendedor") && !isAdmin && roles.every((role) => role === "vendedor"));
+  const sellerOnly =
+    sellerMode ||
+    (roles.includes("vendedor") && !isAdmin && roles.every((role) => role === "vendedor"));
   const [currency, setCurrency] = useState<Currency>("USD");
   const [currencyTouched, setCurrencyTouched] = useState(false);
   const [view, setView] = useState<"cards" | "lista">("cards");
+  const [materialScope, setMaterialScope] = useState<"mine" | "public">("mine");
   const [internalSectionTab, setSectionTab] = useState<"catalogo" | "tabelas">("catalogo");
-  const sectionTab = displaySection === "tables" ? "tabelas" : displaySection ? "catalogo" : internalSectionTab;
+  const sectionTab =
+    displaySection === "tables" ? "tabelas" : displaySection ? "catalogo" : internalSectionTab;
   const showProducts = !displaySection || displaySection === "products";
   const showCatalogs = !displaySection || displaySection === "catalogs";
   const salesCatalog = useSalesCatalog(sellerOnly);
@@ -469,11 +503,15 @@ export function CatalogSection({ macros, subs, sellerMode = false, displaySectio
 
   const itemsQuery = useRows<any>("inventory_items", {
     enabled: !sellerOnly,
-    select: "id,name,sku,barcode,brand,description,public_description,intended_use,usage_instructions,information_source_url,product_id,category_id,supplier_id,quantity,min_quantity,reserved,unit,price,price_currency,currency,cost,cost_currency,image_url,is_active,variation,size,weight,volume,location,catalog_family,catalog_bestseller",
+    select:
+      "id,name,sku,barcode,brand,description,public_description,intended_use,usage_instructions,information_source_url,product_id,category_id,supplier_id,quantity,min_quantity,reserved,unit,price,price_currency,currency,cost,cost_currency,image_url,is_active,variation,size,weight,volume,location,catalog_family,catalog_bestseller",
     orderBy: { column: "name", ascending: true },
     limit: 1000,
   });
-  const items = useMemo(() => sellerOnly ? salesCatalog.data?.items ?? [] : itemsQuery.data ?? [], [sellerOnly, salesCatalog.data, itemsQuery.data]);
+  const items = useMemo(
+    () => (sellerOnly ? (salesCatalog.data?.items ?? []) : (itemsQuery.data ?? [])),
+    [sellerOnly, salesCatalog.data, itemsQuery.data],
+  );
   const suppliersQuery = useRows<any>("suppliers", {
     enabled: !sellerOnly,
     select: "id,name",
@@ -484,11 +522,22 @@ export function CatalogSection({ macros, subs, sellerMode = false, displaySectio
     enabled: !sellerOnly,
     orderBy: { column: "created_at", ascending: false },
   });
-  const catalogs = sellerOnly ? salesCatalog.data?.catalogs ?? [] : catalogsQuery.data ?? [];
-  const visibleCatalogs = catalogs.filter((c:any) =>
-    c.visible_to_all_members !== false ||
-    (c.visible_member_ids ?? []).includes(userId) ||
-    c.created_by === userId
+  const catalogs = sellerOnly ? (salesCatalog.data?.catalogs ?? []) : (catalogsQuery.data ?? []);
+  const availableCatalogs = catalogs.filter(
+    (c: any) =>
+      c.visible_to_all_members !== false ||
+      (c.visible_member_ids ?? []).includes(userId) ||
+      c.created_by === userId,
+  );
+  const matchingMaterials = availableCatalogs.filter((c: any) =>
+    sectionTab === "tabelas" ? c.layout === "lista" : c.layout !== "lista",
+  );
+  const ownMaterialsCount = matchingMaterials.filter((c: any) => c.created_by === userId).length;
+  const publicMaterialsCount = matchingMaterials.filter(
+    (c: any) => c.created_by !== userId && c.is_published,
+  ).length;
+  const visibleCatalogs = availableCatalogs.filter((c: any) =>
+    materialScope === "mine" ? c.created_by === userId : c.created_by !== userId && c.is_published,
   );
   const sellersQuery = useRows<any>("profiles", {
     enabled: !!catalogForm && !sellerOnly,
@@ -536,7 +585,10 @@ export function CatalogSection({ macros, subs, sellerMode = false, displaySectio
     () => subs.filter((sub) => items.some((item: any) => item.category_id === sub.id)),
     [subs, items],
   );
-  const subNames = useMemo(() => new Map(visibleSubs.map((sub) => [sub.id, sub.name])), [visibleSubs]);
+  const subNames = useMemo(
+    () => new Map(visibleSubs.map((sub) => [sub.id, sub.name])),
+    [visibleSubs],
+  );
   const macroName = (id: string) => macroNames.get(id) ?? "Sem categoria";
   const subName = (id: string | null) => (id ? subNames.get(id) : undefined) ?? "Sem subcategoria";
   const supplierName = (id: string | null) => suppliers.find((s: any) => s.id === id)?.name ?? "—";
@@ -628,7 +680,10 @@ export function CatalogSection({ macros, subs, sellerMode = false, displaySectio
           reportBrand: item.brand || subName(item.category_id),
         }))
         .sort((a: any, b: any) => {
-          const byCategory = macroName(a.product_id).localeCompare(macroName(b.product_id), "pt-BR");
+          const byCategory = macroName(a.product_id).localeCompare(
+            macroName(b.product_id),
+            "pt-BR",
+          );
           if (byCategory) return byCategory;
           const bySub = subName(a.category_id).localeCompare(subName(b.category_id), "pt-BR");
           if (bySub) return bySub;
@@ -803,7 +858,8 @@ export function CatalogSection({ macros, subs, sellerMode = false, displaySectio
         return void toast.error("Informe um link válido para o grupo de informações.");
       }
     }
-    if (form.information_source_url?.trim() && !informationSourceUrl(form.information_source_url)) return void toast.error("Informe uma fonte válida com HTTPS.");
+    if (form.information_source_url?.trim() && !informationSourceUrl(form.information_source_url))
+      return void toast.error("Informe uma fonte válida com HTTPS.");
     setSaving(true);
     const payload: any = {
       name: form.name,
@@ -1008,7 +1064,7 @@ export function CatalogSection({ macros, subs, sellerMode = false, displaySectio
         item_ids: q.scope === "selecionados" ? selected : [],
         product_ids: q.scope === "categoria" ? [q.macroId] : [],
         category_ids: q.scope === "subcategoria" ? [q.subId] : [],
-        default_seller_id: sellerOnly ? userId : (q.default_seller_id || null),
+        default_seller_id: sellerOnly ? userId : q.default_seller_id || null,
         created_by: userId,
       } as any)
       .select("slug")
@@ -1026,7 +1082,9 @@ export function CatalogSection({ macros, subs, sellerMode = false, displaySectio
         "O catálogo foi criado, mas a lista de contatos não pôde ser criada.",
       );
     }
-    await navigator.clipboard?.writeText(linkOf(data.slug) + "?publico=cliente").catch(() => undefined);
+    await navigator.clipboard
+      ?.writeText(linkOf(data.slug) + "?publico=cliente")
+      .catch(() => undefined);
     toast.success("Catálogo e lista de contatos criados. Link copiado.");
     setQuick(null);
     setSelected([]);
@@ -1188,7 +1246,7 @@ export function CatalogSection({ macros, subs, sellerMode = false, displaySectio
       description: f.description || null,
       about: f.about || null,
       show_prices: true,
-      default_seller_id: sellerOnly ? userId : (f.default_seller_id || null),
+      default_seller_id: sellerOnly ? userId : f.default_seller_id || null,
       currency: f.currency ?? "USD",
       whatsapp: f.whatsapp || null,
       contact_email: f.contact_email || null,
@@ -1215,6 +1273,9 @@ export function CatalogSection({ macros, subs, sellerMode = false, displaySectio
       shipping_days:
         f.shipping_days === "" || f.shipping_days == null ? null : Number(f.shipping_days),
       shipping_regions: (f.shipping_regions ?? []).filter((r: any) => r?.name),
+      layout: f.layout ?? catalogLayout,
+      visible_to_all_members: f.visible_to_all_members !== false,
+      visible_member_ids: f.visible_member_ids ?? [],
       catalog_kind: f.catalog_kind ?? "selection",
       product_ids: f.catalog_kind === "general" ? [] : (f.product_ids ?? []),
       category_ids: f.catalog_kind === "general" ? [] : (f.category_ids ?? []),
@@ -1265,15 +1326,49 @@ export function CatalogSection({ macros, subs, sellerMode = false, displaySectio
 
   return (
     <section className="surface-card p-4">
-      {!displaySection && <div className="mb-5 flex flex-wrap gap-2">
-        <Button type="button" variant={sectionTab === "catalogo" ? "default" : "outline"} onClick={() => setSectionTab("catalogo")}>
-          Catálogo de produtos
-        </Button>
-        <Button type="button" variant={sectionTab === "tabelas" ? "default" : "outline"} onClick={() => setSectionTab("tabelas")}>
-          Tabelas de venda
-        </Button>
-      </div>
-      }
+      {displaySection !== "products" && (
+        <div className="mb-5 space-y-2">
+          <Tabs
+            value={materialScope}
+            onValueChange={(value) => setMaterialScope(value as "mine" | "public")}
+          >
+            <TabsList className="h-auto max-w-full flex-wrap justify-start">
+              <TabsTrigger value="mine">
+                {sectionTab === "tabelas" ? "Minhas tabelas" : "Meus catálogos"} (
+                {ownMaterialsCount})
+              </TabsTrigger>
+              <TabsTrigger value="public">
+                {sectionTab === "tabelas" ? "Tabelas públicas" : "Catálogos públicos"} (
+                {publicMaterialsCount})
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <p className="text-xs text-muted-foreground">
+            {materialScope === "mine"
+              ? "Materiais criados por você, incluindo os compartilhados com a equipe."
+              : "Materiais compartilhados pelos demais membros."}
+          </p>
+        </div>
+      )}
+
+      {!displaySection && (
+        <div className="mb-5 flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant={sectionTab === "catalogo" ? "default" : "outline"}
+            onClick={() => setSectionTab("catalogo")}
+          >
+            Catálogo de produtos
+          </Button>
+          <Button
+            type="button"
+            variant={sectionTab === "tabelas" ? "default" : "outline"}
+            onClick={() => setSectionTab("tabelas")}
+          >
+            Tabelas de venda
+          </Button>
+        </div>
+      )}
       {sectionTab === "tabelas" && (
         <SalesTables
           items={items}
@@ -1289,407 +1384,1659 @@ export function CatalogSection({ macros, subs, sellerMode = false, displaySectio
         />
       )}
       <div className={sectionTab === "catalogo" ? "" : "hidden"}>
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h2 className="font-display text-lg font-semibold">{showProducts && displaySection ? "Produtos disponíveis" : "Catálogos online"}</h2>
-          <p className="text-muted-foreground text-sm">
-            {showProducts && displaySection ? "Produtos, quantidades disponíveis e valores de venda definidos pela direção." : "Catálogos publicados, rascunhos e links separados para vendedor e cliente."}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {!sellerOnly && showCatalogs && <Button variant="outline" onClick={() => openCatalogForm(undefined, "cards")}>
-            <Globe className="mr-2 size-4" /> Novo catálogo online
-          </Button>}
-          {!sellerOnly && !displaySection && <Button variant="outline" onClick={() => openCatalogForm(undefined, "lista")}>
-            <List className="mr-2 size-4" /> Nova tabela de venda
-          </Button>}
-          <Select
-            value={currency}
-            onValueChange={(v) => {
-              setCurrencyTouched(true);
-              setCurrency(v as Currency);
-            }}
-          >
-            <SelectTrigger className="w-[150px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {DISPLAY_CURRENCIES.map((c) => (
-                <SelectItem key={c.value} value={c.value}>
-                  {c.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {!sellerOnly && showProducts && (
-            <Button variant="outline" onClick={() => setOpen(true)}>
-              <Wand2 className="mr-2 size-4" /> Atualizar estoque por texto
-            </Button>
-          )}
-          {showProducts && <>
-          <Button variant="outline" onClick={exportText}>
-            <FileText className="mr-2 size-4" /> Exportar texto
-          </Button>
-          <Button variant="outline" onClick={exportCsv}>
-            <Download className="mr-2 size-4" /> Exportar planilha
-          </Button>
-          <SheetLinkExportButton build={catalogRows} />
-          <ReportButton
-            title="Relatório de catálogo e estoque"
-            filename="catalogo"
-            build={() => ({
-              highlights: [
-                { label: "Produtos", value: String(reportItems.length) },
-                {
-                  label: "Quantidade total",
-                  value: formatNumber(
-                    reportItems.reduce((s: number, i: any) => s + Number(i.quantity ?? 0), 0),
-                  ),
-                },
-                {
-                  label: "Valor em estoque",
-                  value: stockValueTextInAllCurrencies(reportItems),
-                },
-              ],
-              headers: [
-                "Categoria",
-                "Subcategoria",
-                "Produto",
-                "Marca",
-                "Quantidade",
-                "Preço-base",
-                "Equiv. BRL",
-                "Equiv. USD",
-                "Equiv. PYG",
-              ],
-              rows: reportItems.map((i: any) => [
-                macroName(i.product_id),
-                subName(i.category_id),
-                i.name,
-                i.reportBrand,
-                i.quantity ?? 0,
-                formatMoney(Number(i.price ?? 0), (i.price_currency ?? i.currency ?? "USD") as Currency),
-                ...(["BRL", "USD", "PYG"] as Currency[]).map(
-                  (target) =>
-                    pricesInAllCurrencies(i.price, i.price_currency ?? i.currency ?? "USD").find(
-                      (entry) => entry.currency === target,
-                    )?.text ?? `${target}: —`,
-                ),
-              ]),
-            })}
-          />
-          </>}
-        </div>
-      </div>
-
-      {/* catálogos digitais */}
-      {showCatalogs && visibleCatalogs.some((c: any) => c.layout !== "lista") && (
-        <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {visibleCatalogs.filter((c: any) => c.layout !== "lista").map((c: any) => (
-            <div key={c.id} className="rounded-lg border p-3">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{c.title}</p>
-                  <p className="text-muted-foreground truncate text-xs">/catalogo/{c.slug}</p>
-                </div>
-                <Badge variant={c.is_published ? "secondary" : "outline"}>
-                  {c.is_published ? "publicado" : "rascunho"}
-                </Badge>
-              </div>
-              <p className="text-muted-foreground mt-1 text-xs">
-                Vendedor com preços · Cliente sem preços
-              </p>
-              <CatalogViewLinks slug={c.slug} />
-              {!sellerOnly && (
-                <div className="mt-2 flex flex-wrap gap-1">
-                  <Button size="sm" variant="ghost" onClick={() => openCatalogForm(c)}>
-                    <Pencil className="size-3" />
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => deleteCatalog(c.id)}>
-                    <Trash2 className="text-destructive size-3" />
-                  </Button>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {showCatalogs && !visibleCatalogs.some((c: any) => c.layout !== "lista") && <p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">Nenhum catálogo online disponível.</p>}
-      {showProducts && <>
-      {/* filtros */}
-      <div className="mb-4 grid gap-2 md:grid-cols-3 lg:grid-cols-6">
-        <div className="relative lg:col-span-2">
-          <Search className="text-muted-foreground absolute top-2.5 left-2 size-4" />
-          <Input
-            className="pl-8"
-            placeholder="Nome, código de barras ou SKU"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <Select value={macroFilter} onValueChange={setMacroFilter}>
-          <SelectTrigger>
-            <SelectValue placeholder="Categoria" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todas as categorias</SelectItem>
-            {macros.map((m) => (
-              <SelectItem key={m.id} value={m.id}>
-                {m.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={subFilter} onValueChange={setSubFilter}>
-          <SelectTrigger>
-            <SelectValue placeholder="Subcategoria" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todas as subcategorias</SelectItem>
-            {visibleSubs.filter((s) => macroFilter === "todos" || s.product_id === macroFilter)
-              .map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.name}
-                </SelectItem>
-              ))}
-          </SelectContent>
-        </Select>
-        <Select value={brandFilter} onValueChange={setBrandFilter}>
-          <SelectTrigger>
-            <SelectValue placeholder="Marca" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todas as marcas</SelectItem>
-            {brands.map((b) => (
-              <SelectItem key={b} value={b}>
-                {b}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {!sellerOnly && <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-          <SelectTrigger>
-            <SelectValue placeholder="Fornecedor" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos os fornecedores</SelectItem>
-            {suppliers.map((s: any) => (
-              <SelectItem key={s.id} value={s.id}>
-                {s.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>}
-        <Select value={stockFilter} onValueChange={setStockFilter}>
-          <SelectTrigger>
-            <SelectValue placeholder="Estoque" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Ativos</SelectItem>
-            <SelectItem value="com">Com estoque</SelectItem>
-            <SelectItem value="sem">Sem estoque</SelectItem>
-            <SelectItem value="baixo">Estoque baixo</SelectItem>
-            <SelectItem value="inativos">Inativos</SelectItem>
-          </SelectContent>
-        </Select>
-        <div className="flex items-center gap-2">
-          <Button
-            variant={view === "cards" ? "default" : "outline"}
-            size="icon"
-            onClick={() => setView("cards")}
-            aria-label="Ver em cards"
-          >
-            <LayoutGrid className="size-4" />
-          </Button>
-          <Button
-            variant={view === "lista" ? "default" : "outline"}
-            size="icon"
-            onClick={() => setView("lista")}
-            aria-label="Ver em lista"
-          >
-            <List className="size-4" />
-          </Button>
-          <span className="text-muted-foreground text-xs">{filtered.length} registro(s)</span>
-        </div>
-      </div>
-
-      {!sellerOnly && <>
-      {/* ações em massa */}
-      <div className="mb-4 space-y-3 rounded-lg border p-3">
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
           <div>
-            <Label className="text-xs">Ação</Label>
-            <Select value={bulkAction} onValueChange={setBulkAction}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione uma ação" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="catalogo">Criar catálogo online com os selecionados</SelectItem>
-                <SelectItem value="exportar">Exportar selecionados</SelectItem>
-                <SelectItem value="duplicar">Duplicar selecionados</SelectItem>
-                <SelectItem value="ativar">Ativar selecionados</SelectItem>
-                <SelectItem value="desativar">Desativar selecionados</SelectItem>
-                <SelectItem value="excluir">Excluir selecionados</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-end">
-            <p className="text-muted-foreground rounded-md bg-muted/60 p-2 text-xs">
-              Escolha o que deseja fazer com os produtos marcados e clique em Executar.
+            <h2 className="font-display text-lg font-semibold">
+              {showProducts && displaySection ? "Produtos disponíveis" : "Catálogos online"}
+            </h2>
+            <p className="text-muted-foreground text-sm">
+              {showProducts && displaySection
+                ? "Produtos, quantidades disponíveis e valores de venda definidos pela direção."
+                : "Catálogos publicados, rascunhos e links separados para vendedor e cliente."}
             </p>
           </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => toggleAll(true)}>
-            Selecionar todos da página
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setSelected([])}>
-            Limpar seleção
-          </Button>
-          <Button size="sm" onClick={() => bulk("catalogo")}>
-            <Globe className="mr-1 size-4" /> Criar catálogo online
-          </Button>
-
-          <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium">
-            {selected.length} produto(s) selecionado(s)
-          </span>
-          <div className="ml-auto flex gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setBulkAction("")}>
-              Limpar ação
-            </Button>
-            <Button
-              size="sm"
-              disabled={!selected.length || !bulkAction}
-              onClick={() => bulk(bulkAction)}
+          <div className="flex flex-wrap items-center gap-2">
+            {!sellerOnly && showCatalogs && (
+              <Button variant="outline" onClick={() => openCatalogForm(undefined, "cards")}>
+                <Globe className="mr-2 size-4" /> Novo catálogo online
+              </Button>
+            )}
+            {!sellerOnly && !displaySection && (
+              <Button variant="outline" onClick={() => openCatalogForm(undefined, "lista")}>
+                <List className="mr-2 size-4" /> Nova tabela de venda
+              </Button>
+            )}
+            <Select
+              value={currency}
+              onValueChange={(v) => {
+                setCurrencyTouched(true);
+                setCurrency(v as Currency);
+              }}
             >
-              Executar
-            </Button>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DISPLAY_CURRENCIES.map((c) => (
+                  <SelectItem key={c.value} value={c.value}>
+                    {c.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!sellerOnly && showProducts && (
+              <Button variant="outline" onClick={() => setOpen(true)}>
+                <Wand2 className="mr-2 size-4" /> Atualizar estoque por texto
+              </Button>
+            )}
+            {showProducts && (
+              <>
+                <Button variant="outline" onClick={exportText}>
+                  <FileText className="mr-2 size-4" /> Exportar texto
+                </Button>
+                <Button variant="outline" onClick={exportCsv}>
+                  <Download className="mr-2 size-4" /> Exportar planilha
+                </Button>
+                <SheetLinkExportButton build={catalogRows} />
+                <ReportButton
+                  title="Relatório de catálogo e estoque"
+                  filename="catalogo"
+                  build={() => ({
+                    highlights: [
+                      { label: "Produtos", value: String(reportItems.length) },
+                      {
+                        label: "Quantidade total",
+                        value: formatNumber(
+                          reportItems.reduce((s: number, i: any) => s + Number(i.quantity ?? 0), 0),
+                        ),
+                      },
+                      {
+                        label: "Valor em estoque",
+                        value: stockValueTextInAllCurrencies(reportItems),
+                      },
+                    ],
+                    headers: [
+                      "Categoria",
+                      "Subcategoria",
+                      "Produto",
+                      "Marca",
+                      "Quantidade",
+                      "Preço-base",
+                      "Equiv. BRL",
+                      "Equiv. USD",
+                      "Equiv. PYG",
+                    ],
+                    rows: reportItems.map((i: any) => [
+                      macroName(i.product_id),
+                      subName(i.category_id),
+                      i.name,
+                      i.reportBrand,
+                      i.quantity ?? 0,
+                      formatMoney(
+                        Number(i.price ?? 0),
+                        (i.price_currency ?? i.currency ?? "USD") as Currency,
+                      ),
+                      ...(["BRL", "USD", "PYG"] as Currency[]).map(
+                        (target) =>
+                          pricesInAllCurrencies(
+                            i.price,
+                            i.price_currency ?? i.currency ?? "USD",
+                          ).find((entry) => entry.currency === target)?.text ?? `${target}: —`,
+                      ),
+                    ]),
+                  })}
+                />
+              </>
+            )}
           </div>
         </div>
-      </div>
 
-      </>}
-      </>}
-      <Dialog open={!!quick} onOpenChange={(v) => !v && setQuick(null)}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Novo catálogo online</DialogTitle>
-            <DialogDescription>
-              Escolha o que entra neste catálogo e gere o link automaticamente.
-            </DialogDescription>
-          </DialogHeader>
-          {quick && (
-            <div className="space-y-4">
-              <div>
-                <CatalogPricing
-                  value={quick.pricing_rules}
-                  onChange={(pricing_rules) => setQuick({ ...quick, pricing_rules })}
-                  items={items.filter((i) =>
-                    quick.scope === "selecionados"
-                      ? selected.includes(i.id)
-                      : quick.scope === "categoria"
-                        ? i.product_id === quick.macroId
-                        : quick.scope === "subcategoria"
-                          ? i.category_id === quick.subId
-                          : true,
+        {/* catálogos digitais */}
+        {showCatalogs && visibleCatalogs.some((c: any) => c.layout !== "lista") && (
+          <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {visibleCatalogs
+              .filter((c: any) => c.layout !== "lista")
+              .map((c: any) => (
+                <div key={c.id} className="rounded-lg border p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{c.title}</p>
+                      <p className="text-muted-foreground truncate text-xs">/catalogo/{c.slug}</p>
+                    </div>
+                    <Badge variant={c.is_published ? "secondary" : "outline"}>
+                      {c.is_published ? "publicado" : "rascunho"}
+                    </Badge>
+                  </div>
+                  <p className="text-muted-foreground mt-1 text-xs">
+                    Vendedor com preços · Cliente sem preços
+                  </p>
+                  <CatalogViewLinks slug={c.slug} />
+                  {!sellerOnly && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => openCatalogForm(c)}>
+                        <Pencil className="size-3" />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => deleteCatalog(c.id)}>
+                        <Trash2 className="text-destructive size-3" />
+                      </Button>
+                    </div>
                   )}
-                  currency={quick.currency ?? "USD"}
-                  convert={convert}
-                />
-                <Label className="text-xs">Nome do catálogo</Label>
+                </div>
+              ))}
+          </div>
+        )}
+
+        {showCatalogs && !visibleCatalogs.some((c: any) => c.layout !== "lista") && (
+          <p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+            Nenhum catálogo nesta seção.
+          </p>
+        )}
+        {showProducts && (
+          <>
+            {/* filtros */}
+            <div className="mb-4 grid gap-2 md:grid-cols-3 lg:grid-cols-6">
+              <div className="relative lg:col-span-2">
+                <Search className="text-muted-foreground absolute top-2.5 left-2 size-4" />
                 <Input
-                  value={quick.title}
-                  onChange={(e) => setQuick({ ...quick, title: e.target.value })}
-                  placeholder="Ex.: Ofertas de setembro"
+                  className="pl-8"
+                  placeholder="Nome, código de barras ou SKU"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
-              <div>
-                <Label className="text-xs">O que entra no catálogo</Label>
-                <Select
-                  value={quick.scope ?? "selecionados"}
-                  onValueChange={(v) => setQuick({ ...quick, scope: v })}
-                >
+              <Select value={macroFilter} onValueChange={setMacroFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todas as categorias</SelectItem>
+                  {macros.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={subFilter} onValueChange={setSubFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Subcategoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todas as subcategorias</SelectItem>
+                  {visibleSubs
+                    .filter((s) => macroFilter === "todos" || s.product_id === macroFilter)
+                    .map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              <Select value={brandFilter} onValueChange={setBrandFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Marca" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todas as marcas</SelectItem>
+                  {brands.map((b) => (
+                    <SelectItem key={b} value={b}>
+                      {b}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!sellerOnly && (
+                <Select value={supplierFilter} onValueChange={setSupplierFilter}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Fornecedor" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="selecionados">
-                      Produtos selecionados ({selected.length})
-                    </SelectItem>
-                    <SelectItem value="categoria">Uma categoria inteira</SelectItem>
-                    <SelectItem value="subcategoria">Uma subcategoria</SelectItem>
+                    <SelectItem value="todos">Todos os fornecedores</SelectItem>
+                    {suppliers.map((s: any) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
+              )}
+              <Select value={stockFilter} onValueChange={setStockFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Estoque" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Ativos</SelectItem>
+                  <SelectItem value="com">Com estoque</SelectItem>
+                  <SelectItem value="sem">Sem estoque</SelectItem>
+                  <SelectItem value="baixo">Estoque baixo</SelectItem>
+                  <SelectItem value="inativos">Inativos</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={view === "cards" ? "default" : "outline"}
+                  size="icon"
+                  onClick={() => setView("cards")}
+                  aria-label="Ver em cards"
+                >
+                  <LayoutGrid className="size-4" />
+                </Button>
+                <Button
+                  variant={view === "lista" ? "default" : "outline"}
+                  size="icon"
+                  onClick={() => setView("lista")}
+                  aria-label="Ver em lista"
+                >
+                  <List className="size-4" />
+                </Button>
+                <span className="text-muted-foreground text-xs">{filtered.length} registro(s)</span>
               </div>
-              {quick.scope === "categoria" && (
-                <div>
-                  <Label className="text-xs">Categoria</Label>
-                  <Select
-                    value={quick.macroId || ""}
-                    onValueChange={(v) => setQuick({ ...quick, macroId: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Escolher" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {macros.map((m) => (
-                        <SelectItem key={m.id} value={m.id}>
-                          {m.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              {quick.scope === "subcategoria" && (
-                <div>
-                  <Label className="text-xs">Subcategoria</Label>
-                  <Select
-                    value={quick.subId || ""}
-                    onValueChange={(v) => setQuick({ ...quick, subId: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Escolher" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {visibleSubs.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {macroName(s.product_id)} · {s.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+            </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
+            {!sellerOnly && (
+              <>
+                {/* ações em massa */}
+                <div className="mb-4 space-y-3 rounded-lg border p-3">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div>
+                      <Label className="text-xs">Ação</Label>
+                      <Select value={bulkAction} onValueChange={setBulkAction}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione uma ação" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="catalogo">
+                            Criar catálogo online com os selecionados
+                          </SelectItem>
+                          <SelectItem value="exportar">Exportar selecionados</SelectItem>
+                          <SelectItem value="duplicar">Duplicar selecionados</SelectItem>
+                          <SelectItem value="ativar">Ativar selecionados</SelectItem>
+                          <SelectItem value="desativar">Desativar selecionados</SelectItem>
+                          <SelectItem value="excluir">Excluir selecionados</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-end">
+                      <p className="text-muted-foreground rounded-md bg-muted/60 p-2 text-xs">
+                        Escolha o que deseja fazer com os produtos marcados e clique em Executar.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button size="sm" variant="outline" onClick={() => toggleAll(true)}>
+                      Selecionar todos da página
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setSelected([])}>
+                      Limpar seleção
+                    </Button>
+                    <Button size="sm" onClick={() => bulk("catalogo")}>
+                      <Globe className="mr-1 size-4" /> Criar catálogo online
+                    </Button>
+
+                    <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium">
+                      {selected.length} produto(s) selecionado(s)
+                    </span>
+                    <div className="ml-auto flex gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => setBulkAction("")}>
+                        Limpar ação
+                      </Button>
+                      <Button
+                        size="sm"
+                        disabled={!selected.length || !bulkAction}
+                        onClick={() => bulk(bulkAction)}
+                      >
+                        Executar
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </>
+        )}
+        <Dialog open={!!quick} onOpenChange={(v) => !v && setQuick(null)}>
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+            <DialogHeader>
+              <DialogTitle>Novo catálogo online</DialogTitle>
+              <DialogDescription>
+                Escolha o que entra neste catálogo e gere o link automaticamente.
+              </DialogDescription>
+            </DialogHeader>
+            {quick && (
+              <div className="space-y-4">
                 <div>
-                  <Label className="text-xs">Moeda exibida</Label>
+                  <CatalogPricing
+                    value={quick.pricing_rules}
+                    onChange={(pricing_rules) => setQuick({ ...quick, pricing_rules })}
+                    items={items.filter((i) =>
+                      quick.scope === "selecionados"
+                        ? selected.includes(i.id)
+                        : quick.scope === "categoria"
+                          ? i.product_id === quick.macroId
+                          : quick.scope === "subcategoria"
+                            ? i.category_id === quick.subId
+                            : true,
+                    )}
+                    currency={quick.currency ?? "USD"}
+                    convert={convert}
+                  />
+                  <Label className="text-xs">Nome do catálogo</Label>
+                  <Input
+                    value={quick.title}
+                    onChange={(e) => setQuick({ ...quick, title: e.target.value })}
+                    placeholder="Ex.: Ofertas de setembro"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">O que entra no catálogo</Label>
                   <Select
-                    value={quick.currency}
-                    onValueChange={(v) => changeCatalogCurrency(quick, setQuick, v as Currency)}
+                    value={quick.scope ?? "selecionados"}
+                    onValueChange={(v) => setQuick({ ...quick, scope: v })}
                   >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {DISPLAY_CURRENCIES.map((c) => (
-                        <SelectItem key={c.value} value={c.value}>
-                          {c.label}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="selecionados">
+                        Produtos selecionados ({selected.length})
+                      </SelectItem>
+                      <SelectItem value="categoria">Uma categoria inteira</SelectItem>
+                      <SelectItem value="subcategoria">Uma subcategoria</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                {!sellerOnly ? (
+                {quick.scope === "categoria" && (
                   <div>
+                    <Label className="text-xs">Categoria</Label>
+                    <Select
+                      value={quick.macroId || ""}
+                      onValueChange={(v) => setQuick({ ...quick, macroId: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Escolher" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {macros.map((m) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            {m.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {quick.scope === "subcategoria" && (
+                  <div>
+                    <Label className="text-xs">Subcategoria</Label>
+                    <Select
+                      value={quick.subId || ""}
+                      onValueChange={(v) => setQuick({ ...quick, subId: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Escolher" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {visibleSubs.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {macroName(s.product_id)} · {s.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <Label className="text-xs">Moeda exibida</Label>
+                    <Select
+                      value={quick.currency}
+                      onValueChange={(v) => changeCatalogCurrency(quick, setQuick, v as Currency)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DISPLAY_CURRENCIES.map((c) => (
+                          <SelectItem key={c.value} value={c.value}>
+                            {c.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {!sellerOnly ? (
+                    <div>
+                      <Label className="text-xs">Vendedor responsável pelos pedidos</Label>
+                      <Select
+                        value={quick.default_seller_id || "nenhum"}
+                        onValueChange={(v) =>
+                          setQuick({ ...quick, default_seller_id: v === "nenhum" ? "" : v })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Sem responsável" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="nenhum">Sem responsável</SelectItem>
+                          {sellers.map((s: any) => (
+                            <SelectItem key={s.id} value={s.id}>
+                              {s.full_name ?? "Sem nome"}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : (
+                    <div>
+                      <Label className="text-xs">Responsável</Label>
+                      <Input
+                        value="Você será o responsável pelos pedidos deste catálogo"
+                        readOnly
+                      />
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-3 rounded-lg border p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium">Catálogo público</p>
+                      <p className="text-muted-foreground text-xs">
+                        Qualquer pessoa com o link consegue abrir.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={!!quick.is_published}
+                      onCheckedChange={(v) => setQuick({ ...quick, is_published: v })}
+                    />
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Serão criadas duas versões vinculadas: vendedor com preços e cliente sem preços.
+                  </p>
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium">Receber pedidos</p>
+                      <p className="text-muted-foreground text-xs">
+                        Os pedidos chegam como pré-pedido para o responsável.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={!!quick.orders_enabled}
+                      onCheckedChange={(v) => setQuick({ ...quick, orders_enabled: v })}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setQuick(null)}>
+                Cancelar
+              </Button>
+              <Button onClick={saveQuickCatalog} disabled={quickSaving}>
+                {quickSaving ? "Criando..." : "Criar catálogo"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {showProducts && (
+          <>
+            {filtered.length === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                Nenhum produto encontrado com esses filtros.
+              </p>
+            ) : view === "cards" ? (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {filtered.map((i: any) => (
+                  <article
+                    key={i.id}
+                    className={cn(
+                      "overflow-hidden rounded-lg border transition",
+                      selected.includes(i.id) && "ring-primary ring-2",
+                    )}
+                  >
+                    <div className="bg-muted relative aspect-square w-full">
+                      {imageOf(i) ? (
+                        <img src={imageOf(i)} alt={i.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="text-muted-foreground flex h-full items-center justify-center">
+                          <ImageIcon className="size-8" />
+                        </div>
+                      )}
+                      <div className="absolute top-2 left-2 rounded bg-background/85 p-1">
+                        <Checkbox
+                          checked={selected.includes(i.id)}
+                          onCheckedChange={() => toggle(i.id)}
+                        />
+                      </div>
+                      {i.is_active === false && (
+                        <Badge
+                          variant="outline"
+                          className="bg-background/85 absolute top-2 right-2"
+                        >
+                          inativo
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="space-y-1 p-3">
+                      <p className="truncate font-medium">{i.name}</p>
+                      {i.public_description && (
+                        <p className="line-clamp-2 text-xs text-muted-foreground">
+                          {i.public_description}
+                        </p>
+                      )}
+                      <ProductInformation item={i} />
+                      <p className="text-muted-foreground truncate text-xs">
+                        {macroName(i.product_id)} › {subName(i.category_id)}
+                      </p>
+                      <div className="space-y-0.5">
+                        {pricesInAllCurrencies(
+                          i.price,
+                          i.price_currency ?? i.currency ?? "USD",
+                        ).map((value) => (
+                          <p
+                            key={value.currency}
+                            className={cn(
+                              "leading-tight",
+                              value.currency === currency
+                                ? "font-display text-lg font-semibold"
+                                : "text-muted-foreground text-xs",
+                            )}
+                          >
+                            {value.text}
+                          </p>
+                        ))}
+                      </div>
+                      <div className="text-muted-foreground flex items-center justify-between text-xs">
+                        <span>{i.barcode ?? i.sku ?? "sem código"}</span>
+                        <span>{formatNumber(i.quantity ?? 0)} un</span>
+                      </div>
+                      {!sellerOnly && (
+                        <div className="flex gap-1 pt-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => openForm(i)}
+                          >
+                            <Pencil className="mr-1 size-3" /> Editar
+                          </Button>
+                          {isAdmin && (
+                            <Button size="sm" variant="outline" onClick={() => setStockEntry(i)}>
+                              Abastecer
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {grouped.map(([group, list]) => (
+                  <div key={group}>
+                    <p className="mb-2 font-medium">{group}</p>
+                    <div className="overflow-x-auto rounded-lg border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-8"></TableHead>
+                            <TableHead>Produto</TableHead>
+                            <TableHead>Marca</TableHead>
+                            <TableHead>Especificações</TableHead>
+                            {!sellerOnly && <TableHead>Fornecedor</TableHead>}
+                            <TableHead className="text-right">Quantidade</TableHead>
+                            <TableHead className="text-right">Preço</TableHead>
+                            <TableHead></TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {list.map((i: any) => (
+                            <TableRow key={i.id}>
+                              <TableCell>
+                                <Checkbox
+                                  checked={selected.includes(i.id)}
+                                  onCheckedChange={() => toggle(i.id)}
+                                />
+                              </TableCell>
+                              <TableCell className="font-medium">
+                                {i.name}
+                                {i.public_description && (
+                                  <p className="line-clamp-2 max-w-sm text-xs font-normal text-muted-foreground">
+                                    {i.public_description}
+                                  </p>
+                                )}
+                                <ProductInformation item={i} />
+                                {i.is_demo && (
+                                  <Badge variant="secondary" className="ml-2 text-[10px]">
+                                    demo
+                                  </Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-muted-foreground">
+                                {i.brand ?? "—"}
+                              </TableCell>
+                              <TableCell className="text-muted-foreground">
+                                {specOf(i) || "—"}
+                              </TableCell>
+                              {!sellerOnly && (
+                                <TableCell className="text-muted-foreground">
+                                  {supplierName(i.supplier_id)}
+                                </TableCell>
+                              )}
+                              <TableCell className="text-right">
+                                {formatNumber(i.quantity ?? 0)}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="space-y-0.5">
+                                  {pricesInAllCurrencies(
+                                    i.price,
+                                    i.price_currency ?? i.currency ?? "USD",
+                                  ).map((value) => (
+                                    <p
+                                      key={value.currency}
+                                      className={cn(
+                                        "leading-tight",
+                                        value.currency === currency
+                                          ? "font-semibold"
+                                          : "text-muted-foreground text-xs",
+                                      )}
+                                    >
+                                      {value.text}
+                                    </p>
+                                  ))}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {!sellerOnly && (
+                                  <Button size="sm" variant="ghost" onClick={() => openForm(i)}>
+                                    <Pencil className="size-4" />
+                                  </Button>
+                                )}
+                                {isAdmin && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setStockEntry(i)}
+                                  >
+                                    Abastecer
+                                  </Button>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+        {stockEntry && (
+          <StockEntryDialog
+            key={stockEntry.id}
+            item={stockEntry}
+            onClose={() => setStockEntry(null)}
+          />
+        )}
+        {/* ficha completa do produto */}
+        <Dialog open={!!form} onOpenChange={(v) => !v && setForm(null)}>
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>{form?.id ? "Editar produto" : "Novo produto"}</DialogTitle>
+              <DialogDescription>
+                Ficha completa: dados, foto, preços e estoque. O catálogo digital usa essas
+                informações.
+              </DialogDescription>
+            </DialogHeader>
+            {form && (
+              <Tabs defaultValue="dados">
+                <TabsList>
+                  <TabsTrigger value="dados">Dados do produto</TabsTrigger>
+                  <TabsTrigger value="catalogo">Catálogo online</TabsTrigger>
+                  <TabsTrigger value="precos">Preços / estoque</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="dados" className="space-y-4 pt-3">
+                  <div className="grid gap-4 sm:grid-cols-[180px_1fr]">
+                    <div>
+                      <div className="bg-muted flex aspect-square items-center justify-center overflow-hidden rounded-lg border">
+                        {form.image_url && imagesQuery.data?.[form.image_url] ? (
+                          <img
+                            src={imagesQuery.data[form.image_url]}
+                            alt={form.name}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <ImageIcon className="text-muted-foreground size-10" />
+                        )}
+                      </div>
+                      <input
+                        ref={fileRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) void pickImage(f);
+                        }}
+                      />
+                      <Button
+                        variant="outline"
+                        className="mt-2 w-full"
+                        onClick={() => fileRef.current?.click()}
+                      >
+                        Escolher foto
+                      </Button>
+                      {form.image_url && (
+                        <Button
+                          variant="ghost"
+                          className="w-full"
+                          onClick={() => setForm({ ...form, image_url: null })}
+                        >
+                          Remover foto
+                        </Button>
+                      )}
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="sm:col-span-2">
+                        <Label>Nome</Label>
+                        <Input
+                          value={form.name ?? ""}
+                          onChange={(e) => setForm({ ...form, name: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label>Marca</Label>
+                        <Input
+                          value={form.brand ?? ""}
+                          onChange={(e) => setForm({ ...form, brand: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label>Código de barras</Label>
+                        <Input
+                          value={form.barcode ?? ""}
+                          onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label>SKU / código interno</Label>
+                        <Input
+                          value={form.sku ?? ""}
+                          onChange={(e) => setForm({ ...form, sku: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label>Unidade</Label>
+                        <Input
+                          value={form.unit ?? ""}
+                          onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                          placeholder="un, cx, kg"
+                        />
+                      </div>
+                      <div>
+                        <Label>Categoria</Label>
+                        <Select
+                          value={form.product_id ?? ""}
+                          onValueChange={(v) =>
+                            setForm({ ...form, product_id: v, category_id: null })
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {macros.map((m) => (
+                              <SelectItem key={m.id} value={m.id}>
+                                {m.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Subcategoria</Label>
+                        <Select
+                          value={form.category_id ?? ""}
+                          onValueChange={(v) => setForm({ ...form, category_id: v })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {subs
+                              .filter((s) => !form.product_id || s.product_id === form.product_id)
+                              .map((s) => (
+                                <SelectItem key={s.id} value={s.id}>
+                                  {s.name}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Fornecedor</Label>
+                        <Select
+                          value={form.supplier_id ?? ""}
+                          onValueChange={(v) => setForm({ ...form, supplier_id: v })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {suppliers.map((s: any) => (
+                              <SelectItem key={s.id} value={s.id}>
+                                {s.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Localização no estoque</Label>
+                        <Input
+                          value={form.location ?? ""}
+                          onChange={(e) => setForm({ ...form, location: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label>Variação</Label>
+                        <Input
+                          value={form.variation ?? ""}
+                          onChange={(e) => setForm({ ...form, variation: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label>Tamanho</Label>
+                        <Input
+                          value={form.size ?? ""}
+                          onChange={(e) => setForm({ ...form, size: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label>Peso</Label>
+                        <Input
+                          value={form.weight ?? ""}
+                          onChange={(e) => setForm({ ...form, weight: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label>Volume</Label>
+                        <Input
+                          value={form.volume ?? ""}
+                          onChange={(e) => setForm({ ...form, volume: e.target.value })}
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <Label>Observações internas</Label>
+                        <Textarea
+                          rows={3}
+                          value={form.description ?? ""}
+                          onChange={(e) => setForm({ ...form, description: e.target.value })}
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <Label>Descrição pública do produto</Label>
+                        <Textarea
+                          rows={3}
+                          value={form.public_description ?? ""}
+                          onChange={(e) => setForm({ ...form, public_description: e.target.value })}
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <Label>Para que serve</Label>
+                        <Textarea
+                          rows={3}
+                          value={form.intended_use ?? ""}
+                          onChange={(e) => setForm({ ...form, intended_use: e.target.value })}
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <Label>Orientações de uso</Label>
+                        <Textarea
+                          rows={3}
+                          value={form.usage_instructions ?? ""}
+                          onChange={(e) => setForm({ ...form, usage_instructions: e.target.value })}
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <Label>Fonte das informações (HTTPS)</Label>
+                        <Input
+                          type="url"
+                          value={form.information_source_url ?? ""}
+                          onChange={(e) =>
+                            setForm({ ...form, information_source_url: e.target.value })
+                          }
+                        />
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Use a bula ou documentação do fabricante. Confirme a apresentação antes de
+                          informar instruções.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 sm:col-span-2">
+                        <Switch
+                          checked={form.is_active !== false}
+                          onCheckedChange={(v) => setForm({ ...form, is_active: v })}
+                        />
+                        <span className="text-sm">Produto ativo (aparece no catálogo)</span>
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="catalogo" className="space-y-5 pt-3">
+                  <section className="space-y-3 rounded-lg border p-4">
+                    <div>
+                      <h3 className="font-medium">Organização no catálogo geral</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Categoria e subcategoria vêm do cadastro do produto. Use o grupo comercial
+                        para organizar destaques como Tirzepatida, Retatrutida ou Ácido hialurônico.
+                      </p>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                      <div>
+                        <Label>Grupo comercial</Label>
+                        <Input
+                          value={form.catalog_family ?? ""}
+                          onChange={(e) => setForm({ ...form, catalog_family: e.target.value })}
+                          placeholder="Ex.: Tirzepatida"
+                        />
+                      </div>
+                      <label className="flex min-h-10 items-center gap-2 rounded-md border px-3">
+                        <Switch
+                          checked={form.catalog_bestseller === true}
+                          onCheckedChange={(value) =>
+                            setForm({ ...form, catalog_bestseller: value })
+                          }
+                        />
+                        <span className="text-sm font-medium">Mais vendido</span>
+                      </label>
+                    </div>
+                  </section>
+
+                  <section className="space-y-3 rounded-lg border p-4">
+                    <div>
+                      <h3 className="font-medium">Carrossel do produto</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Adicione fotos, vídeos ou links do YouTube, Instagram e Facebook.
+                      </p>
+                    </div>
+                    <input
+                      ref={mediaFileRef}
+                      type="file"
+                      accept="image/*,video/*"
+                      className="hidden"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) void pickCatalogMedia(file);
+                      }}
+                    />
+                    <Button variant="outline" onClick={() => mediaFileRef.current?.click()}>
+                      <Upload className="mr-2 size-4" /> Adicionar foto ou vídeo
+                    </Button>
+                    <div className="grid gap-2 sm:grid-cols-[1fr_180px_auto]">
+                      <Input
+                        type="url"
+                        placeholder="Link do YouTube, Instagram, Facebook ou mídia"
+                        value={form.catalog_media_url ?? ""}
+                        onChange={(event) =>
+                          setForm({ ...form, catalog_media_url: event.target.value })
+                        }
+                      />
+                      <Input
+                        placeholder="Título (opcional)"
+                        value={form.catalog_media_label ?? ""}
+                        onChange={(event) =>
+                          setForm({ ...form, catalog_media_label: event.target.value })
+                        }
+                      />
+                      <Button type="button" onClick={addCatalogMediaLink}>
+                        <Plus className="mr-2 size-4" /> Adicionar
+                      </Button>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {(Array.isArray(form.catalog_media) ? form.catalog_media : []).map(
+                        (media: any, index: number) => {
+                          const source = media.path ? imagesQuery.data?.[media.path] : media.url;
+                          return (
+                            <div
+                              key={media.id ?? index}
+                              className="flex gap-3 rounded-lg border p-3"
+                            >
+                              <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+                                {source && media.kind === "image" ? (
+                                  <img
+                                    src={source}
+                                    alt={media.label ?? "Mídia do produto"}
+                                    className="h-full w-full object-cover"
+                                  />
+                                ) : media.kind === "video" ? (
+                                  <Video className="size-6 text-muted-foreground" />
+                                ) : (
+                                  <Link2 className="size-6 text-muted-foreground" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-medium">
+                                  {media.label ||
+                                    (media.kind === "video" ? "Vídeo" : "Link externo")}
+                                </p>
+                                <p className="truncate text-xs text-muted-foreground">
+                                  {media.path || media.url}
+                                </p>
+                              </div>
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                aria-label="Remover mídia"
+                                onClick={() =>
+                                  setForm({
+                                    ...form,
+                                    catalog_media: form.catalog_media.filter(
+                                      (_: any, mediaIndex: number) => mediaIndex !== index,
+                                    ),
+                                  })
+                                }
+                              >
+                                <Trash2 className="size-4 text-destructive" />
+                              </Button>
+                            </div>
+                          );
+                        },
+                      )}
+                    </div>
+                  </section>
+
+                  <section className="space-y-3 rounded-lg border p-4">
+                    <div>
+                      <Label>Link do grupo de informações</Label>
+                      <Input
+                        type="url"
+                        placeholder="https://chat.whatsapp.com/..."
+                        value={form.info_group_url ?? ""}
+                        onChange={(event) =>
+                          setForm({ ...form, info_group_url: event.target.value })
+                        }
+                      />
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        O catálogo mostrará o botão “Entrar no grupo de informações” neste produto.
+                      </p>
+                    </div>
+                  </section>
+
+                  <section className="space-y-3 rounded-lg border p-4">
+                    <div>
+                      <h3 className="font-medium">Vendedores disponíveis</h3>
+                      <p className="text-sm text-muted-foreground">
+                        O cliente escolhe um vendedor e o WhatsApp cadastrado é aberto
+                        automaticamente.
+                      </p>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {sellers.map((seller: any) => {
+                        const selectedSellers: string[] = Array.isArray(form.catalog_seller_ids)
+                          ? form.catalog_seller_ids
+                          : [];
+                        return (
+                          <label
+                            key={seller.id}
+                            className="flex items-center gap-3 rounded-lg border p-3 text-sm"
+                          >
+                            <Checkbox
+                              checked={selectedSellers.includes(seller.id)}
+                              onCheckedChange={(checked) =>
+                                setForm({
+                                  ...form,
+                                  catalog_seller_ids: checked
+                                    ? [...selectedSellers, seller.id]
+                                    : selectedSellers.filter((id) => id !== seller.id),
+                                })
+                              }
+                            />
+                            <span className="min-w-0">
+                              <span className="block truncate font-medium">{seller.full_name}</span>
+                              <span className="block truncate text-xs text-muted-foreground">
+                                O próprio vendedor cadastra o WhatsApp em Configurações
+                              </span>
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    {!sellers.length && (
+                      <p className="text-sm text-muted-foreground">
+                        Nenhum vendedor ativo foi encontrado.
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Sem seleção, o catálogo oferece todos os vendedores ativos. Quem estiver sem
+                      WhatsApp continuará recebendo solicitações no sistema, mas o atalho de
+                      conversa ficará indisponível até cadastrar o próprio número.
+                    </p>
+                  </section>
+                </TabsContent>
+
+                <TabsContent value="precos" className="space-y-4 pt-3">
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div>
+                      <Label>Moeda</Label>
+                      <Select
+                        value={form.currency ?? "USD"}
+                        onValueChange={(v) => setForm({ ...form, currency: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="USD">Dólar (US$)</SelectItem>
+                          <SelectItem value="BRL">Real (R$)</SelectItem>
+                          <SelectItem value="PYG">Guarani (₲)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Custo de compra</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={form.cost ?? 0}
+                        onChange={(e) => setForm({ ...form, cost: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label>Impostos (%)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={form.tax_percent ?? 0}
+                        onChange={(e) => setForm({ ...form, tax_percent: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label>Outros custos</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={form.extra_cost ?? 0}
+                        onChange={(e) => setForm({ ...form, extra_cost: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label>Markup (%)</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={form.markup_percent ?? 0}
+                          onChange={(e) => setForm({ ...form, markup_percent: e.target.value })}
+                        />
+                        <Button variant="outline" onClick={applyMarkup}>
+                          Aplicar
+                        </Button>
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Preço de venda</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={form.price ?? 0}
+                        onChange={(e) => setForm({ ...form, price: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="bg-muted/40 grid gap-2 rounded-lg border p-3 sm:grid-cols-3">
+                    <div>
+                      <p className="text-muted-foreground text-xs">Custo total</p>
+                      <p className="font-semibold">
+                        <CurrencyValues value={totalCost} currency={form.currency ?? "USD"} />
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Lucro por unidade</p>
+                      <CurrencyValues value={profit} currency={form.currency ?? "USD"} emphasize />
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground text-xs">Margem</p>
+                      <p className="font-semibold">{marginPct.toFixed(2)}%</p>
+                    </div>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <Label>Estoque mínimo</Label>
+                      <Input
+                        type="number"
+                        step="0.001"
+                        value={form.min_quantity ?? 0}
+                        onChange={(e) => setForm({ ...form, min_quantity: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label>
+                        {form.id
+                          ? "Estoque atual (somente leitura)"
+                          : "Saldo inicial no estoque principal"}
+                      </Label>
+                      <Input
+                        type="number"
+                        step="0.001"
+                        value={form.quantity ?? 0}
+                        disabled={Boolean(form.id)}
+                        min="0"
+                        onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+                      />
+                      {form.id && isAdmin && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="mt-2"
+                          onClick={() => setStockEntry(form)}
+                        >
+                          Abastecer no estoque principal
+                        </Button>
+                      )}
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {form.id
+                          ? "Para abastecer, use Estoques → Estoque principal → Registrar compra. Para mudar o local, use Transferir."
+                          : "O saldo informado será vinculado ao estoque principal. Compras posteriores devem ser registradas em Estoques ou Compras."}
+                      </p>
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setForm(null)}>
+                Cancelar
+              </Button>
+              <Button onClick={saveItem} disabled={saving}>
+                {saving ? "Salvando…" : "Salvar"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* catálogo digital */}
+        <Dialog open={!!catalogForm} onOpenChange={(v) => !v && setCatalogForm(null)}>
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
+            <DialogHeader>
+              <DialogTitle>
+                {catalogForm?.id ? "Editar catálogo digital" : "Novo catálogo digital"}
+              </DialogTitle>
+              <DialogDescription>
+                Gera um link que você envia ao cliente. Ele vê os produtos escolhidos, com ou sem
+                preço.
+              </DialogDescription>
+            </DialogHeader>
+            {catalogForm && (
+              <Tabs defaultValue="info">
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="info">Informações</TabsTrigger>
+                  <TabsTrigger value="design">Design</TabsTrigger>
+                  <TabsTrigger value="vendas">Vendas</TabsTrigger>
+                  <TabsTrigger value="entrega">Entrega</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="info" className="grid gap-3 pt-3 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <Label>Nome do catálogo</Label>
+                    <Input
+                      value={catalogForm.title ?? ""}
+                      onChange={(e) => setCatalogForm({ ...catalogForm, title: e.target.value })}
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Label>Endereço do link</Label>
+                    <div className="flex items-center gap-2">
+                      <Link2 className="text-muted-foreground size-4" />
+                      <Input
+                        value={catalogForm.slug ?? ""}
+                        placeholder={slugify(catalogForm.title ?? "") || "verao-2026"}
+                        onChange={(e) => setCatalogForm({ ...catalogForm, slug: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Label>Descrição curta</Label>
+                    <Textarea
+                      rows={2}
+                      value={catalogForm.description ?? ""}
+                      onChange={(e) =>
+                        setCatalogForm({ ...catalogForm, description: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Label>Sobre a loja</Label>
+                    <Textarea
+                      rows={3}
+                      value={catalogForm.about ?? ""}
+                      onChange={(e) => setCatalogForm({ ...catalogForm, about: e.target.value })}
+                    />
+                  </div>
+                  <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
+                    O WhatsApp do catálogo vem do cadastro pessoal do vendedor escolhido. Números de
+                    outros usuários não são exibidos nesta área.
+                  </div>
+                  <div>
+                    <Label>Telefone</Label>
+                    <Input
+                      value={catalogForm.contact_phone ?? ""}
+                      onChange={(e) =>
+                        setCatalogForm({ ...catalogForm, contact_phone: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label>E-mail</Label>
+                    <Input
+                      value={catalogForm.contact_email ?? ""}
+                      onChange={(e) =>
+                        setCatalogForm({ ...catalogForm, contact_email: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label>Endereço</Label>
+                    <Input
+                      value={catalogForm.contact_address ?? ""}
+                      onChange={(e) =>
+                        setCatalogForm({ ...catalogForm, contact_address: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="flex items-end pb-1">
+                    <label className="flex items-center gap-2 text-sm">
+                      <Switch
+                        checked={catalogForm.is_published !== false}
+                        onCheckedChange={(v) => setCatalogForm({ ...catalogForm, is_published: v })}
+                      />
+                      Publicado
+                    </label>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Label>Categorias incluídas</Label>
+                    <p className="text-muted-foreground mb-2 text-xs">
+                      Sem marcar nada, o catálogo mostra todos os produtos ativos.
+                    </p>
+                    <div className="grid max-h-40 gap-1 overflow-y-auto rounded-md border p-2 sm:grid-cols-2">
+                      {macros.map((m) => {
+                        const list: string[] = catalogForm.product_ids ?? [];
+                        return (
+                          <label key={m.id} className="flex items-center gap-2 text-sm">
+                            <Checkbox
+                              checked={list.includes(m.id)}
+                              onCheckedChange={(v) =>
+                                setCatalogForm({
+                                  ...catalogForm,
+                                  product_ids: v ? [...list, m.id] : list.filter((x) => x !== m.id),
+                                  category_ids: [],
+                                  item_ids: [],
+                                  offer_item_ids: [],
+                                })
+                              }
+                            />
+                            {m.name}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Label>Subcategorias incluídas</Label>
+                    <div className="grid max-h-40 gap-1 overflow-y-auto rounded-md border p-2 sm:grid-cols-2">
+                      {subs
+                        .filter(
+                          (s) =>
+                            !(catalogForm.product_ids ?? []).length ||
+                            (catalogForm.product_ids ?? []).includes(s.product_id),
+                        )
+                        .map((s) => {
+                          const list: string[] = catalogForm.category_ids ?? [];
+                          return (
+                            <label key={s.id} className="flex items-center gap-2 text-sm">
+                              <Checkbox
+                                checked={list.includes(s.id)}
+                                onCheckedChange={(v) =>
+                                  setCatalogForm({
+                                    ...catalogForm,
+                                    category_ids: v
+                                      ? [...list, s.id]
+                                      : list.filter((x) => x !== s.id),
+                                    item_ids: [],
+                                    offer_item_ids: [],
+                                  })
+                                }
+                              />
+                              {s.name}
+                            </label>
+                          );
+                        })}
+                    </div>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Label>Produtos incluídos</Label>
+                    <p className="text-muted-foreground mb-2 text-xs">
+                      A lista abaixo respeita as categorias e subcategorias selecionadas.
+                    </p>
+                    <div className="grid max-h-48 gap-1 overflow-y-auto rounded-md border p-2 sm:grid-cols-2">
+                      {items
+                        .filter(
+                          (i: any) =>
+                            (!(catalogForm.product_ids ?? []).length ||
+                              (catalogForm.product_ids ?? []).includes(i.product_id)) &&
+                            (!(catalogForm.category_ids ?? []).length ||
+                              (catalogForm.category_ids ?? []).includes(i.category_id)),
+                        )
+                        .map((i: any) => {
+                          const list: string[] = catalogForm.item_ids ?? [];
+                          return (
+                            <label key={i.id} className="flex items-center gap-2 text-sm">
+                              <Checkbox
+                                checked={list.includes(i.id)}
+                                onCheckedChange={(v) =>
+                                  setCatalogForm({
+                                    ...catalogForm,
+                                    item_ids: v ? [...list, i.id] : list.filter((x) => x !== i.id),
+                                  })
+                                }
+                              />
+                              <span className="truncate">{i.name}</span>
+                            </label>
+                          );
+                        })}
+                    </div>
+                  </div>
+                  <div className="sm:col-span-2 rounded-lg border p-3">
+                    <Label>Quem pode visualizar no painel</Label>
+                    <label className="mt-2 flex items-center gap-2 text-sm">
+                      <Switch
+                        checked={catalogForm.visible_to_all_members !== false}
+                        onCheckedChange={(v) =>
+                          setCatalogForm({
+                            ...catalogForm,
+                            visible_to_all_members: v,
+                            visible_member_ids: v ? [] : (catalogForm.visible_member_ids ?? []),
+                          })
+                        }
+                      />{" "}
+                      Todos os membros autorizados
+                    </label>
+                    {catalogForm.visible_to_all_members === false && (
+                      <div className="mt-3 grid max-h-48 gap-1 overflow-y-auto rounded-md border p-2 sm:grid-cols-2">
+                        {(sellersQuery.data ?? []).map((member: any) => {
+                          const list: string[] = catalogForm.visible_member_ids ?? [];
+                          return (
+                            <label key={member.id} className="flex items-center gap-2 text-sm">
+                              <Checkbox
+                                checked={list.includes(member.id)}
+                                onCheckedChange={(v) =>
+                                  setCatalogForm({
+                                    ...catalogForm,
+                                    visible_member_ids: v
+                                      ? [...list, member.id]
+                                      : list.filter((x) => x !== member.id),
+                                  })
+                                }
+                              />
+                              {member.full_name ?? "Sem nome"}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Label>Produtos em oferta (destaque)</Label>
+                    <div className="grid max-h-40 gap-1 overflow-y-auto rounded-md border p-2 sm:grid-cols-2">
+                      {items
+                        .filter(
+                          (i: any) =>
+                            (!(catalogForm.product_ids ?? []).length ||
+                              (catalogForm.product_ids ?? []).includes(i.product_id)) &&
+                            (!(catalogForm.category_ids ?? []).length ||
+                              (catalogForm.category_ids ?? []).includes(i.category_id)),
+                        )
+                        .slice(0, 300)
+                        .map((i: any) => {
+                          const list: string[] = catalogForm.offer_item_ids ?? [];
+                          return (
+                            <label key={i.id} className="flex items-center gap-2 text-sm">
+                              <Checkbox
+                                checked={list.includes(i.id)}
+                                onCheckedChange={(v) =>
+                                  setCatalogForm({
+                                    ...catalogForm,
+                                    offer_item_ids: v
+                                      ? [...list, i.id]
+                                      : list.filter((x) => x !== i.id),
+                                  })
+                                }
+                              />
+                              <span className="truncate">{i.name}</span>
+                            </label>
+                          );
+                        })}
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="design" className="grid gap-3 pt-3 sm:grid-cols-2">
+                  <div>
+                    <Label>Logo</Label>
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          const path = await uploadProductImage(file);
+                          setCatalogForm({ ...catalogForm, logo_url: path });
+                          toast.success("Logo enviada.");
+                        } catch {
+                          toast.error("Não foi possível enviar a imagem.");
+                        }
+                      }}
+                    />
+                    {catalogForm.logo_url && (
+                      <p className="text-muted-foreground mt-1 text-xs">Logo enviada.</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label>Banner</Label>
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          const path = await uploadProductImage(file);
+                          setCatalogForm({ ...catalogForm, banner_url: path });
+                          toast.success("Banner enviado.");
+                        } catch {
+                          toast.error("Não foi possível enviar a imagem.");
+                        }
+                      }}
+                    />
+                    {catalogForm.banner_url && (
+                      <p className="text-muted-foreground mt-1 text-xs">Banner enviado.</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label>Cor principal</Label>
+                    <Input
+                      placeholder="oklch(0.6 0.2 255) ou #2563eb"
+                      value={catalogForm.primary_color ?? ""}
+                      onChange={(e) =>
+                        setCatalogForm({ ...catalogForm, primary_color: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label>Cor de destaque</Label>
+                    <Input
+                      placeholder="#a855f7"
+                      value={catalogForm.accent_color ?? ""}
+                      onChange={(e) =>
+                        setCatalogForm({ ...catalogForm, accent_color: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Label>Ordenação dos produtos</Label>
+                    <Select
+                      value={catalogForm.sort_mode ?? "nome"}
+                      onValueChange={(v) => setCatalogForm({ ...catalogForm, sort_mode: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="nome">Nome (A–Z)</SelectItem>
+                        <SelectItem value="preco">Menor preço</SelectItem>
+                        <SelectItem value="preco_desc">Maior preço</SelectItem>
+                        <SelectItem value="recentes">Mais recentes</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="vendas" className="grid gap-3 pt-3 sm:grid-cols-2">
+                  <CatalogPricing
+                    value={catalogForm.pricing_rules}
+                    onChange={(pricing_rules) => setCatalogForm({ ...catalogForm, pricing_rules })}
+                    items={items.filter((i) =>
+                      catalogForm.item_ids?.length
+                        ? catalogForm.item_ids.includes(i.id)
+                        : catalogForm.category_ids?.length
+                          ? catalogForm.category_ids.includes(i.category_id)
+                          : catalogForm.product_ids?.length
+                            ? catalogForm.product_ids.includes(i.product_id)
+                            : true,
+                    )}
+                    currency={catalogForm.currency ?? "USD"}
+                    onCurrencyChange={(target) =>
+                      changeCatalogCurrency(catalogForm, setCatalogForm, target)
+                    }
+                    convert={convert}
+                  />
+                  <div className="sm:col-span-2">
                     <Label className="text-xs">Vendedor responsável pelos pedidos</Label>
                     <Select
-                      value={quick.default_seller_id || "nenhum"}
+                      value={catalogForm.default_seller_id || "nenhum"}
                       onValueChange={(v) =>
-                        setQuick({ ...quick, default_seller_id: v === "nenhum" ? "" : v })
+                        setCatalogForm({
+                          ...catalogForm,
+                          default_seller_id: v === "nenhum" ? "" : v,
+                        })
                       }
                     >
                       <SelectTrigger>
@@ -1705,1321 +3052,359 @@ export function CatalogSection({ macros, subs, sellerMode = false, displaySectio
                       </SelectContent>
                     </Select>
                   </div>
-                ) : (
-                  <div>
-                    <Label className="text-xs">Responsável</Label>
-                    <Input value="Você será o responsável pelos pedidos deste catálogo" readOnly />
-                  </div>
-                )}
-              </div>
-              <div className="space-y-3 rounded-lg border p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium">Catálogo público</p>
-                    <p className="text-muted-foreground text-xs">
-                      Qualquer pessoa com o link consegue abrir.
-                    </p>
-                  </div>
-                  <Switch
-                    checked={!!quick.is_published}
-                    onCheckedChange={(v) => setQuick({ ...quick, is_published: v })}
-                  />
-                </div>
-                <p className="text-sm text-muted-foreground">Serão criadas duas versões vinculadas: vendedor com preços e cliente sem preços.</p>
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium">Receber pedidos</p>
-                    <p className="text-muted-foreground text-xs">
-                      Os pedidos chegam como pré-pedido para o responsável.
-                    </p>
-                  </div>
-                  <Switch
-                    checked={!!quick.orders_enabled}
-                    onCheckedChange={(v) => setQuick({ ...quick, orders_enabled: v })}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setQuick(null)}>
-              Cancelar
-            </Button>
-            <Button onClick={saveQuickCatalog} disabled={quickSaving}>
-              {quickSaving ? "Criando..." : "Criar catálogo"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {showProducts && <>
-      {filtered.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
-          Nenhum produto encontrado com esses filtros.
-        </p>
-      ) : view === "cards" ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {filtered.map((i: any) => (
-            <article
-              key={i.id}
-              className={cn(
-                "overflow-hidden rounded-lg border transition",
-                selected.includes(i.id) && "ring-primary ring-2",
-              )}
-            >
-              <div className="bg-muted relative aspect-square w-full">
-                {imageOf(i) ? (
-                  <img src={imageOf(i)} alt={i.name} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="text-muted-foreground flex h-full items-center justify-center">
-                    <ImageIcon className="size-8" />
-                  </div>
-                )}
-                <div className="absolute top-2 left-2 rounded bg-background/85 p-1">
-                  <Checkbox
-                    checked={selected.includes(i.id)}
-                    onCheckedChange={() => toggle(i.id)}
-                  />
-                </div>
-                {i.is_active === false && (
-                  <Badge variant="outline" className="bg-background/85 absolute top-2 right-2">
-                    inativo
-                  </Badge>
-                )}
-              </div>
-              <div className="space-y-1 p-3">
-                <p className="truncate font-medium">{i.name}</p>
-                {i.public_description && <p className="line-clamp-2 text-xs text-muted-foreground">{i.public_description}</p>}
-                <ProductInformation item={i} />
-                <p className="text-muted-foreground truncate text-xs">
-                  {macroName(i.product_id)} › {subName(i.category_id)}
-                </p>
-                <div className="space-y-0.5">
-                  {pricesInAllCurrencies(i.price, i.price_currency ?? i.currency ?? "USD").map((value) => (
-                    <p
-                      key={value.currency}
-                      className={cn(
-                        "leading-tight",
-                        value.currency === currency
-                          ? "font-display text-lg font-semibold"
-                          : "text-muted-foreground text-xs",
-                      )}
-                    >
-                      {value.text}
-                    </p>
-                  ))}
-                </div>
-                <div className="text-muted-foreground flex items-center justify-between text-xs">
-                  <span>{i.barcode ?? i.sku ?? "sem código"}</span>
-                  <span>{formatNumber(i.quantity ?? 0)} un</span>
-                </div>
-                {!sellerOnly && (
-                  <div className="flex gap-1 pt-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => openForm(i)}
-                    >
-                      <Pencil className="mr-1 size-3" /> Editar
-                    </Button>
-                    {isAdmin && <Button size="sm" variant="outline" onClick={() => setStockEntry(i)}>Abastecer</Button>}
-                  </div>
-                )}
-              </div>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <div className="space-y-5">
-          {grouped.map(([group, list]) => (
-            <div key={group}>
-              <p className="mb-2 font-medium">{group}</p>
-              <div className="overflow-x-auto rounded-lg border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-8"></TableHead>
-                      <TableHead>Produto</TableHead>
-                      <TableHead>Marca</TableHead>
-                      <TableHead>Especificações</TableHead>
-                      {!sellerOnly && <TableHead>Fornecedor</TableHead>}
-                      <TableHead className="text-right">Quantidade</TableHead>
-                      <TableHead className="text-right">Preço</TableHead>
-                      <TableHead></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {list.map((i: any) => (
-                      <TableRow key={i.id}>
-                        <TableCell>
-                          <Checkbox
-                            checked={selected.includes(i.id)}
-                            onCheckedChange={() => toggle(i.id)}
-                          />
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {i.name}
-                          {i.public_description && <p className="line-clamp-2 max-w-sm text-xs font-normal text-muted-foreground">{i.public_description}</p>}
-                          <ProductInformation item={i} />
-                          {i.is_demo && (
-                            <Badge variant="secondary" className="ml-2 text-[10px]">
-                              demo
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{i.brand ?? "—"}</TableCell>
-                        <TableCell className="text-muted-foreground">{specOf(i) || "—"}</TableCell>
-                        {!sellerOnly && <TableCell className="text-muted-foreground">
-                          {supplierName(i.supplier_id)}
-                        </TableCell>}
-                        <TableCell className="text-right">
-                          {formatNumber(i.quantity ?? 0)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="space-y-0.5">
-                            {pricesInAllCurrencies(i.price, i.price_currency ?? i.currency ?? "USD").map((value) => (
-                              <p
-                                key={value.currency}
-                                className={cn(
-                                  "leading-tight",
-                                  value.currency === currency
-                                    ? "font-semibold"
-                                    : "text-muted-foreground text-xs",
-                                )}
-                              >
-                                {value.text}
-                              </p>
-                            ))}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {!sellerOnly && (
-                            <Button size="sm" variant="ghost" onClick={() => openForm(i)}>
-                              <Pencil className="size-4" />
-                            </Button>
-                          )}
-                          {isAdmin && <Button size="sm" variant="outline" onClick={() => setStockEntry(i)}>Abastecer</Button>}
-
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      </>}
-      {stockEntry && <StockEntryDialog key={stockEntry.id} item={stockEntry} onClose={() => setStockEntry(null)} />}
-      {/* ficha completa do produto */}
-      <Dialog open={!!form} onOpenChange={(v) => !v && setForm(null)}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>{form?.id ? "Editar produto" : "Novo produto"}</DialogTitle>
-            <DialogDescription>
-              Ficha completa: dados, foto, preços e estoque. O catálogo digital usa essas
-              informações.
-            </DialogDescription>
-          </DialogHeader>
-          {form && (
-            <Tabs defaultValue="dados">
-              <TabsList>
-                <TabsTrigger value="dados">Dados do produto</TabsTrigger>
-                <TabsTrigger value="catalogo">Catálogo online</TabsTrigger>
-                <TabsTrigger value="precos">Preços / estoque</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="dados" className="space-y-4 pt-3">
-                <div className="grid gap-4 sm:grid-cols-[180px_1fr]">
-                  <div>
-                    <div className="bg-muted flex aspect-square items-center justify-center overflow-hidden rounded-lg border">
-                      {form.image_url && imagesQuery.data?.[form.image_url] ? (
-                        <img
-                          src={imagesQuery.data[form.image_url]}
-                          alt={form.name}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <ImageIcon className="text-muted-foreground size-10" />
-                      )}
-                    </div>
-                    <input
-                      ref={fileRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) void pickImage(f);
-                      }}
-                    />
-                    <Button
-                      variant="outline"
-                      className="mt-2 w-full"
-                      onClick={() => fileRef.current?.click()}
-                    >
-                      Escolher foto
-                    </Button>
-                    {form.image_url && (
-                      <Button
-                        variant="ghost"
-                        className="w-full"
-                        onClick={() => setForm({ ...form, image_url: null })}
-                      >
-                        Remover foto
-                      </Button>
-                    )}
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="sm:col-span-2">
-                      <Label>Nome</Label>
-                      <Input
-                        value={form.name ?? ""}
-                        onChange={(e) => setForm({ ...form, name: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label>Marca</Label>
-                      <Input
-                        value={form.brand ?? ""}
-                        onChange={(e) => setForm({ ...form, brand: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label>Código de barras</Label>
-                      <Input
-                        value={form.barcode ?? ""}
-                        onChange={(e) => setForm({ ...form, barcode: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label>SKU / código interno</Label>
-                      <Input
-                        value={form.sku ?? ""}
-                        onChange={(e) => setForm({ ...form, sku: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label>Unidade</Label>
-                      <Input
-                        value={form.unit ?? ""}
-                        onChange={(e) => setForm({ ...form, unit: e.target.value })}
-                        placeholder="un, cx, kg"
-                      />
-                    </div>
-                    <div>
-                      <Label>Categoria</Label>
-                      <Select
-                        value={form.product_id ?? ""}
-                        onValueChange={(v) =>
-                          setForm({ ...form, product_id: v, category_id: null })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {macros.map((m) => (
-                            <SelectItem key={m.id} value={m.id}>
-                              {m.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label>Subcategoria</Label>
-                      <Select
-                        value={form.category_id ?? ""}
-                        onValueChange={(v) => setForm({ ...form, category_id: v })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {subs
-                            .filter((s) => !form.product_id || s.product_id === form.product_id)
-                            .map((s) => (
-                              <SelectItem key={s.id} value={s.id}>
-                                {s.name}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label>Fornecedor</Label>
-                      <Select
-                        value={form.supplier_id ?? ""}
-                        onValueChange={(v) => setForm({ ...form, supplier_id: v })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {suppliers.map((s: any) => (
-                            <SelectItem key={s.id} value={s.id}>
-                              {s.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label>Localização no estoque</Label>
-                      <Input
-                        value={form.location ?? ""}
-                        onChange={(e) => setForm({ ...form, location: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label>Variação</Label>
-                      <Input
-                        value={form.variation ?? ""}
-                        onChange={(e) => setForm({ ...form, variation: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label>Tamanho</Label>
-                      <Input
-                        value={form.size ?? ""}
-                        onChange={(e) => setForm({ ...form, size: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label>Peso</Label>
-                      <Input
-                        value={form.weight ?? ""}
-                        onChange={(e) => setForm({ ...form, weight: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label>Volume</Label>
-                      <Input
-                        value={form.volume ?? ""}
-                        onChange={(e) => setForm({ ...form, volume: e.target.value })}
-                      />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <Label>Observações internas</Label>
-                      <Textarea
-                        rows={3}
-                        value={form.description ?? ""}
-                        onChange={(e) => setForm({ ...form, description: e.target.value })}
-                      />
-                    </div>
-                    <div className="sm:col-span-2"><Label>Descrição pública do produto</Label><Textarea rows={3} value={form.public_description ?? ""} onChange={(e) => setForm({ ...form, public_description: e.target.value })} /></div>
-                    <div className="sm:col-span-2"><Label>Para que serve</Label><Textarea rows={3} value={form.intended_use ?? ""} onChange={(e) => setForm({ ...form, intended_use: e.target.value })} /></div>
-                    <div className="sm:col-span-2"><Label>Orientações de uso</Label><Textarea rows={3} value={form.usage_instructions ?? ""} onChange={(e) => setForm({ ...form, usage_instructions: e.target.value })} /></div>
-                    <div className="sm:col-span-2"><Label>Fonte das informações (HTTPS)</Label><Input type="url" value={form.information_source_url ?? ""} onChange={(e) => setForm({ ...form, information_source_url: e.target.value })} /><p className="mt-1 text-xs text-muted-foreground">Use a bula ou documentação do fabricante. Confirme a apresentação antes de informar instruções.</p></div>
-                    <div className="flex items-center gap-2 sm:col-span-2">
-                      <Switch
-                        checked={form.is_active !== false}
-                        onCheckedChange={(v) => setForm({ ...form, is_active: v })}
-                      />
-                      <span className="text-sm">Produto ativo (aparece no catálogo)</span>
-                    </div>
-                  </div>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="catalogo" className="space-y-5 pt-3">
-                <section className="space-y-3 rounded-lg border p-4">
-                  <div>
-                    <h3 className="font-medium">Organização no catálogo geral</h3>
+                  <div className="flex flex-col gap-3 sm:col-span-2">
                     <p className="text-sm text-muted-foreground">
-                      Categoria e subcategoria vêm do cadastro do produto. Use o grupo comercial para
-                      organizar destaques como Tirzepatida, Retatrutida ou Ácido hialurônico.
+                      Duas versões: vendedor com preços e cliente sem preços. Ao salvar, ambas são
+                      atualizadas.
                     </p>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-                    <div>
-                      <Label>Grupo comercial</Label>
-                      <Input
-                        value={form.catalog_family ?? ""}
-                        onChange={(e) => setForm({ ...form, catalog_family: e.target.value })}
-                        placeholder="Ex.: Tirzepatida"
-                      />
-                    </div>
-                    <label className="flex min-h-10 items-center gap-2 rounded-md border px-3">
+                    <label className="flex items-center gap-2 text-sm">
                       <Switch
-                        checked={form.catalog_bestseller === true}
-                        onCheckedChange={(value) =>
-                          setForm({ ...form, catalog_bestseller: value })
+                        checked={catalogForm.show_availability !== false}
+                        onCheckedChange={(v) =>
+                          setCatalogForm({ ...catalogForm, show_availability: v })
                         }
                       />
-                      <span className="text-sm font-medium">Mais vendido</span>
+                      Mostrar disponibilidade
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <Switch
+                        checked={catalogForm.require_identification !== false}
+                        onCheckedChange={(v) =>
+                          setCatalogForm({ ...catalogForm, require_identification: v })
+                        }
+                      />
+                      Exigir identificação do cliente
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <Switch
+                        checked={!!catalogForm.orders_enabled}
+                        onCheckedChange={(v) =>
+                          setCatalogForm({ ...catalogForm, orders_enabled: v })
+                        }
+                      />
+                      Habilitar pedidos pelo catálogo
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <Switch
+                        checked={!!catalogForm.installments_enabled}
+                        onCheckedChange={(v) =>
+                          setCatalogForm({ ...catalogForm, installments_enabled: v })
+                        }
+                      />
+                      Simular parcelas
                     </label>
                   </div>
-                </section>
-
-                <section className="space-y-3 rounded-lg border p-4">
                   <div>
-                    <h3 className="font-medium">Carrossel do produto</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Adicione fotos, vídeos ou links do YouTube, Instagram e Facebook.
-                    </p>
-                  </div>
-                  <input
-                    ref={mediaFileRef}
-                    type="file"
-                    accept="image/*,video/*"
-                    className="hidden"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (file) void pickCatalogMedia(file);
-                    }}
-                  />
-                  <Button variant="outline" onClick={() => mediaFileRef.current?.click()}>
-                    <Upload className="mr-2 size-4" /> Adicionar foto ou vídeo
-                  </Button>
-                  <div className="grid gap-2 sm:grid-cols-[1fr_180px_auto]">
+                    <Label>Texto quando o preço está oculto</Label>
                     <Input
-                      type="url"
-                      placeholder="Link do YouTube, Instagram, Facebook ou mídia"
-                      value={form.catalog_media_url ?? ""}
-                      onChange={(event) =>
-                        setForm({ ...form, catalog_media_url: event.target.value })
+                      value={catalogForm.consult_label ?? "Consultar"}
+                      onChange={(e) =>
+                        setCatalogForm({ ...catalogForm, consult_label: e.target.value })
                       }
                     />
+                  </div>
+                  <div>
+                    <Label>Máximo de parcelas</Label>
                     <Input
-                      placeholder="Título (opcional)"
-                      value={form.catalog_media_label ?? ""}
-                      onChange={(event) =>
-                        setForm({ ...form, catalog_media_label: event.target.value })
+                      type="number"
+                      min={1}
+                      value={catalogForm.installments_max ?? 12}
+                      onChange={(e) =>
+                        setCatalogForm({ ...catalogForm, installments_max: e.target.value })
                       }
                     />
-                    <Button type="button" onClick={addCatalogMediaLink}>
-                      <Plus className="mr-2 size-4" /> Adicionar
-                    </Button>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {(Array.isArray(form.catalog_media) ? form.catalog_media : []).map(
-                      (media: any, index: number) => {
-                        const source = media.path ? imagesQuery.data?.[media.path] : media.url;
+                  <div className="sm:col-span-2">
+                    <Label>Mensagem de sucesso após o pedido</Label>
+                    <Textarea
+                      rows={2}
+                      value={catalogForm.success_message ?? ""}
+                      placeholder="Recebemos seu pedido! Entraremos em contato para confirmar."
+                      onChange={(e) =>
+                        setCatalogForm({ ...catalogForm, success_message: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Label>Formas de pagamento aceitas</Label>
+                    <div className="grid gap-1 rounded-md border p-2 sm:grid-cols-2">
+                      {PAYMENT_OPTIONS.map((m) => {
+                        const list: string[] = catalogForm.payment_methods ?? [];
                         return (
-                          <div key={media.id ?? index} className="flex gap-3 rounded-lg border p-3">
-                            <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
-                              {source && media.kind === "image" ? (
-                                <img
-                                  src={source}
-                                  alt={media.label ?? "Mídia do produto"}
-                                  className="h-full w-full object-cover"
-                                />
-                              ) : media.kind === "video" ? (
-                                <Video className="size-6 text-muted-foreground" />
-                              ) : (
-                                <Link2 className="size-6 text-muted-foreground" />
-                              )}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium">
-                                {media.label || (media.kind === "video" ? "Vídeo" : "Link externo")}
-                              </p>
-                              <p className="truncate text-xs text-muted-foreground">
-                                {media.path || media.url}
-                              </p>
-                            </div>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              aria-label="Remover mídia"
-                              onClick={() =>
-                                setForm({
-                                  ...form,
-                                  catalog_media: form.catalog_media.filter(
-                                    (_: any, mediaIndex: number) => mediaIndex !== index,
-                                  ),
+                          <label key={m} className="flex items-center gap-2 text-sm">
+                            <Checkbox
+                              checked={list.includes(m)}
+                              onCheckedChange={(v) =>
+                                setCatalogForm({
+                                  ...catalogForm,
+                                  payment_methods: v ? [...list, m] : list.filter((x) => x !== m),
                                 })
                               }
-                            >
-                              <Trash2 className="size-4 text-destructive" />
-                            </Button>
-                          </div>
+                            />
+                            {m}
+                          </label>
                         );
-                      },
-                    )}
+                      })}
+                    </div>
                   </div>
-                </section>
+                </TabsContent>
 
-                <section className="space-y-3 rounded-lg border p-4">
-                  <div>
-                    <Label>Link do grupo de informações</Label>
+                <TabsContent value="entrega" className="grid gap-3 pt-3 sm:grid-cols-2">
+                  <div className="flex flex-col gap-3 sm:col-span-2">
+                    <label className="flex items-center gap-2 text-sm">
+                      <Switch
+                        checked={catalogForm.pickup_enabled !== false}
+                        onCheckedChange={(v) =>
+                          setCatalogForm({ ...catalogForm, pickup_enabled: v })
+                        }
+                      />
+                      Permitir retirada
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <Switch
+                        checked={!!catalogForm.delivery_enabled}
+                        onCheckedChange={(v) =>
+                          setCatalogForm({ ...catalogForm, delivery_enabled: v })
+                        }
+                      />
+                      Permitir entrega
+                    </label>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Label>Endereço de retirada</Label>
                     <Input
-                      type="url"
-                      placeholder="https://chat.whatsapp.com/..."
-                      value={form.info_group_url ?? ""}
-                      onChange={(event) => setForm({ ...form, info_group_url: event.target.value })}
+                      value={catalogForm.pickup_address ?? ""}
+                      onChange={(e) =>
+                        setCatalogForm({ ...catalogForm, pickup_address: e.target.value })
+                      }
                     />
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      O catálogo mostrará o botão “Entrar no grupo de informações” neste produto.
-                    </p>
                   </div>
-                </section>
-
-                <section className="space-y-3 rounded-lg border p-4">
-                  <div>
-                    <h3 className="font-medium">Vendedores disponíveis</h3>
-                    <p className="text-sm text-muted-foreground">
-                      O cliente escolhe um vendedor e o WhatsApp cadastrado é aberto
-                      automaticamente.
-                    </p>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {sellers.map((seller: any) => {
-                      const selectedSellers: string[] = Array.isArray(form.catalog_seller_ids)
-                        ? form.catalog_seller_ids
-                        : [];
-                      return (
-                        <label
-                          key={seller.id}
-                          className="flex items-center gap-3 rounded-lg border p-3 text-sm"
+                  <div className="sm:col-span-2 rounded-lg border bg-muted/20 p-3">
+                    <div className="mb-3">
+                      <Label>Regras de frete por território</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Cadastre valores diferentes por cidade. Quando a cidade não estiver
+                        cadastrada, o catálogo usa a regra de frete do produto.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      {(catalogForm.shipping_regions ?? []).map((region: any, index: number) => (
+                        <div
+                          key={index}
+                          className="grid gap-2 sm:grid-cols-[160px_1fr_180px_140px_auto]"
                         >
-                          <Checkbox
-                            checked={selectedSellers.includes(seller.id)}
-                            onCheckedChange={(checked) =>
-                              setForm({
-                                ...form,
-                                catalog_seller_ids: checked
-                                  ? [...selectedSellers, seller.id]
-                                  : selectedSellers.filter((id) => id !== seller.id),
+                          <Select
+                            value={region.scope ?? "city"}
+                            onValueChange={(scope) => {
+                              const rows = [...(catalogForm.shipping_regions ?? [])];
+                              rows[index] = {
+                                ...rows[index],
+                                scope,
+                                name: scope === "country" ? "Brasil" : "",
+                              };
+                              setCatalogForm({ ...catalogForm, shipping_regions: rows });
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="country">Brasil inteiro</SelectItem>
+                              <SelectItem value="region">Região</SelectItem>
+                              <SelectItem value="state">Estado</SelectItem>
+                              <SelectItem value="city">Cidade</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {region.scope === "region" ? (
+                            <Select
+                              value={region.name ?? ""}
+                              onValueChange={(name) => {
+                                const rows = [...(catalogForm.shipping_regions ?? [])];
+                                rows[index] = { ...rows[index], name };
+                                setCatalogForm({ ...catalogForm, shipping_regions: rows });
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione a região" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {["Norte", "Nordeste", "Centro-Oeste", "Sudeste", "Sul"].map(
+                                  (x) => (
+                                    <SelectItem key={x} value={x}>
+                                      {x}
+                                    </SelectItem>
+                                  ),
+                                )}
+                              </SelectContent>
+                            </Select>
+                          ) : region.scope === "state" ? (
+                            <Select
+                              value={region.name ?? ""}
+                              onValueChange={(name) => {
+                                const rows = [...(catalogForm.shipping_regions ?? [])];
+                                rows[index] = { ...rows[index], name };
+                                setCatalogForm({ ...catalogForm, shipping_regions: rows });
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione a UF" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[
+                                  "AC",
+                                  "AL",
+                                  "AP",
+                                  "AM",
+                                  "BA",
+                                  "CE",
+                                  "DF",
+                                  "ES",
+                                  "GO",
+                                  "MA",
+                                  "MT",
+                                  "MS",
+                                  "MG",
+                                  "PA",
+                                  "PB",
+                                  "PR",
+                                  "PE",
+                                  "PI",
+                                  "RJ",
+                                  "RN",
+                                  "RS",
+                                  "RO",
+                                  "RR",
+                                  "SC",
+                                  "SP",
+                                  "SE",
+                                  "TO",
+                                ].map((x) => (
+                                  <SelectItem key={x} value={x}>
+                                    {x}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Input
+                              disabled={region.scope === "country"}
+                              placeholder={
+                                region.scope === "country" ? "Brasil" : "Cidade (ex.: São Paulo)"
+                              }
+                              value={region.name ?? ""}
+                              onChange={(e) => {
+                                const rows = [...(catalogForm.shipping_regions ?? [])];
+                                rows[index] = { ...rows[index], name: e.target.value };
+                                setCatalogForm({ ...catalogForm, shipping_regions: rows });
+                              }}
+                            />
+                          )}
+                          <Input
+                            inputMode="decimal"
+                            placeholder={`Frete (${catalogForm.currency ?? "BRL"})`}
+                            value={region.fee ?? ""}
+                            onChange={(e) => {
+                              const rows = [...(catalogForm.shipping_regions ?? [])];
+                              rows[index] = { ...rows[index], fee: e.target.value };
+                              setCatalogForm({ ...catalogForm, shipping_regions: rows });
+                            }}
+                          />
+                          <Input
+                            type="number"
+                            min="0"
+                            placeholder="Prazo (dias)"
+                            value={region.days ?? ""}
+                            onChange={(e) => {
+                              const rows = [...(catalogForm.shipping_regions ?? [])];
+                              rows[index] = { ...rows[index], days: e.target.value };
+                              setCatalogForm({ ...catalogForm, shipping_regions: rows });
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() =>
+                              setCatalogForm({
+                                ...catalogForm,
+                                shipping_regions: (catalogForm.shipping_regions ?? []).filter(
+                                  (_: any, row: number) => row !== index,
+                                ),
                               })
                             }
-                          />
-                          <span className="min-w-0">
-                            <span className="block truncate font-medium">{seller.full_name}</span>
-                            <span className="block truncate text-xs text-muted-foreground">
-                              O próprio vendedor cadastra o WhatsApp em Configurações
-                            </span>
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                  {!sellers.length && (
-                    <p className="text-sm text-muted-foreground">
-                      Nenhum vendedor ativo foi encontrado.
-                    </p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    Sem seleção, o catálogo oferece todos os vendedores ativos. Quem estiver sem
-                    WhatsApp continuará recebendo solicitações no sistema, mas o atalho de conversa
-                    ficará indisponível até cadastrar o próprio número.
-                  </p>
-                </section>
-              </TabsContent>
-
-              <TabsContent value="precos" className="space-y-4 pt-3">
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div>
-                    <Label>Moeda</Label>
-                    <Select
-                      value={form.currency ?? "USD"}
-                      onValueChange={(v) => setForm({ ...form, currency: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="USD">Dólar (US$)</SelectItem>
-                        <SelectItem value="BRL">Real (R$)</SelectItem>
-                        <SelectItem value="PYG">Guarani (₲)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Custo de compra</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={form.cost ?? 0}
-                      onChange={(e) => setForm({ ...form, cost: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label>Impostos (%)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={form.tax_percent ?? 0}
-                      onChange={(e) => setForm({ ...form, tax_percent: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label>Outros custos</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      value={form.extra_cost ?? 0}
-                      onChange={(e) => setForm({ ...form, extra_cost: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label>Markup (%)</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={form.markup_percent ?? 0}
-                        onChange={(e) => setForm({ ...form, markup_percent: e.target.value })}
-                      />
-                      <Button variant="outline" onClick={applyMarkup}>
-                        Aplicar
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          setCatalogForm({
+                            ...catalogForm,
+                            shipping_regions: [
+                              ...(catalogForm.shipping_regions ?? []),
+                              { scope: "city", name: "", fee: "", days: "" },
+                            ],
+                          })
+                        }
+                      >
+                        <Plus className="mr-2 size-4" /> Adicionar regra de frete
                       </Button>
                     </div>
                   </div>
                   <div>
-                    <Label>Preço de venda</Label>
+                    <Label>Prazo padrão (dias)</Label>
                     <Input
                       type="number"
-                      step="0.01"
-                      value={form.price ?? 0}
-                      onChange={(e) => setForm({ ...form, price: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <div className="bg-muted/40 grid gap-2 rounded-lg border p-3 sm:grid-cols-3">
-                  <div>
-                    <p className="text-muted-foreground text-xs">Custo total</p>
-                    <p className="font-semibold">
-                      <CurrencyValues value={totalCost} currency={form.currency ?? "USD"} />
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground text-xs">Lucro por unidade</p>
-                    <CurrencyValues value={profit} currency={form.currency ?? "USD"} emphasize />
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground text-xs">Margem</p>
-                    <p className="font-semibold">{marginPct.toFixed(2)}%</p>
-                  </div>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <Label>Estoque mínimo</Label>
-                    <Input
-                      type="number"
-                      step="0.001"
-                      value={form.min_quantity ?? 0}
-                      onChange={(e) => setForm({ ...form, min_quantity: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label>{form.id ? "Estoque atual (somente leitura)" : "Saldo inicial no estoque principal"}</Label>
-                    <Input
-                      type="number"
-                      step="0.001"
-                      value={form.quantity ?? 0}
-                      disabled={Boolean(form.id)}
-                      min="0"
-                      onChange={(e) => setForm({ ...form, quantity: e.target.value })}
-                    />
-                    {form.id && isAdmin && <Button type="button" variant="outline" className="mt-2" onClick={() => setStockEntry(form)}>Abastecer no estoque principal</Button>}
-                    <p className="mt-1 text-xs text-muted-foreground">{form.id ? "Para abastecer, use Estoques → Estoque principal → Registrar compra. Para mudar o local, use Transferir." : "O saldo informado será vinculado ao estoque principal. Compras posteriores devem ser registradas em Estoques ou Compras."}</p>
-                  </div>
-                </div>
-              </TabsContent>
-            </Tabs>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setForm(null)}>
-              Cancelar
-            </Button>
-            <Button onClick={saveItem} disabled={saving}>
-              {saving ? "Salvando…" : "Salvar"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* catálogo digital */}
-      <Dialog open={!!catalogForm} onOpenChange={(v) => !v && setCatalogForm(null)}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>
-              {catalogForm?.id ? "Editar catálogo digital" : "Novo catálogo digital"}
-            </DialogTitle>
-            <DialogDescription>
-              Gera um link que você envia ao cliente. Ele vê os produtos escolhidos, com ou sem
-              preço.
-            </DialogDescription>
-          </DialogHeader>
-          {catalogForm && (
-            <Tabs defaultValue="info">
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="info">Informações</TabsTrigger>
-                <TabsTrigger value="design">Design</TabsTrigger>
-                <TabsTrigger value="vendas">Vendas</TabsTrigger>
-                <TabsTrigger value="entrega">Entrega</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="info" className="grid gap-3 pt-3 sm:grid-cols-2">
-                <div className="sm:col-span-2">
-                  <Label>Nome do catálogo</Label>
-                  <Input
-                    value={catalogForm.title ?? ""}
-                    onChange={(e) => setCatalogForm({ ...catalogForm, title: e.target.value })}
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <Label>Endereço do link</Label>
-                  <div className="flex items-center gap-2">
-                    <Link2 className="text-muted-foreground size-4" />
-                    <Input
-                      value={catalogForm.slug ?? ""}
-                      placeholder={slugify(catalogForm.title ?? "") || "verao-2026"}
-                      onChange={(e) => setCatalogForm({ ...catalogForm, slug: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <div className="sm:col-span-2">
-                  <Label>Descrição curta</Label>
-                  <Textarea
-                    rows={2}
-                    value={catalogForm.description ?? ""}
-                    onChange={(e) =>
-                      setCatalogForm({ ...catalogForm, description: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <Label>Sobre a loja</Label>
-                  <Textarea
-                    rows={3}
-                    value={catalogForm.about ?? ""}
-                    onChange={(e) => setCatalogForm({ ...catalogForm, about: e.target.value })}
-                  />
-                </div>
-                <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
-                  O WhatsApp do catálogo vem do cadastro pessoal do vendedor escolhido. Números de
-                  outros usuários não são exibidos nesta área.
-                </div>
-                <div>
-                  <Label>Telefone</Label>
-                  <Input
-                    value={catalogForm.contact_phone ?? ""}
-                    onChange={(e) =>
-                      setCatalogForm({ ...catalogForm, contact_phone: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label>E-mail</Label>
-                  <Input
-                    value={catalogForm.contact_email ?? ""}
-                    onChange={(e) =>
-                      setCatalogForm({ ...catalogForm, contact_email: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label>Endereço</Label>
-                  <Input
-                    value={catalogForm.contact_address ?? ""}
-                    onChange={(e) =>
-                      setCatalogForm({ ...catalogForm, contact_address: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="flex items-end pb-1">
-                  <label className="flex items-center gap-2 text-sm">
-                    <Switch
-                      checked={catalogForm.is_published !== false}
-                      onCheckedChange={(v) => setCatalogForm({ ...catalogForm, is_published: v })}
-                    />
-                    Publicado
-                  </label>
-                </div>
-                <div className="sm:col-span-2">
-                  <Label>Categorias incluídas</Label>
-                  <p className="text-muted-foreground mb-2 text-xs">
-                    Sem marcar nada, o catálogo mostra todos os produtos ativos.
-                  </p>
-                  <div className="grid max-h-40 gap-1 overflow-y-auto rounded-md border p-2 sm:grid-cols-2">
-                    {macros.map((m) => {
-                      const list: string[] = catalogForm.product_ids ?? [];
-                      return (
-                        <label key={m.id} className="flex items-center gap-2 text-sm">
-                          <Checkbox
-                            checked={list.includes(m.id)}
-                            onCheckedChange={(v) =>
-                              setCatalogForm({
-                                ...catalogForm,
-                                product_ids: v ? [...list, m.id] : list.filter((x) => x !== m.id),
-                                category_ids: [],
-                                item_ids: [],
-                                offer_item_ids: [],
-                              })
-                            }
-                          />
-                          {m.name}
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="sm:col-span-2">
-                  <Label>Subcategorias incluídas</Label>
-                  <div className="grid max-h-40 gap-1 overflow-y-auto rounded-md border p-2 sm:grid-cols-2">
-                    {subs.filter((s) =>
-                      !(catalogForm.product_ids ?? []).length ||
-                      (catalogForm.product_ids ?? []).includes(s.product_id)
-                    ).map((s) => {
-                      const list: string[] = catalogForm.category_ids ?? [];
-                      return (
-                        <label key={s.id} className="flex items-center gap-2 text-sm">
-                          <Checkbox
-                            checked={list.includes(s.id)}
-                            onCheckedChange={(v) =>
-                              setCatalogForm({
-                                ...catalogForm,
-                                category_ids: v ? [...list, s.id] : list.filter((x) => x !== s.id),
-                                item_ids: [],
-                                offer_item_ids: [],
-                              })
-                            }
-                          />
-                          {s.name}
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="sm:col-span-2">
-                  <Label>Produtos incluídos</Label>
-                  <p className="text-muted-foreground mb-2 text-xs">A lista abaixo respeita as categorias e subcategorias selecionadas.</p>
-                  <div className="grid max-h-48 gap-1 overflow-y-auto rounded-md border p-2 sm:grid-cols-2">
-                    {items.filter((i:any) =>
-                      (!(catalogForm.product_ids ?? []).length || (catalogForm.product_ids ?? []).includes(i.product_id)) &&
-                      (!(catalogForm.category_ids ?? []).length || (catalogForm.category_ids ?? []).includes(i.category_id))
-                    ).map((i:any) => {
-                      const list:string[] = catalogForm.item_ids ?? [];
-                      return <label key={i.id} className="flex items-center gap-2 text-sm"><Checkbox checked={list.includes(i.id)} onCheckedChange={(v) => setCatalogForm({...catalogForm,item_ids:v?[...list,i.id]:list.filter((x)=>x!==i.id)})}/><span className="truncate">{i.name}</span></label>;
-                    })}
-                  </div>
-                </div>
-                <div className="sm:col-span-2 rounded-lg border p-3">
-                  <Label>Quem pode visualizar no painel</Label>
-                  <label className="mt-2 flex items-center gap-2 text-sm"><Switch checked={catalogForm.visible_to_all_members !== false} onCheckedChange={(v)=>setCatalogForm({...catalogForm,visible_to_all_members:v,visible_member_ids:v?[]:(catalogForm.visible_member_ids??[])})}/> Todos os membros autorizados</label>
-                  {catalogForm.visible_to_all_members === false && <div className="mt-3 grid max-h-48 gap-1 overflow-y-auto rounded-md border p-2 sm:grid-cols-2">
-                    {(sellersQuery.data ?? []).map((member:any) => { const list:string[] = catalogForm.visible_member_ids ?? []; return <label key={member.id} className="flex items-center gap-2 text-sm"><Checkbox checked={list.includes(member.id)} onCheckedChange={(v)=>setCatalogForm({...catalogForm,visible_member_ids:v?[...list,member.id]:list.filter((x)=>x!==member.id)})}/>{member.full_name ?? "Sem nome"}</label>; })}
-                  </div>}
-                </div>
-                <div className="sm:col-span-2">
-                  <Label>Produtos em oferta (destaque)</Label>
-                  <div className="grid max-h-40 gap-1 overflow-y-auto rounded-md border p-2 sm:grid-cols-2">
-                    {items.filter((i: any) =>
-                      (!(catalogForm.product_ids ?? []).length || (catalogForm.product_ids ?? []).includes(i.product_id)) &&
-                      (!(catalogForm.category_ids ?? []).length || (catalogForm.category_ids ?? []).includes(i.category_id))
-                    ).slice(0, 300).map((i: any) => {
-                      const list: string[] = catalogForm.offer_item_ids ?? [];
-                      return (
-                        <label key={i.id} className="flex items-center gap-2 text-sm">
-                          <Checkbox
-                            checked={list.includes(i.id)}
-                            onCheckedChange={(v) =>
-                              setCatalogForm({
-                                ...catalogForm,
-                                offer_item_ids: v
-                                  ? [...list, i.id]
-                                  : list.filter((x) => x !== i.id),
-                              })
-                            }
-                          />
-                          <span className="truncate">{i.name}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="design" className="grid gap-3 pt-3 sm:grid-cols-2">
-                <div>
-                  <Label>Logo</Label>
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      try {
-                        const path = await uploadProductImage(file);
-                        setCatalogForm({ ...catalogForm, logo_url: path });
-                        toast.success("Logo enviada.");
-                      } catch {
-                        toast.error("Não foi possível enviar a imagem.");
-                      }
-                    }}
-                  />
-                  {catalogForm.logo_url && (
-                    <p className="text-muted-foreground mt-1 text-xs">Logo enviada.</p>
-                  )}
-                </div>
-                <div>
-                  <Label>Banner</Label>
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      try {
-                        const path = await uploadProductImage(file);
-                        setCatalogForm({ ...catalogForm, banner_url: path });
-                        toast.success("Banner enviado.");
-                      } catch {
-                        toast.error("Não foi possível enviar a imagem.");
-                      }
-                    }}
-                  />
-                  {catalogForm.banner_url && (
-                    <p className="text-muted-foreground mt-1 text-xs">Banner enviado.</p>
-                  )}
-                </div>
-                <div>
-                  <Label>Cor principal</Label>
-                  <Input
-                    placeholder="oklch(0.6 0.2 255) ou #2563eb"
-                    value={catalogForm.primary_color ?? ""}
-                    onChange={(e) =>
-                      setCatalogForm({ ...catalogForm, primary_color: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label>Cor de destaque</Label>
-                  <Input
-                    placeholder="#a855f7"
-                    value={catalogForm.accent_color ?? ""}
-                    onChange={(e) =>
-                      setCatalogForm({ ...catalogForm, accent_color: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <Label>Ordenação dos produtos</Label>
-                  <Select
-                    value={catalogForm.sort_mode ?? "nome"}
-                    onValueChange={(v) => setCatalogForm({ ...catalogForm, sort_mode: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="nome">Nome (A–Z)</SelectItem>
-                      <SelectItem value="preco">Menor preço</SelectItem>
-                      <SelectItem value="preco_desc">Maior preço</SelectItem>
-                      <SelectItem value="recentes">Mais recentes</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="vendas" className="grid gap-3 pt-3 sm:grid-cols-2">
-                <CatalogPricing
-                  value={catalogForm.pricing_rules}
-                  onChange={(pricing_rules) => setCatalogForm({ ...catalogForm, pricing_rules })}
-                  items={items.filter((i) =>
-                    catalogForm.item_ids?.length
-                      ? catalogForm.item_ids.includes(i.id)
-                      : catalogForm.category_ids?.length
-                        ? catalogForm.category_ids.includes(i.category_id)
-                        : catalogForm.product_ids?.length
-                          ? catalogForm.product_ids.includes(i.product_id)
-                          : true,
-                  )}
-                  currency={catalogForm.currency ?? "USD"}
-                  onCurrencyChange={(target) =>
-                    changeCatalogCurrency(catalogForm, setCatalogForm, target)
-                  }
-                  convert={convert}
-                />
-                <div className="sm:col-span-2">
-                  <Label className="text-xs">Vendedor responsável pelos pedidos</Label>
-                  <Select
-                    value={catalogForm.default_seller_id || "nenhum"}
-                    onValueChange={(v) =>
-                      setCatalogForm({
-                        ...catalogForm,
-                        default_seller_id: v === "nenhum" ? "" : v,
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sem responsável" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="nenhum">Sem responsável</SelectItem>
-                      {sellers.map((s: any) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.full_name ?? "Sem nome"}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-col gap-3 sm:col-span-2">
-                  <p className="text-sm text-muted-foreground">Duas versões: vendedor com preços e cliente sem preços. Ao salvar, ambas são atualizadas.</p>
-                  <label className="flex items-center gap-2 text-sm">
-                    <Switch
-                      checked={catalogForm.show_availability !== false}
-                      onCheckedChange={(v) =>
-                        setCatalogForm({ ...catalogForm, show_availability: v })
+                      value={catalogForm.shipping_days ?? ""}
+                      onChange={(e) =>
+                        setCatalogForm({ ...catalogForm, shipping_days: e.target.value })
                       }
                     />
-                    Mostrar disponibilidade
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <Switch
-                      checked={catalogForm.require_identification !== false}
-                      onCheckedChange={(v) =>
-                        setCatalogForm({ ...catalogForm, require_identification: v })
-                      }
-                    />
-                    Exigir identificação do cliente
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <Switch
-                      checked={!!catalogForm.orders_enabled}
-                      onCheckedChange={(v) => setCatalogForm({ ...catalogForm, orders_enabled: v })}
-                    />
-                    Habilitar pedidos pelo catálogo
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <Switch
-                      checked={!!catalogForm.installments_enabled}
-                      onCheckedChange={(v) =>
-                        setCatalogForm({ ...catalogForm, installments_enabled: v })
-                      }
-                    />
-                    Simular parcelas
-                  </label>
-                </div>
-                <div>
-                  <Label>Texto quando o preço está oculto</Label>
-                  <Input
-                    value={catalogForm.consult_label ?? "Consultar"}
-                    onChange={(e) =>
-                      setCatalogForm({ ...catalogForm, consult_label: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label>Máximo de parcelas</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={catalogForm.installments_max ?? 12}
-                    onChange={(e) =>
-                      setCatalogForm({ ...catalogForm, installments_max: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <Label>Mensagem de sucesso após o pedido</Label>
-                  <Textarea
-                    rows={2}
-                    value={catalogForm.success_message ?? ""}
-                    placeholder="Recebemos seu pedido! Entraremos em contato para confirmar."
-                    onChange={(e) =>
-                      setCatalogForm({ ...catalogForm, success_message: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <Label>Formas de pagamento aceitas</Label>
-                  <div className="grid gap-1 rounded-md border p-2 sm:grid-cols-2">
-                    {PAYMENT_OPTIONS.map((m) => {
-                      const list: string[] = catalogForm.payment_methods ?? [];
-                      return (
-                        <label key={m} className="flex items-center gap-2 text-sm">
-                          <Checkbox
-                            checked={list.includes(m)}
-                            onCheckedChange={(v) =>
-                              setCatalogForm({
-                                ...catalogForm,
-                                payment_methods: v ? [...list, m] : list.filter((x) => x !== m),
-                              })
-                            }
-                          />
-                          {m}
-                        </label>
-                      );
-                    })}
                   </div>
-                </div>
-              </TabsContent>
+                </TabsContent>
+              </Tabs>
+            )}
 
-              <TabsContent value="entrega" className="grid gap-3 pt-3 sm:grid-cols-2">
-                <div className="flex flex-col gap-3 sm:col-span-2">
-                  <label className="flex items-center gap-2 text-sm">
-                    <Switch
-                      checked={catalogForm.pickup_enabled !== false}
-                      onCheckedChange={(v) => setCatalogForm({ ...catalogForm, pickup_enabled: v })}
-                    />
-                    Permitir retirada
-                  </label>
-                  <label className="flex items-center gap-2 text-sm">
-                    <Switch
-                      checked={!!catalogForm.delivery_enabled}
-                      onCheckedChange={(v) =>
-                        setCatalogForm({ ...catalogForm, delivery_enabled: v })
-                      }
-                    />
-                    Permitir entrega
-                  </label>
-                </div>
-                <div className="sm:col-span-2">
-                  <Label>Endereço de retirada</Label>
-                  <Input
-                    value={catalogForm.pickup_address ?? ""}
-                    onChange={(e) =>
-                      setCatalogForm({ ...catalogForm, pickup_address: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="sm:col-span-2 rounded-lg border bg-muted/20 p-3">
-                  <div className="mb-3">
-                    <Label>Regras de frete por território</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Cadastre valores diferentes por cidade. Quando a cidade não estiver cadastrada,
-                      o catálogo usa a regra de frete do produto.
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    {(catalogForm.shipping_regions ?? []).map((region: any, index: number) => (
-                      <div key={index} className="grid gap-2 sm:grid-cols-[160px_1fr_180px_140px_auto]">
-                        <Select value={region.scope ?? "city"} onValueChange={(scope) => {
-                          const rows = [...(catalogForm.shipping_regions ?? [])];
-                          rows[index] = { ...rows[index], scope, name: scope === "country" ? "Brasil" : "" };
-                          setCatalogForm({ ...catalogForm, shipping_regions: rows });
-                        }}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="country">Brasil inteiro</SelectItem>
-                            <SelectItem value="region">Região</SelectItem>
-                            <SelectItem value="state">Estado</SelectItem>
-                            <SelectItem value="city">Cidade</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        {region.scope === "region" ? (
-                          <Select value={region.name ?? ""} onValueChange={(name) => {
-                            const rows = [...(catalogForm.shipping_regions ?? [])]; rows[index] = { ...rows[index], name }; setCatalogForm({ ...catalogForm, shipping_regions: rows });
-                          }}><SelectTrigger><SelectValue placeholder="Selecione a região" /></SelectTrigger><SelectContent>{["Norte","Nordeste","Centro-Oeste","Sudeste","Sul"].map((x)=><SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select>
-                        ) : region.scope === "state" ? (
-                          <Select value={region.name ?? ""} onValueChange={(name) => {
-                            const rows = [...(catalogForm.shipping_regions ?? [])]; rows[index] = { ...rows[index], name }; setCatalogForm({ ...catalogForm, shipping_regions: rows });
-                          }}><SelectTrigger><SelectValue placeholder="Selecione a UF" /></SelectTrigger><SelectContent>{["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"].map((x)=><SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select>
-                        ) : (
-                        <Input
-                          disabled={region.scope === "country"}
-                          placeholder={region.scope === "country" ? "Brasil" : "Cidade (ex.: São Paulo)"}
-                          value={region.name ?? ""}
-                          onChange={(e) => {
-                            const rows = [...(catalogForm.shipping_regions ?? [])];
-                            rows[index] = { ...rows[index], name: e.target.value };
-                            setCatalogForm({ ...catalogForm, shipping_regions: rows });
-                          }}
-                        />)}
-                        <Input
-                          inputMode="decimal"
-                          placeholder={`Frete (${catalogForm.currency ?? "BRL"})`}
-                          value={region.fee ?? ""}
-                          onChange={(e) => {
-                            const rows = [...(catalogForm.shipping_regions ?? [])];
-                            rows[index] = { ...rows[index], fee: e.target.value };
-                            setCatalogForm({ ...catalogForm, shipping_regions: rows });
-                          }}
-                        />
-                        <Input
-                          type="number"
-                          min="0"
-                          placeholder="Prazo (dias)"
-                          value={region.days ?? ""}
-                          onChange={(e) => {
-                            const rows = [...(catalogForm.shipping_regions ?? [])];
-                            rows[index] = { ...rows[index], days: e.target.value };
-                            setCatalogForm({ ...catalogForm, shipping_regions: rows });
-                          }}
-                        />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() =>
-                            setCatalogForm({
-                              ...catalogForm,
-                              shipping_regions: (catalogForm.shipping_regions ?? []).filter(
-                                (_: any, row: number) => row !== index,
-                              ),
-                            })
-                          }
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
-                      </div>
-                    ))}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() =>
-                        setCatalogForm({
-                          ...catalogForm,
-                          shipping_regions: [
-                            ...(catalogForm.shipping_regions ?? []),
-                            { scope: "city", name: "", fee: "", days: "" },
-                          ],
-                        })
-                      }
-                    >
-                      <Plus className="mr-2 size-4" /> Adicionar regra de frete
-                    </Button>
-                  </div>
-                </div>
-                <div>
-                  <Label>Prazo padrão (dias)</Label>
-                  <Input
-                    type="number"
-                    value={catalogForm.shipping_days ?? ""}
-                    onChange={(e) =>
-                      setCatalogForm({ ...catalogForm, shipping_days: e.target.value })
-                    }
-                  />
-                </div>
-              </TabsContent>
-            </Tabs>
-          )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCatalogForm(null)}>
+                Cancelar
+              </Button>
+              <Button onClick={saveCatalog}>Salvar catálogo</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCatalogForm(null)}>
-              Cancelar
-            </Button>
-            <Button onClick={saveCatalog}>Salvar catálogo</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <SupplierImportDialog open={open} onOpenChange={setOpen} items={items as any[]} />
+        <SupplierImportDialog open={open} onOpenChange={setOpen} items={items as any[]} />
       </div>
     </section>
   );
 }
 
-
-function SalesTables({ items, macros, subs, currency, convert, imageOf, catalogs, openCatalogForm, linkOf, readOnly = false }: any) {
+function SalesTables({
+  items,
+  macros,
+  subs,
+  currency,
+  convert,
+  imageOf,
+  catalogs,
+  openCatalogForm,
+  linkOf,
+  readOnly = false,
+}: any) {
   const [title, setTitle] = useState("Tabela geral de produtos");
   const [macroId, setMacroId] = useState("todos");
   const [subId, setSubId] = useState("todos");
   const macroName = (id: string) => macros.find((m: any) => m.id === id)?.name ?? "Sem categoria";
-  const subName = (id: string | null) => subs.find((x: any) => x.id === id)?.name ?? "Sem subcategoria";
-  const rows = items.filter((item: any) =>
-    (macroId === "todos" || item.product_id === macroId) &&
-    (subId === "todos" || item.category_id === subId) &&
-    item.is_active !== false
+  const subName = (id: string | null) =>
+    subs.find((x: any) => x.id === id)?.name ?? "Sem subcategoria";
+  const rows = items.filter(
+    (item: any) =>
+      (macroId === "todos" || item.product_id === macroId) &&
+      (subId === "todos" || item.category_id === subId) &&
+      item.is_active !== false,
   );
   const money = (item: any) => {
     const baseCurrency = item.price_currency ?? item.currency ?? "USD";
@@ -3031,45 +3416,205 @@ function SalesTables({ items, macros, subs, currency, convert, imageOf, catalogs
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 className="font-display text-lg font-semibold">Tabelas de venda</h2>
-          <p className="text-sm text-muted-foreground">{readOnly ? "Consulte as tabelas e os preços definidos pela direção." : "Crie tabelas publicáveis com as mesmas configurações do catálogo online, em formato de lista."}</p>
+          <p className="text-sm text-muted-foreground">
+            {readOnly
+              ? "Consulte as tabelas e os preços definidos pela direção."
+              : "Crie tabelas publicáveis com as mesmas configurações do catálogo online, em formato de lista."}
+          </p>
         </div>
-        {!readOnly && <Button variant="outline" onClick={() => openCatalogForm(undefined, "lista")}><Plus className="mr-2 size-4" /> Nova tabela de venda</Button>}
+        {!readOnly && (
+          <Button variant="outline" onClick={() => openCatalogForm(undefined, "lista")}>
+            <Plus className="mr-2 size-4" /> Nova tabela de venda
+          </Button>
+        )}
       </div>
-      {catalogs.filter((c:any) => c.layout === "lista").length > 0 && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {catalogs.filter((c:any) => c.layout === "lista").map((c:any) => <div key={c.id} className="rounded-lg border p-3">
-          <div className="flex items-start justify-between gap-2"><div><p className="font-medium">{c.title}</p><p className="text-xs text-muted-foreground">/catalogo/{c.slug}</p></div><Badge variant={c.is_published ? "secondary" : "outline"}>{c.is_published ? "publicado" : "rascunho"}</Badge></div>
-          <CatalogViewLinks slug={c.slug} />{!readOnly && <div className="mt-2 flex gap-1"><Button size="sm" variant="ghost" onClick={() => openCatalogForm(c, "lista")}><Pencil className="size-3"/></Button></div>}
-        </div>)}
-      </div>}
+      {catalogs.filter((c: any) => c.layout === "lista").length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {catalogs
+            .filter((c: any) => c.layout === "lista")
+            .map((c: any) => (
+              <div key={c.id} className="rounded-lg border p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-medium">{c.title}</p>
+                    <p className="text-xs text-muted-foreground">/catalogo/{c.slug}</p>
+                  </div>
+                  <Badge variant={c.is_published ? "secondary" : "outline"}>
+                    {c.is_published ? "publicado" : "rascunho"}
+                  </Badge>
+                </div>
+                <CatalogViewLinks slug={c.slug} />
+                {!readOnly && (
+                  <div className="mt-2 flex gap-1">
+                    <Button size="sm" variant="ghost" onClick={() => openCatalogForm(c, "lista")}>
+                      <Pencil className="size-3" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+        </div>
+      )}
       <div className="grid gap-2 md:grid-cols-3">
-        <div><Label>Título</Label><Input value={title} onChange={(e) => setTitle(e.target.value)} /></div>
-        <div><Label>Categoria</Label><Select value={macroId} onValueChange={(v) => { setMacroId(v); setSubId("todos"); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Todas as categorias</SelectItem>{macros.map((m:any)=><SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent></Select></div>
-        <div><Label>Subcategoria</Label><Select value={subId} onValueChange={setSubId}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Todas as subcategorias</SelectItem>{subs.filter((x:any)=>macroId==="todos"||x.product_id===macroId).map((x:any)=><SelectItem key={x.id} value={x.id}>{x.name}</SelectItem>)}</SelectContent></Select></div>
+        <div>
+          <Label>Título</Label>
+          <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+        </div>
+        <div>
+          <Label>Categoria</Label>
+          <Select
+            value={macroId}
+            onValueChange={(v) => {
+              setMacroId(v);
+              setSubId("todos");
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todas as categorias</SelectItem>
+              {macros.map((m: any) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Subcategoria</Label>
+          <Select value={subId} onValueChange={setSubId}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todas as subcategorias</SelectItem>
+              {subs
+                .filter((x: any) => macroId === "todos" || x.product_id === macroId)
+                .map((x: any) => (
+                  <SelectItem key={x.id} value={x.id}>
+                    {x.name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
       <div className="rounded-xl border overflow-x-auto">
         <div className="border-b p-4">
           <h3 className="text-xl font-bold">{title || "Tabela de produtos"}</h3>
-          <p className="text-sm text-muted-foreground">Categoria: {macroId === "todos" ? "Todas" : macroName(macroId)} · Subcategoria: {subId === "todos" ? "Todas" : subName(subId)}</p>
+          <p className="text-sm text-muted-foreground">
+            Categoria: {macroId === "todos" ? "Todas" : macroName(macroId)} · Subcategoria:{" "}
+            {subId === "todos" ? "Todas" : subName(subId)}
+          </p>
         </div>
         <Table>
-          <TableHeader><TableRow><TableHead>Nome / produto</TableHead><TableHead>Quantidade</TableHead><TableHead>Unidade</TableHead><TableHead>Valor de venda</TableHead><TableHead>Estoque</TableHead></TableRow></TableHeader>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Nome / produto</TableHead>
+              <TableHead>Quantidade</TableHead>
+              <TableHead>Unidade</TableHead>
+              <TableHead>Valor de venda</TableHead>
+              <TableHead>Estoque</TableHead>
+            </TableRow>
+          </TableHeader>
           <TableBody>
-            {rows.map((item:any)=><TableRow key={item.id}><TableCell><div className="flex items-center gap-3"><div className="size-12 shrink-0 overflow-hidden rounded-lg border bg-muted/20">{imageOf(item) ? <img src={imageOf(item)} alt={item.name} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center"><ImageIcon className="size-5 text-muted-foreground" /></div>}</div><span className="font-medium">{item.name}</span></div></TableCell><TableCell>{formatNumber(item.quantity ?? 0, 3)}</TableCell><TableCell>{item.unit ?? "un."}</TableCell><TableCell>{money(item)}</TableCell><TableCell>{item.location ?? "Estoque principal"}</TableCell></TableRow>)}
-            {!rows.length && <TableRow><TableCell colSpan={5}>Nenhum produto nesta seleção.</TableCell></TableRow>}
+            {rows.map((item: any) => (
+              <TableRow key={item.id}>
+                <TableCell>
+                  <div className="flex items-center gap-3">
+                    <div className="size-12 shrink-0 overflow-hidden rounded-lg border bg-muted/20">
+                      {imageOf(item) ? (
+                        <img
+                          src={imageOf(item)}
+                          alt={item.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center">
+                          <ImageIcon className="size-5 text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
+                    <span className="font-medium">{item.name}</span>
+                  </div>
+                </TableCell>
+                <TableCell>{formatNumber(item.quantity ?? 0, 3)}</TableCell>
+                <TableCell>{item.unit ?? "un."}</TableCell>
+                <TableCell>{money(item)}</TableCell>
+                <TableCell>{item.location ?? "Estoque principal"}</TableCell>
+              </TableRow>
+            ))}
+            {!rows.length && (
+              <TableRow>
+                <TableCell colSpan={5}>Nenhum produto nesta seleção.</TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </div>
-      <ReportButton title={title || "Tabela de produtos"} filename="tabela-venda" build={() => ({
-        highlights: [{label:"Produtos",value:String(rows.length)}],
-        headers:["Categoria","Subcategoria","Nome / produto","Quantidade","Unidade","Valor de venda","Estoque"],
-        rows: rows.map((item:any)=>[macroName(item.product_id),subName(item.category_id),item.name,item.quantity ?? 0,item.unit ?? "un.",money(item),item.location ?? "Estoque principal"])
-      })} />
+      <ReportButton
+        title={title || "Tabela de produtos"}
+        filename="tabela-venda"
+        build={() => ({
+          highlights: [{ label: "Produtos", value: String(rows.length) }],
+          headers: [
+            "Categoria",
+            "Subcategoria",
+            "Nome / produto",
+            "Quantidade",
+            "Unidade",
+            "Valor de venda",
+            "Estoque",
+          ],
+          rows: rows.map((item: any) => [
+            macroName(item.product_id),
+            subName(item.category_id),
+            item.name,
+            item.quantity ?? 0,
+            item.unit ?? "un.",
+            money(item),
+            item.location ?? "Estoque principal",
+          ]),
+        })}
+      />
     </div>
   );
 }
 
 function ProductInformation({ item }: { item: any }) {
   const source = informationSourceUrl(item.information_source_url);
-  if (!item.public_description && !item.intended_use && !item.usage_instructions && !source) return null;
-  return <details className="text-xs font-normal"><summary className="cursor-pointer text-primary">Informações do produto</summary><div className="space-y-2 whitespace-pre-line py-2">{item.public_description && <p>{item.public_description}</p>}{item.intended_use && <p><strong>Para que serve: </strong>{item.intended_use}</p>}{item.usage_instructions && <p><strong>Orientações de uso: </strong>{item.usage_instructions}</p>}{source && <a href={source} target="_blank" rel="noopener noreferrer" className="text-primary underline">Consultar fonte</a>}</div></details>;
+  if (!item.public_description && !item.intended_use && !item.usage_instructions && !source)
+    return null;
+  return (
+    <details className="text-xs font-normal">
+      <summary className="cursor-pointer text-primary">Informações do produto</summary>
+      <div className="space-y-2 whitespace-pre-line py-2">
+        {item.public_description && <p>{item.public_description}</p>}
+        {item.intended_use && (
+          <p>
+            <strong>Para que serve: </strong>
+            {item.intended_use}
+          </p>
+        )}
+        {item.usage_instructions && (
+          <p>
+            <strong>Orientações de uso: </strong>
+            {item.usage_instructions}
+          </p>
+        )}
+        {source && (
+          <a
+            href={source}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary underline"
+          >
+            Consultar fonte
+          </a>
+        )}
+      </div>
+    </details>
+  );
 }

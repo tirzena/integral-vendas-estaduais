@@ -81,7 +81,7 @@ export function CancellationReviewQueue() {
               crédito se o cancelamento for aprovado.
             </p>
             {request.requested_by === userId || request.seller_id === userId ? (
-              <p>Outro responsável deve revisar esta solicitação.</p>
+              <p>Você solicitou este cancelamento ou é o vendedor do pedido. Outro aprovador autorizado deve revisar em Aprovações → Pedidos. O cancelamento continua em análise.</p>
             ) : (
               <>
                 <label className="grid gap-1 text-sm">
