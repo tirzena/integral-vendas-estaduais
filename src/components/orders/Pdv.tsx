@@ -1092,7 +1092,6 @@ export function Pdv({
     const { data: workflowEnabled, error: workflowError } = await (supabase as any).rpc("remuneration_sales_workflow_enabled");
     if (workflowError) return void toast.error("Não foi possível conferir o fluxo de aprovação. Tente novamente.");
     const requiresReview = kind !== "orcamento" && workflowEnabled === true;
-    if (requiresReview && sourceOrderId) return void toast.error("Para alterar este pedido, abra seus detalhes e use Solicitar alteração. A revisão será registrada na fila de aprovações.");
     if (requiresReview && (payments.length > 0 || useCustomerCredit)) return void toast.error("Envie o pedido para aprovação sem pagamentos. Após aprovado, registre o pagamento e o comprovante nos detalhes do pedido.");
     if (kind !== "orcamento" && (commissionPreview.pending || commissionPreview.error)) {
       return void toast.error(commissionPreview.error?.message ?? "Aguarde a conferência da comissão e confira o vendedor e a cotação.");
@@ -1180,9 +1179,20 @@ export function Pdv({
       if (exchangeMode === "manual" && !selectedExchange)
         throw new Error("Informe cotações manuais válidas, maiores que zero.");
       if (requiresReview) {
-        const { data: created, error } = await (supabase as any).rpc("remuneration_create_order", {
+        const { data: created, error } = await (supabase as any).rpc(sourceOrderId ? "integral_submit_order_edit" : "remuneration_create_order", {
           p_request_id: creationRequestId.current,
-          p_args: {
+              ...(sourceOrderId ? {p_reason: "Revisão e envio do pedido para aprovação"} : {}),
+          p_args: sourceOrderId ? {
+                p_previous_order_id: sourceOrderId, p_customer_id: customerId || null,
+                p_product_id: scoped ? productId : null, p_currency: currency,
+                p_discount: generalDiscount, p_shipping_cost: freight,
+                p_shipping_percentage: shippingPercentage, p_notes: notes || null,
+                p_whatsapp: whatsapp || null, p_items: orderItems,
+                p_warehouse_id: warehouseId, p_shipping_address: storedShippingAddress,
+                p_shipping_city: shippingCity, p_shipping_state: shippingState,
+                p_delivery_deadline: deliveryDeadline || null, p_carrier: carrier,
+                p_tracking_code: trackingCode,
+              } : {
             p_kind: "pre_pedido", p_customer_id: customerId || null,
             p_product_id: scoped ? productId : null, p_currency: currency,
             p_discount: generalDiscount, p_shipping_cost: freight,
@@ -1191,6 +1201,7 @@ export function Pdv({
             p_whatsapp: whatsapp || null, p_origin: "pdv", p_items: orderItems, p_payments: [],
           },
           p_followup: {
+                delivered_at: deliveredAt || null,
             seller_id: selectedSellerId, warehouse_id: warehouseId,
             shipping_address: storedShippingAddress, shipping_city: shippingCity, shipping_state: shippingState,
             shipping_country: shippingCountry || null, shipping_address_number: shippingAddressNumber.trim() || null,
@@ -1207,7 +1218,7 @@ export function Pdv({
           } : {}),
         });
         if (error) throw error;
-        toast.success(`Pedido ${created?.number ?? ""} enviado para aprovação.`);
+        toast.success(created?.pending_approval ? "Alteração enviada para aprovação. O pedido permanece inalterado até a revisão." : `Pedido ${created?.number ?? ""} enviado para aprovação.`);
         clearSale();
         queryClient.invalidateQueries();
         if (userId) localStorage.removeItem(orderDraftStorageKey(userId));
