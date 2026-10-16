@@ -1,3 +1,6 @@
+import { useOperationalAccess } from "@/hooks/useOperationalAccess";
+import { CompanyReadOnlyView } from "@/components/finance/CompanyReadOnlyView";
+import { LogisticsConsole } from "@/components/orders/LogisticsConsole";
 import { OperationalFilters, useOperationalFilters } from "@/components/common/OperationalFilters";
 import { enrichOperationalRow, filterOperationalRows } from "@/lib/operational-filters";
 import { ReportButton } from "@/components/common/ReportButton";
@@ -121,7 +124,7 @@ function logisticsStage(order: any): LogisticsStage {
   return "ajuste_entrega";
 }
 
-function Entregas() {
+function EntregasBase() {
   const { isAdmin } = useCurrentUser();
   const { can, loading: permissionsLoading } = usePermissions();
   const estadualAccess = useEstadualAccess();
@@ -902,4 +905,18 @@ function Entregas() {
       </Dialog>
     </div>
   );
+}
+
+function Entregas() {
+  const operational = useOperationalAccess();
+  const { isAdmin,roles,loading } = useCurrentUser();
+  if (loading || operational.isLoading) return <p className="p-4 text-sm text-muted-foreground">Conferindo acesso…</p>;
+  
+  if (!isAdmin && (operational.logistics || (operational.dispatch && roles.includes("entregador") && !roles.includes("vendedor")))) return <LogisticsConsole />;
+  if (isAdmin) return <Tabs defaultValue="acompanhamento" className="space-y-4">
+    <TabsList><TabsTrigger value="acompanhamento">Acompanhamento</TabsTrigger><TabsTrigger value="operacoes">Operações e fretes</TabsTrigger></TabsList>
+    <TabsContent value="acompanhamento"><EntregasBase /></TabsContent>
+    <TabsContent value="operacoes"><LogisticsConsole /></TabsContent>
+  </Tabs>;
+  return <EntregasBase />;
 }

@@ -268,9 +268,9 @@ function RankingPage() {
         <TabsContent value="regras" className="pt-4">
           <ResourcePage
             title="Regras de bonificação"
-            description="Defina a meta e o prêmio. Quem bater a meta entra na lista de bonificações."
+            description="Regras anteriores para consulta. Configure metas e bonificações em Financeiro → Políticas de remuneração."
             table="bonus_rules"
-            canWrite={isAdmin}
+            canWrite={false}
             searchKeys={["name"]}
             emptyTitle="Nenhuma regra criada"
             emptyDescription="Crie uma regra, por exemplo: 20 pedidos no mês rende US$ 200."
@@ -358,7 +358,7 @@ function RankingPage() {
         </TabsContent>
 
         <TabsContent value="bonificacoes" className="pt-4">
-          <BonusAwards canWrite={isAdmin} />
+          <BonusAwards canWrite={false} />
         </TabsContent>
       </Tabs>
     </div>

@@ -1,3 +1,4 @@
+import { PaymentProofLink } from "@/components/orders/PaymentProofFile";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -33,6 +34,7 @@ type Receipt = {
     id: string;
     type: string;
     url: string | null;
+    path?: string | null;
     name: string | null;
   }>;
 };
@@ -50,14 +52,11 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
     queryKey: ["finance-pending-receipts", userId, productId, page],
     enabled: allowed && !viewAs,
     queryFn: async () => {
-      const result = await (supabase as any).rpc(
-        "integral_pending_payment_receipts",
-        {
-          p_product_id: productId === "todos" ? null : productId,
-          p_offset: page * 25,
-          p_limit: 25,
-        },
-      );
+      const result = await (supabase as any).rpc("integral_pending_payment_receipts", {
+        p_product_id: productId === "todos" ? null : productId,
+        p_offset: page * 25,
+        p_limit: 25,
+      });
       if (result.error) throw result.error;
       return result.data as { total: number; rows: Receipt[] };
     },
@@ -65,12 +64,9 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
   });
   const confirm = useMutation({
     mutationFn: async (receipt: Receipt) => {
-      const result = await (supabase as any).rpc(
-        "finance_confirm_seller_payment",
-        {
-          p_payment_id: receipt.payment_id,
-        },
-      );
+      const result = await (supabase as any).rpc("finance_confirm_seller_payment", {
+        p_payment_id: receipt.payment_id,
+      });
       if (result.error) throw result.error;
       return result.data;
     },
@@ -82,6 +78,9 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
           [
             "finance-pending-receipts",
             "finance-summary",
+            "financial-closure-queue",
+            "order-approval-queue",
+            "cancellation-review-queue",
             "my-finance",
             "sales-docs",
             "sales-order-detail",
@@ -105,7 +104,9 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
     );
   const proofLinks = (receipt: Receipt) =>
     receipt.proofs.map((proof) =>
-      proof.url && /^https:\/\//i.test(proof.url) ? (
+      proof.path && proof.type !== "recibo_sistema" ? (
+        <PaymentProofLink key={proof.id} path={proof.path} name={proof.name} />
+      ) : proof.url && /^https:\/\//i.test(proof.url) ? (
         <a
           key={proof.id}
           href={proof.url}
@@ -129,9 +130,8 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
         <div>
           <h2 className="font-semibold">Pagamentos para conferir</h2>
           <p className="text-sm text-muted-foreground">
-            Recebimentos informados pelos vendedores. Confira o comprovante
-            antes de confirmar. Esta fila mostra todas as pendências da
-            categoria selecionada.
+            Recebimentos informados pelos vendedores. Confira o comprovante antes de confirmar. Esta
+            fila mostra todas as pendências da categoria selecionada.
           </p>
         </div>
         <Button
@@ -142,9 +142,7 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
           Atualizar fila
         </Button>
       </div>
-      {query.isPending && (
-        <p className="text-sm text-muted-foreground">Carregando pendências…</p>
-      )}
+      {query.isPending && <p className="text-sm text-muted-foreground">Carregando pendências…</p>}
       {query.isError && (
         <p role="alert" className="text-sm text-destructive">
           Não foi possível carregar as pendências. Tente atualizar a fila.
@@ -169,18 +167,13 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
                   {formatDate(receipt.paid_at || receipt.created_at)}
                 </p>
               </div>
-              <Button
-                disabled={confirm.isPending}
-                onClick={() => setSelected(receipt)}
-              >
+              <Button disabled={confirm.isPending} onClick={() => setSelected(receipt)}>
                 Conferir pagamento
               </Button>
             </div>
             <dl className="grid gap-3 text-sm sm:grid-cols-3">
               <div>
-                <dt className="text-muted-foreground">
-                  Recebido · {receipt.method}
-                </dt>
+                <dt className="text-muted-foreground">Recebido · {receipt.method}</dt>
                 <dd>
                   {formatMoney(
                     Number(receipt.received_amount ?? receipt.amount),
@@ -193,17 +186,11 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
                 <dd>{formatMoney(Number(receipt.amount), receipt.currency)}</dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">
-                  Saldo antes da confirmação
-                </dt>
-                <dd>
-                  {formatMoney(Number(receipt.remaining), receipt.currency)}
-                </dd>
+                <dt className="text-muted-foreground">Saldo antes da confirmação</dt>
+                <dd>{formatMoney(Number(receipt.remaining), receipt.currency)}</dd>
               </div>
             </dl>
-            <div className="flex flex-wrap gap-3 text-sm">
-              {proofLinks(receipt)}
-            </div>
+            <div className="flex flex-wrap gap-3 text-sm">{proofLinks(receipt)}</div>
           </CardContent>
         </Card>
       ))}
@@ -223,9 +210,7 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
             <Button
               variant="outline"
               disabled={
-                (page + 1) * 25 >= query.data.total ||
-                query.isFetching ||
-                confirm.isPending
+                (page + 1) * 25 >= query.data.total || query.isFetching || confirm.isPending
               }
               onClick={() => setPage(page + 1)}
             >
@@ -244,8 +229,8 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
           <DialogHeader>
             <DialogTitle>Confirmar recebimento</DialogTitle>
             <DialogDescription>
-              A confirmação atualiza o saldo do pedido e a baixa proporcional de
-              estoque, quando aplicável.
+              A confirmação atualiza o saldo do pedido e a baixa proporcional de estoque, quando
+              aplicável.
             </DialogDescription>
           </DialogHeader>
           {selected && (
@@ -264,10 +249,7 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
                 </strong>{" "}
                 · {selected.method}
               </p>
-              <p>
-                Crédito no pedido:{" "}
-                {formatMoney(Number(selected.amount), selected.currency)}
-              </p>
+              <p>Crédito no pedido: {formatMoney(Number(selected.amount), selected.currency)}</p>
               <div className="flex flex-wrap gap-3">{proofLinks(selected)}</div>
             </div>
           )}
@@ -283,9 +265,7 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
               disabled={!selected || confirm.isPending}
               onClick={() => selected && confirm.mutate(selected)}
             >
-              {confirm.isPending
-                ? "Confirmando…"
-                : "Conferi e confirmo o recebimento"}
+              {confirm.isPending ? "Confirmando…" : "Conferi e confirmo o recebimento"}
             </Button>
           </DialogFooter>
         </DialogContent>

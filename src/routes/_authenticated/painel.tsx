@@ -1,3 +1,6 @@
+import { useOperationalAccess } from "@/hooks/useOperationalAccess";
+import { CompanyReadOnlyView } from "@/components/finance/CompanyReadOnlyView";
+import { LogisticsConsole } from "@/components/orders/LogisticsConsole";
 import { DashboardApprovalNotice } from "@/components/finance/OrderApprovalQueue";
 import { getPurchasePositions } from "@/lib/purchase-position.functions";
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -82,7 +85,7 @@ function formatKpiMoney(value: number | null, currency: Currency) {
   return formatMoney(value, currency);
 }
 
-function Painel() {
+function PainelBase() {
   const { products } = useProductScope();
   const { profile, isAdmin } = useCurrentUser();
   const queryClient = useQueryClient();
@@ -249,7 +252,6 @@ function Painel() {
 
   if (isLoading) return (
     <div className="space-y-4">
-      <DashboardApprovalNotice />
       <PageHeader title="Controle estadual" description="Consultando os dados da operação." />
       <Card><CardContent className="pt-6">
         <p role="status" aria-live="polite">Carregando pedidos, clientes e estoque…</p>
@@ -923,6 +925,7 @@ function Painel() {
 
   return (
     <div>
+      <DashboardApprovalNotice />
       <PageHeader
         title={seesCompanySales ? "Controle estadual" : "Visão operacional"}
         description={
@@ -1364,4 +1367,13 @@ function Painel() {
 
     </div>
   );
+}
+
+function Painel() {
+  const operational = useOperationalAccess();
+  const { isAdmin,roles,loading } = useCurrentUser();
+  if (loading || operational.isLoading) return <p className="p-4 text-sm text-muted-foreground">Conferindo acesso…</p>;
+  if (!isAdmin && operational.companyObserver) return <CompanyReadOnlyView />;
+  if (!isAdmin && operational.dispatch && roles.includes("entregador") && !roles.includes("vendedor")) return <LogisticsConsole />;
+  return <PainelBase />;
 }

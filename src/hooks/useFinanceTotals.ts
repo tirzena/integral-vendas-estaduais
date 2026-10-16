@@ -44,8 +44,9 @@ export function useFinanceTotals(period: RankingPeriod, productId: string | "tod
         withdrawals,
         orderItems,
         purchasePositions,
+        lossResolutions,
       ] = await Promise.all([
-        all(scoped(db.from("orders").select("*").is("deleted_at", null).is("superseded_at", null))),
+        all(scoped(db.from("orders").select("*").is("deleted_at", null).is("superseded_at", null).or("approval_status.is.null,approval_status.eq.approved"))),
         all(db.from("payments").select("*")),
         all(db.from("purchase_orders").select("*,purchase_order_items(*)")),
         all(db.from("purchase_payments").select("*")),
@@ -67,8 +68,10 @@ export function useFinanceTotals(period: RankingPeriod, productId: string | "tod
         ),
         all(db.from("order_items").select("id,order_id,item_id,quantity,total")),
         getPurchasePositions(),
+        all(db.from("order_loss_resolutions").select("order_id,resolution,merchandise_cost,freight_cost,currency,recorded_at")),
       ]);
       return {
+        lossResolutions,
         purchasePositions,
         orders,
         orderItems,

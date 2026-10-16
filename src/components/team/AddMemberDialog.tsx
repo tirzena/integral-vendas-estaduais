@@ -1,3 +1,4 @@
+import { MemberPolicySummary } from "@/components/team/MemberPolicySummary";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
@@ -152,13 +153,11 @@ export function AddMemberDialog() {
             job_role_id,
             job_level_id: level || null,
           })),
-          deals: deals
-            .filter((d) => d.amount !== "")
-            .map((d) => ({ ...d, amount: Number(d.amount) })),
+          deals: [],
         },
       });
-      setActivation(result.activationLink);
-      toast.success("Cadastro completo. Copie o link individual de ativação.");
+      setActivation(result.id);
+      toast.success("Membro cadastrado com a senha inicial definida pelo administrador.");
       await client.invalidateQueries();
     } catch (e) {
       toast.error((e as Error).message);
@@ -183,18 +182,22 @@ export function AddMemberDialog() {
           <DialogTitle>Cadastrar membro · {step + 1}/5</DialogTitle>
         </DialogHeader>
         {activation ? (
-          <div className="space-y-3">
-            <p>
-              Cadastro concluído. O membro define a própria senha pelo link individual de ativação.
+          <div className="space-y-4">
+            <p className="font-medium">
+              Membro cadastrado. O acesso utiliza a senha inicial definida pelo administrador.
             </p>
-            <Input readOnly value={activation} />
+            <p className="text-sm text-muted-foreground">
+              No primeiro acesso, o membro verá a sugestão de atualizar e-mail e senha em
+              Configurações.
+            </p>
+            <MemberPolicySummary jobIds={Object.keys(jobs)} roles={roles} memberId={activation} />
             <Button
-              onClick={async () => {
-                await navigator.clipboard.writeText(activation);
-                toast.success("Link copiado.");
+              onClick={() => {
+                setOpen(false);
+                reset();
               }}
             >
-              Copiar link de ativação
+              Concluir
             </Button>
           </div>
         ) : (
@@ -227,8 +230,9 @@ export function AddMemberDialog() {
                   ),
                 )}
                 <p className="text-sm text-muted-foreground sm:col-span-2">
-                  O acesso inicial será feito por link individual de ativação. Nenhuma senha
-                  compartilhada será usada.
+                  O acesso inicial utiliza a senha padrão definida pelo administrador. O membro
+                  poderá atualizar e-mail e senha em Configurações. Nenhuma senha compartilhada será
+                  usada.
                 </p>
               </div>
             )}
@@ -531,182 +535,7 @@ export function AddMemberDialog() {
             )}
             {step === 4 && (
               <div className="space-y-4">
-                {deals.map((d, index) => (
-                  <div key={index} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-3">
-                    <Input
-                      placeholder="Nome do acordo"
-                      value={d.label}
-                      onChange={(e) =>
-                        setDeals(
-                          deals.map((v, i) => (i === index ? { ...v, label: e.target.value } : v)),
-                        )
-                      }
-                    />
-                    <select
-                      className={field}
-                      value={d.comp_type}
-                      onChange={(e) =>
-                        setDeals(
-                          deals.map((v, i) =>
-                            i === index ? { ...v, comp_type: e.target.value as any } : v,
-                          ),
-                        )
-                      }
-                    >
-                      <option value="percent">Comissão %</option>
-                      <option value="fixed">Valor fixo</option>
-                    </select>
-                    <Input
-                      type="number"
-                      min="0"
-                      placeholder="Valor"
-                      value={d.amount}
-                      onChange={(e) =>
-                        setDeals(
-                          deals.map((v, i) => (i === index ? { ...v, amount: e.target.value } : v)),
-                        )
-                      }
-                    />
-                    <select
-                      className={field}
-                      value={d.product_id}
-                      onChange={(e) =>
-                        setDeals(
-                          deals.map((v, i) =>
-                            i === index
-                              ? {
-                                  ...v,
-                                  product_id: e.target.value,
-                                  category_id: "",
-                                }
-                              : v,
-                          ),
-                        )
-                      }
-                    >
-                      <option value="">Todas as categorias</option>
-                      {products.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      className={field}
-                      value={d.category_id}
-                      onChange={(e) =>
-                        setDeals(
-                          deals.map((v, i) =>
-                            i === index ? { ...v, category_id: e.target.value, item_id: "" } : v,
-                          ),
-                        )
-                      }
-                    >
-                      <option value="">Todas as subcategorias</option>
-                      {(categories.data ?? [])
-                        .filter((c) => c.product_id === d.product_id)
-                        .map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}
-                          </option>
-                        ))}
-                    </select>
-                    <label className="grid gap-1 text-xs">
-                      Produto individual (opcional)
-                      <select
-                        className={field}
-                        value={d.item_id}
-                        onChange={(e) => {
-                          const item = (items.data ?? []).find(
-                            (item) => item.id === e.target.value,
-                          );
-                          setDeals(
-                            deals.map((v, i) =>
-                              i === index
-                                ? {
-                                    ...v,
-                                    item_id: e.target.value,
-                                    ...(item
-                                      ? {
-                                          product_id: item.product_id,
-                                          category_id: item.category_id ?? "",
-                                        }
-                                      : {}),
-                                  }
-                                : v,
-                            ),
-                          );
-                        }}
-                      >
-                        <option value="">Todos do escopo escolhido</option>
-                        {(items.data ?? [])
-                          .filter(
-                            (item) =>
-                              selected.includes(item.product_id) &&
-                              (!d.product_id || item.product_id === d.product_id) &&
-                              (!d.category_id || item.category_id === d.category_id) &&
-                              !excludedItems.includes(item.id) &&
-                              !excludedCategories.includes(item.category_id),
-                          )
-                          .map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.name}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
-                    <Input
-                      placeholder="Condições do acordo (opcional)"
-                      maxLength={2000}
-                      value={d.notes}
-                      onChange={(e) =>
-                        setDeals(
-                          deals.map((v, i) => (i === index ? { ...v, notes: e.target.value } : v)),
-                        )
-                      }
-                    />
-                    <select
-                      className={field}
-                      value={d.currency}
-                      onChange={(e) =>
-                        setDeals(
-                          deals.map((v, i) =>
-                            i === index ? { ...v, currency: e.target.value as any } : v,
-                          ),
-                        )
-                      }
-                    >
-                      {["USD", "BRL", "PYG"].map((c) => (
-                        <option key={c}>{c}</option>
-                      ))}
-                    </select>
-                    <select
-                      className={field}
-                      value={d.period}
-                      onChange={(e) =>
-                        setDeals(
-                          deals.map((v, i) =>
-                            i === index ? { ...v, period: e.target.value as any } : v,
-                          ),
-                        )
-                      }
-                    >
-                      <option value="per_sale">Por venda</option>
-                      <option value="day">Diário</option>
-                      <option value="week">Semanal</option>
-                      <option value="month">Mensal</option>
-                    </select>
-                    <Button
-                      variant="ghost"
-                      onClick={() => setDeals(deals.filter((_, i) => i !== index))}
-                    >
-                      Remover acordo
-                    </Button>
-                  </div>
-                ))}
-                <Button variant="outline" onClick={() => setDeals([...deals, deal()])}>
-                  Outro acordo
-                </Button>
+                <MemberPolicySummary jobIds={Object.keys(jobs)} roles={roles} />
                 <div className="rounded-lg bg-muted p-4 text-sm">
                   <p className="font-semibold">Resumo antes de concluir</p>
                   <p>
@@ -741,7 +570,17 @@ export function AddMemberDialog() {
                     .map((d, i) => (
                       <p key={i}>
                         {d.label || "Acordo"}: {d.amount}
-                        {d.comp_type === "percent" ? "%" : " " + d.currency} · {d.period}
+                        {d.comp_type === "percent" ? "%" : " " + d.currency} · {d.period} ·{" "}
+                        {d.item_id
+                          ? (items.data ?? []).find((item) => item.id === d.item_id)?.name
+                          : d.category_id
+                            ? (categories.data ?? []).find(
+                                (category) => category.id === d.category_id,
+                              )?.name
+                            : d.product_id
+                              ? products.find((product) => product.id === d.product_id)?.name
+                              : "Geral"}
+                        {d.notes ? " · " + d.notes : ""}
                       </p>
                     ))}
                 </div>

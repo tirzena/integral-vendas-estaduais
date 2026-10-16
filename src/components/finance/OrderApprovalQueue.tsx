@@ -1,3 +1,6 @@
+import { OrderApprovals } from "@/components/admin/OrderApprovals";
+import { CancellationReviewQueue, usePendingCancellations } from "./CancellationReviewQueue";
+import { FinancialClosureQueue, usePendingFinancialClosures } from "./FinancialClosureQueue";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -12,8 +15,8 @@ import { formatMoney } from "@/lib/format";
 
 const db = supabase as any;
 export function useOrderApprovalQueue() {
-  const { userId, isAdmin, roles } = useCurrentUser();
-  const allowed = isAdmin || roles.includes("financeiro");
+  const { userId, isAdmin, roles, viewAs } = useCurrentUser();
+  const allowed = !viewAs && (isAdmin || roles.includes("financeiro"));
   const query = useQuery({
     queryKey: ["order-approval-queue", userId],
     enabled: allowed,
@@ -29,6 +32,21 @@ export function useOrderApprovalQueue() {
 
 export function DashboardApprovalNotice() {
   const queue = useOrderApprovalQueue();
+  const closures = usePendingFinancialClosures();
+  const cancellations = usePendingCancellations();
+  const revisions = useQuery({
+    queryKey: ["order-change-requests", "count"],
+    enabled: queue.allowed,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const { count, error } = await db
+        .from("order_change_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending");
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
   if (!queue.allowed) return null;
   return (
     <a
@@ -44,7 +62,18 @@ export function DashboardApprovalNotice() {
               ? "Conferindo pendências…"
               : `${queue.data?.pending_count ?? 0} pedido(s) aguardando revisão`}
         </p>
+        {!!closures.data?.length && (
+          <p className="text-sm text-muted-foreground">
+            {closures.data.length} quitação(ões) para baixa financeira
+          </p>
+        )}
       </div>
+      {!!revisions.data && (
+        <span className="text-sm">{revisions.data} alteração(ões) para revisão</span>
+      )}
+      {!!cancellations.data?.length && (
+        <span className="text-sm">{cancellations.data.length} cancelamento(s) para revisão</span>
+      )}
       <span className="text-sm font-medium text-primary">Abrir fila →</span>
     </a>
   );
@@ -219,6 +248,9 @@ export function OrderApprovalQueue() {
           ))}
         </>
       )}
+      <CancellationReviewQueue />
+      <OrderApprovals />
+      <FinancialClosureQueue />
       <Dialog
         open={!!selected}
         onOpenChange={(v) => {

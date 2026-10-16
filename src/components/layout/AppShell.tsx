@@ -1,3 +1,5 @@
+import { useOperationalAccess } from "@/hooks/useOperationalAccess";
+import { InitialMemberAccessNotice } from "@/components/layout/InitialMemberAccessNotice";
 import { applyTheme, readSavedTheme, THEME_STORAGE_KEY } from "@/lib/theme";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
@@ -108,7 +110,11 @@ export const NAV_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
 
 /* Aba exclusiva da administração. */
 const ADMIN_NAV_ITEM = { to: "/admin", label: "Visão interna (admin)", icon: ShieldCheck } as const;
-const DIVISION_NAV_ITEM = { to: "/sistemas-divisionais", label: "Integrações e APIs", icon: Settings } as const;
+const DIVISION_NAV_ITEM = {
+  to: "/sistemas-divisionais",
+  label: "Integrações e APIs",
+  icon: Settings,
+} as const;
 const SUPPLIER_NAV_ITEM = {
   to: "/fornecedor",
   label: "Meu fornecimento",
@@ -118,6 +124,7 @@ const SUPPLIER_NAV_ITEM = {
 function NavList({ onNavigate, collapsed }: { onNavigate?: () => void; collapsed?: boolean }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { isAdmin: realAdmin, roles } = useCurrentUser();
+  const operational = useOperationalAccess();
   const { canOpen, viewAs } = usePermissions();
   const isAdmin = viewAs ? false : realAdmin;
   const sellerOnly = roles.includes("vendedor") && !isAdmin && roles.every((role) => role === "vendedor");
@@ -130,9 +137,8 @@ function NavList({ onNavigate, collapsed }: { onNavigate?: () => void; collapsed
     "/acessos",
     "/autenticidade",
     "/integracoes",
-    "/configuracoes",
   ]);
-  const groups = [
+  const normalGroups = [
     ...NAV_GROUPS.map((g) => ({
       label: g.label,
       items: [
@@ -142,6 +148,32 @@ function NavList({ onNavigate, collapsed }: { onNavigate?: () => void; collapsed
     })),
 
   ].filter((g) => g.items.length > 0);
+
+  const groups =
+    !isAdmin &&
+    !roles.includes("vendedor") &&
+    (operational.companyObserver || (operational.dispatch && roles.includes("entregador")))
+      ? [
+          {
+            label: "Minha operação",
+            items: [
+              {
+                to: "/painel",
+                label: operational.companyObserver ? "Visão da empresa" : "Despacho e logística",
+                icon: LayoutDashboard,
+              },
+              { to: "/entregas", label: "Transporte e rastreios", icon: Truck },
+              {
+                to: "/financeiro",
+                label: operational.companyObserver ? "Consulta financeira" : "Meus pagamentos",
+                icon: Coins,
+              },
+              { to: "/guia-de-estudo", label: "Guia de estudo", icon: BookOpen },
+              { to: "/configuracoes", label: "Meu perfil e acesso", icon: Settings },
+            ],
+          },
+        ]
+      : normalGroups;
 
   return (
     <nav className="flex flex-col gap-3 px-2 pb-6">
@@ -191,10 +223,16 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { products, productId, setProductId, canSeeAll } = useProductScope();
   const rates = useRates();
 
-  useEffect(() => { applyTheme(theme); }, [theme]);
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
   useEffect(() => {
     const syncTheme = (event: StorageEvent) => {
-      if (event.key === THEME_STORAGE_KEY && (event.newValue === "light" || event.newValue === "dark")) setTheme(event.newValue);
+      if (
+        event.key === THEME_STORAGE_KEY &&
+        (event.newValue === "light" || event.newValue === "dark")
+      )
+        setTheme(event.newValue);
     };
     window.addEventListener("storage", syncTheme);
     return () => window.removeEventListener("storage", syncTheme);
@@ -248,9 +286,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </SheetTrigger>
             <SheetContent side="left" className="w-72 overflow-y-auto bg-sidebar p-0">
               <SheetTitle className="px-4 pt-5">
-                <span className="integral-brand-word text-sidebar-foreground">
-                  sistemaintegral
-                </span>
+                <span className="integral-brand-word text-sidebar-foreground">sistemaintegral</span>
               </SheetTitle>
               <div className="pt-4">
                 <NavList onNavigate={() => setMobileOpen(false)} />
@@ -270,7 +306,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           <div className="integral-role hidden items-center gap-2 rounded-lg border px-3 py-1.5 text-xs lg:flex">
             <ShieldCheck className="size-4 text-primary" />
-            <span><strong className="block truncate font-semibold">{roles.map((role) => ROLE_LABELS[role]).join(" · ") || "Equipe"}</strong><small className="text-muted-foreground">Acesso protegido</small></span>
+            <span>
+              <strong className="block truncate font-semibold">
+                {roles.map((role) => ROLE_LABELS[role]).join(" · ") || "Equipe"}
+              </strong>
+              <small className="text-muted-foreground">Acesso protegido</small>
+            </span>
           </div>
 
           <Button
@@ -298,9 +339,21 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Select>
 
           <div className="integral-rate-strip" aria-label="Cotações atuais">
-            <span><b>BRL</b> R$ {rates.factors["USD-BRL"]?.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? "—"}</span>
-            <span><b>USD</b> $ 1,00</span>
-            <span><b>PYG</b> Gs. {rates.factors["USD-PYG"]?.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) ?? "—"}</span>
+            <span>
+              <b>BRL</b> R${" "}
+              {rates.factors["USD-BRL"]?.toLocaleString("pt-BR", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              }) ?? "—"}
+            </span>
+            <span>
+              <b>USD</b> $ 1,00
+            </span>
+            <span>
+              <b>PYG</b> Gs.{" "}
+              {rates.factors["USD-PYG"]?.toLocaleString("pt-BR", { maximumFractionDigits: 0 }) ??
+                "—"}
+            </span>
           </div>
 
           <Button variant="ghost" size="icon" asChild aria-label="Chat interno">
@@ -313,7 +366,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           <NotificationsMenu />
 
-          <Button variant="ghost" size="icon" aria-label={theme === "dark" ? "Ativar tema claro" : "Ativar tema escuro"} onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={theme === "dark" ? "Ativar tema claro" : "Ativar tema escuro"}
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          >
             {theme === "dark" ? <Sun className="size-5" /> : <Moon className="size-5" />}
           </Button>
 
@@ -324,7 +382,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <AvatarImage src={profile?.avatar_url ?? undefined} />
                   <AvatarFallback>{initials(profile?.full_name ?? email)}</AvatarFallback>
                 </Avatar>
-                <span className="integral-profile-name hidden max-w-28 truncate text-xs font-semibold xl:inline">{profile?.full_name || email}</span>
+                <span className="integral-profile-name hidden max-w-28 truncate text-xs font-semibold xl:inline">
+                  {profile?.full_name || email}
+                </span>
                 <ChevronDown className="hidden size-4 xl:inline" />
               </Button>
             </DropdownMenuTrigger>
@@ -360,6 +420,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
 
         <main className="integral-main min-w-0 flex-1 px-3 py-5 md:px-6 md:py-7">
+          <InitialMemberAccessNotice />
           {loading ? <div className="text-sm text-muted-foreground">Carregando…</div> : children}
         </main>
       </div>

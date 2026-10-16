@@ -27,13 +27,18 @@ export const Route = createFileRoute("/_authenticated/configuracoes")({
 });
 
 function Configuracoes() {
-  const { profile, email, roles, userId, isAdmin } = useCurrentUser();
+  const { profile, email, roles, userId, isAdmin, viewAs } = useCurrentUser();
   const queryClient = useQueryClient();
   const [form, setForm] = useState<any>({});
   const [saving, setSaving] = useState(false);
   const [whatsapp, setWhatsapp] = useState("");
   const [savingWhatsapp, setSavingWhatsapp] = useState(false);
   const [password, setPassword] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [savingEmail, setSavingEmail] = useState(false);
+  useEffect(() => {
+    setNewEmail(email ?? "");
+  }, [email]);
 
   const whatsappQuery = useQuery({
     queryKey: ["my-whatsapp", userId],
@@ -41,8 +46,8 @@ function Configuracoes() {
     queryFn: async () => {
       const { data, error } = await supabase.auth.getUser();
       if (error) throw error;
-      return typeof data.user.user_metadata?.whatsapp === "string"
-        ? data.user.user_metadata.whatsapp
+      return typeof data.user.user_metadata?.["whatsapp"] === "string"
+        ? data.user.user_metadata["whatsapp"]
         : "";
     },
   });
@@ -80,6 +85,7 @@ function Configuracoes() {
   }
 
   async function changePassword() {
+    if (viewAs) return void toast.error("Saia do modo espelho para alterar suas credenciais.");
     if (password.length < 6) {
       toast.error("A nova senha precisa ter ao menos 6 caracteres.");
       return;
@@ -89,6 +95,21 @@ function Configuracoes() {
     else {
       setPassword("");
       toast.success("Senha alterada.");
+    }
+  }
+
+  async function changeEmail() {
+    if (viewAs) return void toast.error("Saia do modo espelho para alterar seu e-mail.");
+    if (!/^\S+@\S+\.\S+$/.test(newEmail)) return void toast.error("Informe um e-mail válido.");
+    setSavingEmail(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ email: newEmail.trim().toLowerCase() });
+      if (error) throw error;
+      toast.success("Alteração solicitada. Confira as instruções enviadas por e-mail.");
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setSavingEmail(false);
     }
   }
 
@@ -123,6 +144,31 @@ function Configuracoes() {
 
       {isAdmin && <CompanySettingsCard />}
 
+      <Card>
+        <CardHeader>
+          <CardTitle>E-mail de acesso</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Label htmlFor="access-email">E-mail que você utiliza para entrar no sistema</Label>
+          <Input
+            id="access-email"
+            type="email"
+            value={newEmail}
+            disabled={!!viewAs}
+            onChange={(e) => setNewEmail(e.target.value)}
+          />
+          <p className="text-xs text-muted-foreground">
+            A alteração segue a confirmação de e-mail da sua conta. Sua identificação e seu
+            histórico no sistema são preservados.
+          </p>
+          <Button
+            disabled={savingEmail || !!viewAs || !newEmail || newEmail === email}
+            onClick={changeEmail}
+          >
+            {savingEmail ? "Solicitando…" : "Alterar meu e-mail"}
+          </Button>
+        </CardContent>
+      </Card>
       <Card className="mb-4">
         <CardHeader>
           <CardTitle>Meu perfil</CardTitle>

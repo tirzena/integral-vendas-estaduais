@@ -1250,6 +1250,8 @@ export function Catalogo({ section = "catalogo" }: { section?: "catalogo" | "cat
                     min={0}
                     max={100}
                     step="0.01"
+                    disabled
+                    title="Configure a comissão em Financeiro → Políticas de remuneração"
                     value={itemForm?.commission_percent ?? 5}
                     onChange={(e) =>
                       setItemForm({ ...itemForm, commission_percent: e.target.value })

@@ -272,6 +272,8 @@ export function Pdv({
   const [whatsapp, setWhatsapp] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const creationRequestId = useRef(crypto.randomUUID());
+  const submissionGuard = useRef(false);
   const [receipt, setReceipt] = useState<PrintDoc | null>(null);
   const [printFormat, setPrintFormat] = useState<PrintFormat>("80");
   const [sourceOrderId, setSourceOrderId] = useState<string | null>(null);
@@ -964,6 +966,7 @@ export function Pdv({
   }
 
   function clearSale() {
+    creationRequestId.current = crypto.randomUUID();
     setCurrency("USD");
     setExchangeMode("automatic");
     setManualBrl("");
@@ -1083,6 +1086,14 @@ export function Pdv({
   }
 
   async function finalize(kind: SaleKind) {
+    if (submissionGuard.current) return;
+    submissionGuard.current = true;
+    try {
+    const { data: workflowEnabled, error: workflowError } = await (supabase as any).rpc("remuneration_sales_workflow_enabled");
+    if (workflowError) return void toast.error("Não foi possível conferir o fluxo de aprovação. Tente novamente.");
+    const requiresReview = kind !== "orcamento" && workflowEnabled === true;
+    if (requiresReview && sourceOrderId) return void toast.error("Para alterar este pedido, abra seus detalhes e use Solicitar alteração. A revisão será registrada na fila de aprovações.");
+    if (requiresReview && (payments.length > 0 || useCustomerCredit)) return void toast.error("Envie o pedido para aprovação sem pagamentos. Após aprovado, registre o pagamento e o comprovante nos detalhes do pedido.");
     if (kind !== "orcamento" && (commissionPreview.pending || commissionPreview.error)) {
       return void toast.error(commissionPreview.error?.message ?? "Aguarde a conferência da comissão e confira o vendedor e a cotação.");
     }
@@ -1095,7 +1106,7 @@ export function Pdv({
       setStep("finalizacao");
       return void toast.error("Confira o cliente, o saldo de crédito e o valor a abater. Registre outros pagamentos após salvar.");
     }
-    if (kind === "venda" && paid !== total) {
+    if (!requiresReview && kind === "venda" && paid !== total) {
       setStep("finalizacao");
       return void toast.error("A soma dos pagamentos precisa ser igual ao total da venda.");
     }
@@ -1168,6 +1179,42 @@ export function Pdv({
         .join(", ");
       if (exchangeMode === "manual" && !selectedExchange)
         throw new Error("Informe cotações manuais válidas, maiores que zero.");
+      if (requiresReview) {
+        const { data: created, error } = await (supabase as any).rpc("remuneration_create_order", {
+          p_request_id: creationRequestId.current,
+          p_args: {
+            p_kind: "pre_pedido", p_customer_id: customerId || null,
+            p_product_id: scoped ? productId : null, p_currency: currency,
+            p_discount: generalDiscount, p_shipping_cost: freight,
+            p_shipping_percentage: shippingPercentage, p_notes: notes || null,
+            p_payment_method: null, p_payment_installments: null, p_valid_until: null,
+            p_whatsapp: whatsapp || null, p_origin: "pdv", p_items: orderItems, p_payments: [],
+          },
+          p_followup: {
+            seller_id: selectedSellerId, warehouse_id: warehouseId,
+            shipping_address: storedShippingAddress, shipping_city: shippingCity, shipping_state: shippingState,
+            shipping_country: shippingCountry || null, shipping_address_number: shippingAddressNumber.trim() || null,
+            delivery_recipient_name: deliveryRecipientName.trim(),
+            delivery_recipient_document: onlyDigits(deliveryRecipientDocument) || null,
+            shipping_cep: onlyDigits(destinationCep) || null,
+            variable_cost: internalVariableCost, order_date: orderDate || null,
+            delivery_deadline: deliveryDeadline || null, carrier, tracking_code: trackingCode,
+            item_costs: canEditCosts ? lines.filter(line => line.unit_cost != null).map(line => ({item_id: line.item_id, unit_cost: line.unit_cost})) : [],
+          },
+          p_exchange: selectedExchange ?? (systemRates.ready ? {
+            base: currency, mode: "automatic", BRL: systemRates.convert(1, currency, "BRL"),
+            USD: systemRates.convert(1, currency, "USD"), PYG: systemRates.convert(1, currency, "PYG"),
+          } : {}),
+        });
+        if (error) throw error;
+        toast.success(`Pedido ${created?.number ?? ""} enviado para aprovação.`);
+        clearSale();
+        queryClient.invalidateQueries();
+        if (userId) localStorage.removeItem(orderDraftStorageKey(userId));
+        window.dispatchEvent(new CustomEvent("os-order-draft-changed"));
+        onFinished?.();
+        return;
+      }
       const res = sourceOrderId
         ? await replaceOrderVersion({
             exchange:
@@ -1339,6 +1386,7 @@ export function Pdv({
     } finally {
       setSaving(false);
     }
+    } finally { submissionGuard.current = false; }
   }
 
   if (isLoading) {
