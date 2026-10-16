@@ -56,6 +56,7 @@ import {
   updateOrderAddressNumber,
   updatePaymentDate,
 } from "@/lib/sales";
+import { stockAvailableForRevision } from "@/lib/stock-availability";
 import { calculateOrderShipping } from "@/lib/shipping.functions";
 
 import { Badge } from "@/components/ui/badge";
@@ -119,6 +120,7 @@ type CartLine = {
 
 export type PdvDraft = {
   sourceOrderId?: string;
+  sourceStockState?: string | null;
   catalogRequest?: boolean;
   customerId?: string | null;
   useCustomerCredit?: boolean;
@@ -167,19 +169,21 @@ export function Pdv({
   draft,
   onFinished,
   readOnly = false,
+  sellerPortal = "geral",
 }: {
   productId: string;
   draft?: PdvDraft | null;
   onFinished?: () => void;
   readOnly?: boolean;
+  sellerPortal?: "geral" | "estadual";
 }) {
   const calculateShipping = useServerFn(calculateOrderShipping);
-  const { userId } = useCurrentUser();
+  const { userId, isAdmin, profile } = useCurrentUser();
   const { can, roles, seesCompanyFinance } = usePermissions();
-  const canEditCosts = roles.some((role) =>
-    ["superadmin", "admin", "financeiro"].includes(role),
-  );
-  const canManageDiscounts = can("manage_discounts");
+  const restrictedSeller = !isAdmin && roles.includes("vendedor");
+  const canEditCosts =
+    !restrictedSeller && roles.some((role) => ["superadmin", "admin", "financeiro"].includes(role));
+  const canManageDiscounts = !restrictedSeller && can("manage_discounts");
   const systemRates = useRates();
   const [exchangeMode, setExchangeMode] = useState<"automatic" | "manual">("automatic");
   const [manualBrl, setManualBrl] = useState("");
@@ -220,10 +224,12 @@ export function Pdv({
   const { data: customerCredits = [], isLoading: creditLoading } = useQuery({
     queryKey: ["customer-credit", customerId],
     queryFn: () => getCustomerCredit(customerId),
-    enabled: Boolean(customerId),
+    enabled: Boolean(customerId) && !restrictedSeller,
     staleTime: 10_000,
   });
-  const availableCredit = Number(customerCredits.find((entry) => entry.currency === currency)?.balance ?? 0);
+  const availableCredit = Number(
+    customerCredits.find((entry) => entry.currency === currency)?.balance ?? 0,
+  );
   const [counterSale, setCounterSale] = useState(false);
   const [lines, setLines] = useState<CartLine[]>([]);
   const [saleDiscount, setSaleDiscount] = useState("0");
@@ -323,8 +329,33 @@ export function Pdv({
     error: dataError,
     refetch: reloadData,
   } = useQuery({
-    queryKey: ["pdv-data", productId],
+    queryKey: ["pdv-data", productId, userId, restrictedSeller],
     queryFn: async () => {
+      if (restrictedSeller) {
+        const [portal, stock, clients] = await Promise.all([
+          (supabase as any).rpc("seller_portal_data"),
+          (supabase as any).rpc("estadual_seller_warehouse_stock"),
+          (supabase as any).rpc("estadual_seller_customers"),
+        ]);
+        for (const result of [portal, stock, clients]) if (result.error) throw result.error;
+        return {
+          items: (portal.data?.items ?? []).filter(
+            (item: any) => !scoped || item.product_id === productId,
+          ),
+          customers: clients.data ?? [],
+          customerContacts: [],
+          company: null,
+          sellerOptions: [{ id: userId, full_name: profile?.full_name ?? "Você" }],
+          warehouses: portal.data?.warehouses ?? [],
+          warehouseInventory: (stock.data ?? []).map((row: any) => ({
+            warehouse_id: row.warehouse_id,
+            item_id: row.item_id,
+            quantity: Number(row.available),
+            reserved: 0,
+            min_quantity: 0,
+          })),
+        };
+      }
       // Lista enxuta e autorizada pelo banco: sem custo, fornecedor ou local físico.
       const itemsQuery = supabase.rpc("sales_items_for_sale", {
         ...(scoped && productId ? { _product_id: productId } : {}),
@@ -335,8 +366,8 @@ export function Pdv({
         { data: customerContacts },
         { data: company },
         { data: sellerOptions, error: sellerOptionsError },
-        { data: warehouses },
-        { data: warehouseInventory },
+        { data: warehouses, error: warehousesError },
+        { data: warehouseInventory, error: warehouseInventoryError },
       ] = await Promise.all([
         itemsQuery,
         supabase
@@ -359,6 +390,8 @@ export function Pdv({
       ]);
       if (itemsError) throw itemsError;
       if (sellerOptionsError) throw sellerOptionsError;
+      if (warehousesError) throw warehousesError;
+      if (warehouseInventoryError) throw warehouseInventoryError;
       return {
         items: items ?? [],
         customers: customers ?? [],
@@ -373,10 +406,42 @@ export function Pdv({
 
   const items = useMemo(() => data?.items ?? [], [data?.items]);
   const customers = useMemo(() => data?.customers ?? [], [data?.customers]);
-  const customer = customers.find((c: any) => c.id === customerId) ?? null;
+  const selectedCustomerQuery = useQuery({
+    queryKey: ["pdv-selected-customer", customerId],
+    enabled: Boolean(customerId && !customers.some((entry: any) => entry.id === customerId)),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("id,name,document,phone,whatsapp,email,address,city,state")
+        .eq("id", customerId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+  const customer =
+    customers.find((c: any) => c.id === customerId) ?? selectedCustomerQuery.data ?? null;
   const customerContacts = useMemo(() => data?.customerContacts ?? [], [data?.customerContacts]);
   const sellerOptions = useMemo(() => data?.sellerOptions ?? [], [data?.sellerOptions]);
-  const seller = sellerOptions.find((p: any) => p.id === selectedSellerId) as any;
+  const selectedSellerQuery = useQuery({
+    queryKey: ["pdv-selected-seller", selectedSellerId],
+    enabled: Boolean(
+      selectedSellerId && !sellerOptions.some((entry: any) => entry.id === selectedSellerId),
+    ),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id,full_name")
+        .eq("id", selectedSellerId)
+        .maybeSingle();
+      if (error) throw error;
+      return data ? { ...data, teams: "Vendedor atual do pedido" } : null;
+    },
+  });
+  const seller =
+    (sellerOptions.find((p: any) => p.id === selectedSellerId) as any) ??
+    selectedSellerQuery.data ??
+    null;
   const recipientOptions = useMemo(() => {
     const customerPeople = customers.map((entry: any) => ({
       id: `customer:${entry.id}`,
@@ -530,23 +595,39 @@ export function Pdv({
   }
 
   const results = useMemo(() => {
-    if (!term.trim()) return items.slice(0, 12);
+    if (!term.trim()) return items;
     const { code } = parseQuantityCode(term);
-    return items.filter((i: any) => matchItem(i, code, mode)).slice(0, 25);
+    return items.filter((i: any) => matchItem(i, code, mode));
   }, [items, term, mode]);
 
   const filteredCustomers = useMemo(() => {
     const t = customerTerm.trim().toLowerCase();
-    if (!t) return customers.slice(0, 20);
+    const selected =
+      customer && !customers.some((entry: any) => entry.id === customer.id) ? [customer] : [];
+    if (!t) {
+      const first = customers.slice(0, 20);
+      return [
+        ...selected,
+        ...(customer && !first.some((entry: any) => entry.id === customer.id) ? [customer] : []),
+        ...first,
+      ].filter(
+        (entry: any, index: number, list: any[]) =>
+          list.findIndex((candidate: any) => candidate.id === entry.id) === index,
+      );
+    }
     const digits = onlyDigits(t);
-    return customers
+    return [...selected, ...customers]
       .filter((c: any) => {
         const hay = `${c.name ?? ""} ${c.email ?? ""}`.toLowerCase();
         const nums = `${onlyDigits(c.phone)} ${onlyDigits(c.whatsapp)} ${onlyDigits(c.document)}`;
         return hay.includes(t) || (digits.length >= 3 && nums.includes(digits));
       })
+      .filter(
+        (entry: any, index: number, list: any[]) =>
+          list.findIndex((candidate: any) => candidate.id === entry.id) === index,
+      )
       .slice(0, 20);
-  }, [customers, customerTerm]);
+  }, [customers, customer, customerTerm]);
 
   useEffect(() => {
     if (!customer || !sameRecipientAsCustomer) return;
@@ -558,7 +639,8 @@ export function Pdv({
   const itemDiscounts = round2(lines.reduce((s, l) => s + l.discount, 0));
   const netAfterItems = Math.max(0, round2(gross - itemDiscounts));
   const generalDiscount = discountValue(netAfterItems, toNumber(saleDiscount), saleDiscountKind);
-  const freight = Math.max(0, round2(toNumber(shippingCost)));
+  const freight =
+    restrictedSeller && !sourceOrderId ? 0 : Math.max(0, round2(toNumber(shippingCost)));
   const internalVariableCost = Math.max(0, round2(toNumber(variableCost)));
   const total = Math.max(0, round2(netAfterItems - generalDiscount + freight));
   const manualCommissionTotal = round2(
@@ -573,16 +655,20 @@ export function Pdv({
     ),
   );
   const commissionPreview = useCommissionPreview({
-    actor: userId,
+    actor: restrictedSeller ? null : userId,
     sellerId: selectedSellerId,
     orderId: sourceOrderId,
     productId: scoped ? productId : null,
-    exchange: selectedExchange ?? (systemRates.ready ? {
-      base: currency,
-      BRL: systemRates.convert(1, currency, "BRL"),
-      USD: systemRates.convert(1, currency, "USD"),
-      PYG: systemRates.convert(1, currency, "PYG"),
-    } : null),
+    exchange:
+      selectedExchange ??
+      (systemRates.ready
+        ? {
+            base: currency,
+            BRL: systemRates.convert(1, currency, "BRL"),
+            USD: systemRates.convert(1, currency, "USD"),
+            PYG: systemRates.convert(1, currency, "PYG"),
+          }
+        : null),
     lines,
     enabled: commissionEnabled,
   });
@@ -697,6 +783,7 @@ export function Pdv({
   ]);
 
   useEffect(() => {
+    if (restrictedSeller) return;
     if (shippingCountry !== "Paraguai" && !shippingState.trim()) return;
     if (!lines.length || shippingManuallyEdited) return;
     let active = true;
@@ -739,6 +826,7 @@ export function Pdv({
       window.clearTimeout(timer);
     };
   }, [
+    restrictedSeller,
     calculateShipping,
     currency,
     shippingItemsKey,
@@ -802,17 +890,19 @@ export function Pdv({
         const balance = warehouseInventory.find(
           (row: any) => row.warehouse_id === warehouse.id && row.item_id === itemId,
         );
-        return Number(balance?.quantity ?? 0) - Number(balance?.reserved ?? 0) >= required.quantity;
+        return stockAvailableForRevision(balance, warehouse.id, itemId, draft) >= required.quantity;
       }),
     );
-  }, [requiredByItem, warehouseInventory, warehouses]);
+  }, [requiredByItem, warehouseInventory, warehouses, draft]);
 
   const warehouseHasStock = (warehouseIdToCheck: string) =>
     [...requiredByItem].every(([itemId, required]) => {
       const balance = warehouseInventory.find(
         (row: any) => row.warehouse_id === warehouseIdToCheck && row.item_id === itemId,
       );
-      return Number(balance?.quantity ?? 0) - Number(balance?.reserved ?? 0) >= required.quantity;
+      return (
+        stockAvailableForRevision(balance, warehouseIdToCheck, itemId, draft) >= required.quantity
+      );
     });
 
   const principalWarehouse = warehouses.find((warehouse: any) => warehouse.level === "principal");
@@ -944,18 +1034,21 @@ export function Pdv({
   };
 
   function addBonusLine(line: CartLine) {
-    setLines((current) => [...current, {
-      ...line,
-      key: `${line.item_id}-bonus-${Date.now()}-${current.length}`,
-      name: `Bonificação — ${line.name}`,
-      is_bonus: true,
-      quantity: 1,
-      unit_price: 0,
-      discount: 0,
-      commission_enabled: false,
-      commission_amount: 0,
-      promotion_id: null,
-    }]);
+    setLines((current) => [
+      ...current,
+      {
+        ...line,
+        key: `${line.item_id}-bonus-${Date.now()}-${current.length}`,
+        name: `Bonificação — ${line.name}`,
+        is_bonus: true,
+        quantity: 1,
+        unit_price: 0,
+        discount: 0,
+        commission_enabled: false,
+        commission_amount: 0,
+        promotion_id: null,
+      },
+    ]);
     toast.info("Item bonificado adicionado sem cobrança. Confira a quantidade total enviada.");
   }
 
@@ -1017,7 +1110,7 @@ export function Pdv({
   }
 
   async function createCustomer() {
-    if (readOnly) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
+    if (readOnly) return void toast.error("Seu acesso está somente para consulta.");
     const name = nc.name.trim();
     if (!name) return void toast.error("Informe o nome do cliente.");
     const dupe = customers.find((c: any) => {
@@ -1036,6 +1129,28 @@ export function Pdv({
       return void toast.info(
         `Este cliente já existe: ${dupe.name}. Selecionamos o cadastro atual.`,
       );
+    }
+    if (restrictedSeller) {
+      const { data: created, error } = await (supabase as any).rpc(
+        "integral_seller_create_pdv_customer",
+        {
+          p_customer: {
+            name,
+            document: nc.document || null,
+            phone: nc.phone || null,
+            email: nc.email || null,
+          },
+        },
+      );
+      if (error || !created)
+        return void toast.error(error?.message ?? "Não foi possível cadastrar o cliente.");
+      await queryClient.invalidateQueries({ queryKey: ["pdv-data", productId] });
+      await queryClient.invalidateQueries({ queryKey: ["estadual-seller-customers"] });
+      setCustomerId(created.id);
+      setNewCustomerOpen(false);
+      setNc({ name: "", document: "", phone: "", email: "" });
+      toast.success("Cliente cadastrado.");
+      return;
     }
     const { data: created, error } = await supabase
       .from("customers")
@@ -1086,180 +1201,224 @@ export function Pdv({
   }
 
   async function finalize(kind: SaleKind) {
+    if (readOnly) return void toast.error("Seu acesso está somente para consulta.");
     if (submissionGuard.current) return;
     submissionGuard.current = true;
     try {
-    const { data: workflowEnabled, error: workflowError } = await (supabase as any).rpc("remuneration_sales_workflow_enabled");
-    if (workflowError) return void toast.error("Não foi possível conferir o fluxo de aprovação. Tente novamente.");
-    const requiresReview = kind !== "orcamento" && workflowEnabled === true;
-    if (requiresReview && (payments.length > 0 || useCustomerCredit)) return void toast.error("Envie o pedido para aprovação sem pagamentos. Após aprovado, registre o pagamento e o comprovante nos detalhes do pedido.");
-    if (kind !== "orcamento" && (commissionPreview.pending || commissionPreview.error)) {
-      return void toast.error(commissionPreview.error?.message ?? "Aguarde a conferência da comissão e confira o vendedor e a cotação.");
-    }
-    if (readOnly) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
-    if (useCustomerCredit && (
-      !customerId || Boolean(sourceOrderId) || kind === "orcamento" ||
-      payments.length > 0 || !(creditToUse > 0) ||
-      creditToUse > availableCredit || creditToUse > total
-    )) {
-      setStep("finalizacao");
-      return void toast.error("Confira o cliente, o saldo de crédito e o valor a abater. Registre outros pagamentos após salvar.");
-    }
-    if (!requiresReview && kind === "venda" && paid !== total) {
-      setStep("finalizacao");
-      return void toast.error("A soma dos pagamentos precisa ser igual ao total da venda.");
-    }
-    if (kind !== "orcamento" && !warehouseId) {
-      setStep("finalizacao");
-      return void toast.error("Escolha o estoque de origem do pedido.");
-    }
-    if (kind !== "orcamento" && !selectedSellerId) {
-      setStep("finalizacao");
-      return void toast.error("Escolha o vendedor responsável pelo pedido.");
-    }
-    if (
-      kind !== "orcamento" &&
-      shippingPercentage != null &&
-      (shippingPercentage < 0 || shippingPercentage > 100)
-    ) {
-      setStep("finalizacao");
-      return void toast.error("Informe um percentual de frete entre 0% e 100%.");
-    }
-    const invalidCommission = lines.find(
-      (line) => line.commission_percent < 0 || line.commission_percent > 100,
-    );
-    if (invalidCommission) {
-      setStep("itens");
-      return void toast.error(
-        `A comissão de ${invalidCommission.name} deve ficar entre 0% e 100%.`,
+      const { data: workflowEnabled, error: workflowError } = await (supabase as any).rpc(
+        "remuneration_sales_workflow_enabled",
       );
-    }
-    if (lines.some((line) => line.unit_cost != null && (!Number.isFinite(line.unit_cost) || line.unit_cost < 0))) {
-      setStep("finalizacao");
-      return void toast.error("Informe um custo unitário válido e não negativo.");
-    }
-    if (!canManageDiscounts) {
-      const excessDiscount = lines.find((line) => {
-        const lineTotal = line.quantity * line.unit_price;
-        const usedPercent = lineTotal > 0 ? (line.discount * 100) / lineTotal : 0;
-        return usedPercent > line.max_discount_percent + 0.000001;
-      });
-      if (excessDiscount) {
-        setStep("itens");
+      if (workflowError)
+        return void toast.error("Não foi possível conferir o fluxo de aprovação. Tente novamente.");
+      const requiresReview = kind !== "orcamento" && workflowEnabled === true;
+      if (requiresReview && (payments.length > 0 || useCustomerCredit))
         return void toast.error(
-          `O desconto de ${excessDiscount.name} ultrapassa o limite de ${excessDiscount.max_discount_percent}%.`,
+          "Envie o pedido para aprovação sem pagamentos. Após aprovado, registre o pagamento e o comprovante nos detalhes do pedido.",
+        );
+      if (
+        !restrictedSeller &&
+        kind !== "orcamento" &&
+        (commissionPreview.pending || commissionPreview.error)
+      ) {
+        return void toast.error(
+          commissionPreview.error?.message ??
+            "Aguarde a conferência da comissão e confira o vendedor e a cotação.",
         );
       }
-    }
-
-    setSaving(true);
-    try {
-      const cashOnlySale =
-        kind === "venda" &&
-        payments.length > 0 &&
-        payments.every((payment) => payment.method.trim().toLowerCase() === "dinheiro");
-      const orderItems = lines.map((l) => ({
-        item_id: l.item_id,
-        description: l.name,
-        sku: l.sku,
-        barcode: l.barcode,
-        unit: l.unit,
-        quantity: l.quantity,
-        unit_price: l.unit_price,
-        discount: l.discount,
-        commission_enabled: commissionEnabled && l.commission_enabled,
-        commission_percent: l.commission_percent,
-        max_discount_percent: l.max_discount_percent,
-      }));
-      // Keep the address usable while the production database is on the schema
-      // that stores the street and number in the same field.
-      const storedShippingAddress = [shippingAddress.trim(), shippingAddressNumber.trim()]
-        .filter(Boolean)
-        .join(", ");
-      if (exchangeMode === "manual" && !selectedExchange)
-        throw new Error("Informe cotações manuais válidas, maiores que zero.");
-      if (requiresReview) {
-        const { data: created, error } = await (supabase as any).rpc(sourceOrderId ? "integral_submit_order_edit" : "remuneration_create_order", {
-          p_request_id: creationRequestId.current,
-              ...(sourceOrderId ? {p_reason: "Revisão e envio do pedido para aprovação"} : {}),
-          p_args: sourceOrderId ? {
-                p_previous_order_id: sourceOrderId, p_customer_id: customerId || null,
-                p_product_id: scoped ? productId : null, p_currency: currency,
-                p_discount: generalDiscount, p_shipping_cost: freight,
-                p_shipping_percentage: shippingPercentage, p_notes: notes || null,
-                p_whatsapp: whatsapp || null, p_items: orderItems,
-                p_warehouse_id: warehouseId, p_shipping_address: storedShippingAddress,
-                p_shipping_city: shippingCity, p_shipping_state: shippingState,
-                p_delivery_deadline: deliveryDeadline || null, p_carrier: carrier,
-                p_tracking_code: trackingCode,
-              } : {
-            p_kind: "pre_pedido", p_customer_id: customerId || null,
-            p_product_id: scoped ? productId : null, p_currency: currency,
-            p_discount: generalDiscount, p_shipping_cost: freight,
-            p_shipping_percentage: shippingPercentage, p_notes: notes || null,
-            p_payment_method: null, p_payment_installments: null, p_valid_until: null,
-            p_whatsapp: whatsapp || null, p_origin: "pdv", p_items: orderItems, p_payments: [],
-          },
-          p_followup: {
-                delivered_at: deliveredAt || null,
-            seller_id: selectedSellerId, warehouse_id: warehouseId,
-            shipping_address: storedShippingAddress, shipping_city: shippingCity, shipping_state: shippingState,
-            shipping_country: shippingCountry || null, shipping_address_number: shippingAddressNumber.trim() || null,
-            delivery_recipient_name: deliveryRecipientName.trim(),
-            delivery_recipient_document: onlyDigits(deliveryRecipientDocument) || null,
-            shipping_cep: onlyDigits(destinationCep) || null,
-            variable_cost: internalVariableCost, order_date: orderDate || null,
-            delivery_deadline: deliveryDeadline || null, carrier, tracking_code: trackingCode,
-            item_costs: canEditCosts ? lines.filter(line => line.unit_cost != null).map(line => ({item_id: line.item_id, unit_cost: line.unit_cost})) : [],
-          },
-          p_exchange: selectedExchange ?? (systemRates.ready ? {
-            base: currency, mode: "automatic", BRL: systemRates.convert(1, currency, "BRL"),
-            USD: systemRates.convert(1, currency, "USD"), PYG: systemRates.convert(1, currency, "PYG"),
-          } : {}),
-        });
-        if (error) throw error;
-        toast.success(created?.pending_approval ? "Alteração enviada para aprovação. O pedido permanece inalterado até a revisão." : `Pedido ${created?.number ?? ""} enviado para aprovação.`);
-        clearSale();
-        queryClient.invalidateQueries();
-        if (userId) localStorage.removeItem(orderDraftStorageKey(userId));
-        window.dispatchEvent(new CustomEvent("os-order-draft-changed"));
-        onFinished?.();
-        return;
+      if (
+        useCustomerCredit &&
+        (!customerId ||
+          Boolean(sourceOrderId) ||
+          kind === "orcamento" ||
+          payments.length > 0 ||
+          !(creditToUse > 0) ||
+          creditToUse > availableCredit ||
+          creditToUse > total)
+      ) {
+        setStep("finalizacao");
+        return void toast.error(
+          "Confira o cliente, o saldo de crédito e o valor a abater. Registre outros pagamentos após salvar.",
+        );
       }
-      const res = sourceOrderId
-        ? await replaceOrderVersion({
-            exchange:
-              selectedExchange ??
-              (systemRates.ready
+      if (!requiresReview && kind === "venda" && paid !== total) {
+        setStep("finalizacao");
+        return void toast.error("A soma dos pagamentos precisa ser igual ao total da venda.");
+      }
+      if (kind !== "orcamento" && !warehouseId) {
+        setStep("finalizacao");
+        return void toast.error("Escolha o estoque de origem do pedido.");
+      }
+      if (kind !== "orcamento" && !selectedSellerId) {
+        setStep("finalizacao");
+        return void toast.error("Escolha o vendedor responsável pelo pedido.");
+      }
+      if (
+        kind !== "orcamento" &&
+        shippingPercentage != null &&
+        (shippingPercentage < 0 || shippingPercentage > 100)
+      ) {
+        setStep("finalizacao");
+        return void toast.error("Informe um percentual de frete entre 0% e 100%.");
+      }
+      const invalidCommission = lines.find(
+        (line) => line.commission_percent < 0 || line.commission_percent > 100,
+      );
+      if (invalidCommission) {
+        setStep("itens");
+        return void toast.error(
+          `A comissão de ${invalidCommission.name} deve ficar entre 0% e 100%.`,
+        );
+      }
+      if (
+        lines.some(
+          (line) =>
+            line.unit_cost != null && (!Number.isFinite(line.unit_cost) || line.unit_cost < 0),
+        )
+      ) {
+        setStep("finalizacao");
+        return void toast.error("Informe um custo unitário válido e não negativo.");
+      }
+      if (!canManageDiscounts) {
+        const excessDiscount = lines.find((line) => {
+          const lineTotal = line.quantity * line.unit_price;
+          const usedPercent = lineTotal > 0 ? (line.discount * 100) / lineTotal : 0;
+          return usedPercent > line.max_discount_percent + 0.000001;
+        });
+        if (excessDiscount) {
+          setStep("itens");
+          return void toast.error(
+            `O desconto de ${excessDiscount.name} ultrapassa o limite de ${excessDiscount.max_discount_percent}%.`,
+          );
+        }
+      }
+
+      setSaving(true);
+      try {
+        const cashOnlySale =
+          kind === "venda" &&
+          payments.length > 0 &&
+          payments.every((payment) => payment.method.trim().toLowerCase() === "dinheiro");
+        const orderItems = lines.map((l) => ({
+          item_id: l.item_id,
+          description: l.name,
+          sku: l.sku,
+          barcode: l.barcode,
+          unit: l.unit,
+          quantity: l.quantity,
+          unit_price: l.unit_price,
+          discount: l.discount,
+          commission_enabled: commissionEnabled && l.commission_enabled,
+          commission_percent: l.commission_percent,
+          max_discount_percent: l.max_discount_percent,
+        }));
+        // Keep the address usable while the production database is on the schema
+        // that stores the street and number in the same field.
+        const storedShippingAddress = [shippingAddress.trim(), shippingAddressNumber.trim()]
+          .filter(Boolean)
+          .join(", ");
+        if (exchangeMode === "manual" && !selectedExchange)
+          throw new Error("Informe cotações manuais válidas, maiores que zero.");
+        if (requiresReview) {
+          const { data: created, error } = await (supabase as any).rpc(
+            sourceOrderId
+              ? "integral_submit_order_edit"
+              : restrictedSeller
+                ? "integral_seller_create_pdv_order"
+                : "remuneration_create_order",
+            {
+              p_request_id: creationRequestId.current,
+              ...(!sourceOrderId && restrictedSeller
+                ? { p_estadual: sellerPortal === "estadual" }
+                : {}),
+              ...(sourceOrderId ? { p_reason: "Revisão e envio do pedido para aprovação" } : {}),
+              p_args: sourceOrderId
                 ? {
-                    base: currency,
-                    mode: "automatic",
-                    BRL: systemRates.convert(1, currency, "BRL")!,
-                    USD: systemRates.convert(1, currency, "USD")!,
-                    PYG: systemRates.convert(1, currency, "PYG")!,
+                    p_previous_order_id: sourceOrderId,
+                    p_customer_id: customerId || null,
+                    p_product_id: scoped ? productId : null,
+                    p_currency: currency,
+                    p_discount: generalDiscount,
+                    p_shipping_cost: freight,
+                    p_shipping_percentage: shippingPercentage,
+                    p_notes: notes || null,
+                    p_whatsapp: whatsapp || null,
+                    p_items: orderItems,
+                    p_warehouse_id: warehouseId,
+                    p_shipping_address: storedShippingAddress,
+                    p_shipping_city: shippingCity,
+                    p_shipping_state: shippingState,
+                    p_delivery_deadline: deliveryDeadline || null,
+                    p_carrier: carrier,
+                    p_tracking_code: trackingCode,
                   }
-                : null),
-            previousOrderId: sourceOrderId,
-            customerId: customerId || null,
-            productId: scoped ? productId : null,
-            currency,
-            discount: generalDiscount,
-            shippingCost: freight,
-            shippingPercentage,
-            notes: notes || null,
-            whatsapp: whatsapp || null,
-            items: orderItems,
-            warehouseId,
-            shippingAddress: storedShippingAddress,
-            shippingCity,
-            shippingState,
-            deliveryDeadline: deliveryDeadline || null,
-            carrier,
-            trackingCode,
-            revisionNote: revisionNote.trim() || "Pedido editado.",
-          })
-        : kind === "orcamento"
-          ? await createSalesDocument({
+                : {
+                    p_kind: "pre_pedido",
+                    p_customer_id: customerId || null,
+                    p_product_id: scoped ? productId : null,
+                    p_currency: currency,
+                    p_discount: generalDiscount,
+                    p_shipping_cost: freight,
+                    p_shipping_percentage: shippingPercentage,
+                    p_notes: notes || null,
+                    p_payment_method: null,
+                    p_payment_installments: null,
+                    p_valid_until: null,
+                    p_whatsapp: whatsapp || null,
+                    p_origin: "pdv",
+                    p_items: orderItems,
+                    p_payments: [],
+                  },
+              p_followup: {
+                delivered_at: deliveredAt || null,
+                seller_id: selectedSellerId,
+                warehouse_id: warehouseId,
+                shipping_address: storedShippingAddress,
+                shipping_city: shippingCity,
+                shipping_state: shippingState,
+                shipping_country: shippingCountry || null,
+                shipping_address_number: shippingAddressNumber.trim() || null,
+                delivery_recipient_name: deliveryRecipientName.trim(),
+                delivery_recipient_document: onlyDigits(deliveryRecipientDocument) || null,
+                shipping_cep: onlyDigits(destinationCep) || null,
+                variable_cost: internalVariableCost,
+                order_date: orderDate || null,
+                delivery_deadline: deliveryDeadline || null,
+                carrier,
+                tracking_code: trackingCode,
+                item_costs: canEditCosts
+                  ? lines
+                      .filter((line) => line.unit_cost != null)
+                      .map((line) => ({ item_id: line.item_id, unit_cost: line.unit_cost }))
+                  : [],
+              },
+              p_exchange:
+                selectedExchange ??
+                (systemRates.ready
+                  ? {
+                      base: currency,
+                      mode: "automatic",
+                      BRL: systemRates.convert(1, currency, "BRL"),
+                      USD: systemRates.convert(1, currency, "USD"),
+                      PYG: systemRates.convert(1, currency, "PYG"),
+                    }
+                  : {}),
+            },
+          );
+          if (error) throw error;
+          toast.success(
+            created?.pending_approval
+              ? "Alteração enviada para aprovação. O pedido permanece inalterado até a revisão."
+              : `Pedido ${created?.number ?? ""} enviado para aprovação.`,
+          );
+          clearSale();
+          queryClient.invalidateQueries();
+          if (userId) localStorage.removeItem(orderDraftStorageKey(userId));
+          window.dispatchEvent(new CustomEvent("os-order-draft-changed"));
+          onFinished?.();
+          return;
+        }
+        const res = sourceOrderId
+          ? await replaceOrderVersion({
               exchange:
                 selectedExchange ??
                 (systemRates.ready
@@ -1271,33 +1430,7 @@ export function Pdv({
                       PYG: systemRates.convert(1, currency, "PYG")!,
                     }
                   : null),
-              kind,
-              customerId: customerId || null,
-              productId: scoped ? productId : null,
-              currency,
-              discount: generalDiscount,
-              notes: notes || null,
-              paymentMethod: null,
-              paymentInstallments: null,
-              validUntil: null,
-              whatsapp: whatsapp || null,
-              origin: "pdv",
-              items: orderItems,
-              payments: [],
-            })
-          : await createOrderWithOptionalCredit({
-              exchange:
-                selectedExchange ??
-                (systemRates.ready
-                  ? {
-                      base: currency,
-                      mode: "automatic",
-                      BRL: systemRates.convert(1, currency, "BRL")!,
-                      USD: systemRates.convert(1, currency, "USD")!,
-                      PYG: systemRates.convert(1, currency, "PYG")!,
-                    }
-                  : null),
-              kind: cashOnlySale || creditToUse > 0 ? "pre_pedido" : kind,
+              previousOrderId: sourceOrderId,
               customerId: customerId || null,
               productId: scoped ? productId : null,
               currency,
@@ -1305,99 +1438,173 @@ export function Pdv({
               shippingCost: freight,
               shippingPercentage,
               notes: notes || null,
-              paymentMethod:
-                kind === "venda" ? (creditToUse > 0 ? "Crédito do cliente" : payments.map((p) => p.method).join(" + ")) || null : null,
-              paymentInstallments: kind === "venda" ? payInstallments || null : null,
               whatsapp: whatsapp || null,
-              origin: "pdv",
               items: orderItems,
-              payments: kind === "venda" && !cashOnlySale && creditToUse === 0 ? payments : [],
-            }, creditToUse, {
               warehouseId,
-              address: storedShippingAddress,
-              city: shippingCity,
-              state: shippingState,
-            });
-
-      if (kind !== "orcamento" && !sourceOrderId) {
-        if (creditToUse === 0) await updateOrderLogistics(
-          res.id,
-          warehouseId || null,
-          storedShippingAddress,
-          shippingCity,
-          shippingState,
-        );
-        await updateOrderDelivery(res.id, deliveryDeadline || null, carrier, trackingCode);
-        if (cashOnlySale) {
-          for (const payment of payments) {
-            const paymentResult = await registerOrderPayment(
-              res.id,
-              payment.amount,
-              payment.method,
-              null,
-            );
-            if (paymentResult?.payment_id)
-              await updatePaymentDate(res.id, paymentResult.payment_id, payment.paid_at ?? null);
-          }
-        } else if (kind === "venda" && creditToUse === 0) await setOrderStage(res.id, "vendido");
-      }
-      if (kind !== "orcamento") {
-        if (canEditCosts && lines.some((line) => line.unit_cost != null)) {
-          const { error: costsError } = await (supabase as any).rpc("sales_set_order_item_costs", {
-            p_order_id: res.id,
-            p_costs: lines.filter((line) => line.unit_cost != null).map((line) => ({
-              item_id: line.item_id,
-              unit_cost: line.unit_cost,
-            })),
-          });
-          if (costsError) throw costsError;
-        }
-        const { error: recipientError } = await (supabase as any)
-          .from("orders")
-          .update({
-            delivery_recipient_name: deliveryRecipientName.trim(),
-            delivery_recipient_document: onlyDigits(deliveryRecipientDocument) || null,
-            shipping_cep: onlyDigits(destinationCep) || null,
-            variable_cost: internalVariableCost,
-          })
-          .eq("id", res.id);
-        if (recipientError) throw recipientError;
-        await assignOrderSeller(res.id, selectedSellerId);
-        await updateOrderDates(
-          res.id,
-          orderDate || null,
-          deliveryDeadline || null,
-          deliveredAt || null,
-          shippingCountry || null,
-        );
-        await updateOrderAddressNumber(res.id, shippingAddressNumber.trim() || null);
-        if (sourceOrderId) await preserveRevisionNumber(res.id);
-        const { error: confirmationError } = await (supabase as any).rpc("sales_confirm_order", {
-          p_order_id: res.id,
-        });
-        if (confirmationError) throw confirmationError;
-      }
-
-      setReceipt(buildReceipt(kind, res?.number ?? null));
-      toast.success(
-        kind === "venda"
-          ? "Venda faturada com sucesso."
+              shippingAddress: storedShippingAddress,
+              shippingCity,
+              shippingState,
+              deliveryDeadline: deliveryDeadline || null,
+              carrier,
+              trackingCode,
+              revisionNote: revisionNote.trim() || "Pedido editado.",
+            })
           : kind === "orcamento"
-            ? "Orçamento salvo."
-            : catalogRequest
-              ? "Solicitação confirmada. Pedido gerado, estoque baixado e entrega gerada."
-              : "Pedido criado, estoque baixado e entrega gerada.",
-      );
-      queryClient.invalidateQueries();
-      if (userId) localStorage.removeItem(orderDraftStorageKey(userId));
-      window.dispatchEvent(new CustomEvent("os-order-draft-changed"));
-      onFinished?.();
-    } catch (e: any) {
-      toast.error(e?.message ?? "Não foi possível concluir a operação.");
+            ? await createSalesDocument({
+                exchange:
+                  selectedExchange ??
+                  (systemRates.ready
+                    ? {
+                        base: currency,
+                        mode: "automatic",
+                        BRL: systemRates.convert(1, currency, "BRL")!,
+                        USD: systemRates.convert(1, currency, "USD")!,
+                        PYG: systemRates.convert(1, currency, "PYG")!,
+                      }
+                    : null),
+                kind,
+                customerId: customerId || null,
+                productId: scoped ? productId : null,
+                currency,
+                discount: generalDiscount,
+                notes: notes || null,
+                paymentMethod: null,
+                paymentInstallments: null,
+                validUntil: null,
+                whatsapp: whatsapp || null,
+                origin: "pdv",
+                items: orderItems,
+                payments: [],
+              })
+            : await createOrderWithOptionalCredit(
+                {
+                  exchange:
+                    selectedExchange ??
+                    (systemRates.ready
+                      ? {
+                          base: currency,
+                          mode: "automatic",
+                          BRL: systemRates.convert(1, currency, "BRL")!,
+                          USD: systemRates.convert(1, currency, "USD")!,
+                          PYG: systemRates.convert(1, currency, "PYG")!,
+                        }
+                      : null),
+                  kind: cashOnlySale || creditToUse > 0 ? "pre_pedido" : kind,
+                  customerId: customerId || null,
+                  productId: scoped ? productId : null,
+                  currency,
+                  discount: generalDiscount,
+                  shippingCost: freight,
+                  shippingPercentage,
+                  notes: notes || null,
+                  paymentMethod:
+                    kind === "venda"
+                      ? (creditToUse > 0
+                          ? "Crédito do cliente"
+                          : payments.map((p) => p.method).join(" + ")) || null
+                      : null,
+                  paymentInstallments: kind === "venda" ? payInstallments || null : null,
+                  whatsapp: whatsapp || null,
+                  origin: "pdv",
+                  items: orderItems,
+                  payments: kind === "venda" && !cashOnlySale && creditToUse === 0 ? payments : [],
+                },
+                creditToUse,
+                {
+                  warehouseId,
+                  address: storedShippingAddress,
+                  city: shippingCity,
+                  state: shippingState,
+                },
+              );
+
+        if (kind !== "orcamento" && !sourceOrderId) {
+          if (creditToUse === 0)
+            await updateOrderLogistics(
+              res.id,
+              warehouseId || null,
+              storedShippingAddress,
+              shippingCity,
+              shippingState,
+            );
+          await updateOrderDelivery(res.id, deliveryDeadline || null, carrier, trackingCode);
+          if (cashOnlySale) {
+            for (const payment of payments) {
+              const paymentResult = await registerOrderPayment(
+                res.id,
+                payment.amount,
+                payment.method,
+                null,
+              );
+              if (paymentResult?.payment_id)
+                await updatePaymentDate(res.id, paymentResult.payment_id, payment.paid_at ?? null);
+            }
+          } else if (kind === "venda" && creditToUse === 0) await setOrderStage(res.id, "vendido");
+        }
+        if (kind !== "orcamento") {
+          if (canEditCosts && lines.some((line) => line.unit_cost != null)) {
+            const { error: costsError } = await (supabase as any).rpc(
+              "sales_set_order_item_costs",
+              {
+                p_order_id: res.id,
+                p_costs: lines
+                  .filter((line) => line.unit_cost != null)
+                  .map((line) => ({
+                    item_id: line.item_id,
+                    unit_cost: line.unit_cost,
+                  })),
+              },
+            );
+            if (costsError) throw costsError;
+          }
+          const { error: recipientError } = await (supabase as any)
+            .from("orders")
+            .update({
+              delivery_recipient_name: deliveryRecipientName.trim(),
+              delivery_recipient_document: onlyDigits(deliveryRecipientDocument) || null,
+              shipping_cep: onlyDigits(destinationCep) || null,
+              variable_cost: internalVariableCost,
+            })
+            .eq("id", res.id);
+          if (recipientError) throw recipientError;
+          await assignOrderSeller(res.id, selectedSellerId);
+          await updateOrderDates(
+            res.id,
+            orderDate || null,
+            deliveryDeadline || null,
+            deliveredAt || null,
+            shippingCountry || null,
+          );
+          await updateOrderAddressNumber(res.id, shippingAddressNumber.trim() || null);
+          if (sourceOrderId) await preserveRevisionNumber(res.id);
+          const { error: confirmationError } = await (supabase as any).rpc("sales_confirm_order", {
+            p_order_id: res.id,
+          });
+          if (confirmationError) throw confirmationError;
+        }
+
+        setReceipt(buildReceipt(kind, res?.number ?? null));
+        toast.success(
+          kind === "venda"
+            ? "Venda faturada com sucesso."
+            : kind === "orcamento"
+              ? "Orçamento salvo."
+              : catalogRequest
+                ? "Solicitação confirmada. Pedido gerado, estoque baixado e entrega gerada."
+                : "Pedido criado, estoque baixado e entrega gerada.",
+        );
+        queryClient.invalidateQueries();
+        if (userId) localStorage.removeItem(orderDraftStorageKey(userId));
+        window.dispatchEvent(new CustomEvent("os-order-draft-changed"));
+        onFinished?.();
+      } catch (e: any) {
+        toast.error(e?.message ?? "Não foi possível concluir a operação.");
+      } finally {
+        setSaving(false);
+      }
     } finally {
-      setSaving(false);
+      submissionGuard.current = false;
     }
-    } finally { submissionGuard.current = false; }
   }
 
   if (isLoading) {
@@ -1495,7 +1702,10 @@ export function Pdv({
                     {creditLoading
                       ? "Consultando saldo..."
                       : (["BRL", "USD", "PYG"] as Currency[])
-                          .map((code) => `${formatMoney(Number(customerCredits.find((entry) => entry.currency === code)?.balance ?? 0), code)}`)
+                          .map(
+                            (code) =>
+                              `${formatMoney(Number(customerCredits.find((entry) => entry.currency === code)?.balance ?? 0), code)}`,
+                          )
                           .join(" · ")}
                   </p>
                 </div>
@@ -1640,273 +1850,311 @@ export function Pdv({
 
             {/* FINALIZAÇÃO */}
             <TabsContent value="finalizacao" className="space-y-4 pt-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="sm:col-span-2">
-                  <Label>Vendedor responsável</Label>
-                  <Popover open={sellerPickerOpen} onOpenChange={setSellerPickerOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={sellerPickerOpen}
-                        className="w-full justify-between font-normal"
-                      >
-                        <span className="truncate">
-                          {seller
-                            ? `${seller.full_name}${seller.teams ? ` · ${seller.teams}` : ""}`
-                            : "Digite ou selecione o vendedor"}
-                        </span>
-                        <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      className="w-[var(--radix-popover-trigger-width)] p-0"
-                      align="start"
-                    >
-                      <Command>
-                        <CommandInput placeholder="Buscar vendedor pelo nome..." />
-                        <CommandList>
-                          <CommandEmpty>Nenhum vendedor encontrado.</CommandEmpty>
-                          {sellerOptions.map((option: any) => (
-                            <CommandItem
-                              key={option.id}
-                              value={`${option.full_name} ${option.teams ?? ""}`}
-                              onSelect={() => {
-                                setSelectedSellerId(option.id);
-                                setSellerPickerOpen(false);
-                              }}
-                            >
-                              <Check
-                                className={`size-4 ${selectedSellerId === option.id ? "opacity-100" : "opacity-0"}`}
-                              />
-                              <span>
-                                <span className="block">{option.full_name}</span>
-                                {option.teams && (
-                                  <span className="block text-xs text-muted-foreground">
-                                    {option.teams}
-                                  </span>
-                                )}
-                              </span>
-                            </CommandItem>
-                          ))}
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    A lista respeita as equipes do usuário. Administradores podem escolher qualquer
-                    vendedor.
+              {restrictedSeller && (
+                <div className="rounded-lg border bg-primary/5 p-3 text-sm">
+                  <p className="font-medium">
+                    Vendedor responsável: {profile?.full_name ?? "Você"}
+                  </p>
+                  <p className="mt-1 text-muted-foreground">
+                    O pedido seguirá para análise. Registre pagamentos com comprovante após a
+                    aprovação.
                   </p>
                 </div>
-                <div>
-                  <Label>Desconto geral</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={saleDiscount}
-                      onChange={(e) => setSaleDiscount(e.target.value)}
-                      inputMode="decimal"
-                      aria-label="Valor do desconto geral"
-                      disabled={!canManageDiscounts}
-                    />
-                    <Select
-                      value={saleDiscountKind}
-                      disabled={!canManageDiscounts}
-                      onValueChange={(v) => setSaleDiscountKind(v as "valor" | "percent")}
-                    >
-                      <SelectTrigger className="w-24">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="valor">{currency}</SelectItem>
-                        <SelectItem value="percent">%</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div>
-                  <Label>Forma de pagamento</Label>
-                  <Select
-                    value={payMethod}
-                    onValueChange={(value) => {
-                      setPayMethod(value);
-                      setPayAmount("");
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PAYMENT_METHODS.map((p) => (
-                        <SelectItem key={p} value={p}>
-                          {p}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {customerId && !sourceOrderId && (
-                  <div className="sm:col-span-2 rounded-lg border bg-primary/5 p-3">
-                    <p className="text-sm font-medium">Crédito disponível: {formatMoney(availableCredit, currency)}</p>
-                    <label className="mt-2 flex items-center gap-2 text-sm">
-                      <Checkbox
-                        checked={useCustomerCredit}
-                        disabled={creditLoading || availableCredit <= 0 || payments.length > 0}
-                        onCheckedChange={(checked) => {
-                          setUseCustomerCredit(Boolean(checked));
-                          if (!checked) setCustomerCreditAmount("");
+              )}
+              {!restrictedSeller && (
+                <>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <Label>Vendedor responsável</Label>
+                      <Popover open={sellerPickerOpen} onOpenChange={setSellerPickerOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={sellerPickerOpen}
+                            className="w-full justify-between font-normal"
+                          >
+                            <span className="truncate">
+                              {seller
+                                ? `${seller.full_name}${seller.teams ? ` · ${seller.teams}` : ""}`
+                                : "Digite ou selecione o vendedor"}
+                            </span>
+                            <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="w-[var(--radix-popover-trigger-width)] p-0"
+                          align="start"
+                        >
+                          <Command>
+                            <CommandInput placeholder="Buscar vendedor pelo nome..." />
+                            <CommandList>
+                              <CommandEmpty>Nenhum vendedor encontrado.</CommandEmpty>
+                              {[
+                                ...(seller &&
+                                !sellerOptions.some((option: any) => option.id === seller.id)
+                                  ? [seller]
+                                  : []),
+                                ...sellerOptions,
+                              ].map((option: any) => (
+                                <CommandItem
+                                  key={option.id}
+                                  value={`${option.full_name} ${option.teams ?? ""}`}
+                                  onSelect={() => {
+                                    setSelectedSellerId(option.id);
+                                    setSellerPickerOpen(false);
+                                  }}
+                                >
+                                  <Check
+                                    className={`size-4 ${selectedSellerId === option.id ? "opacity-100" : "opacity-0"}`}
+                                  />
+                                  <span>
+                                    <span className="block">{option.full_name}</span>
+                                    {option.teams && (
+                                      <span className="block text-xs text-muted-foreground">
+                                        {option.teams}
+                                      </span>
+                                    )}
+                                  </span>
+                                </CommandItem>
+                              ))}
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        A lista respeita as equipes do usuário. Administradores podem escolher
+                        qualquer vendedor.
+                      </p>
+                    </div>
+                    <div>
+                      <Label>Desconto geral</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={saleDiscount}
+                          onChange={(e) => setSaleDiscount(e.target.value)}
+                          inputMode="decimal"
+                          aria-label="Valor do desconto geral"
+                          disabled={!canManageDiscounts}
+                        />
+                        <Select
+                          value={saleDiscountKind}
+                          disabled={!canManageDiscounts}
+                          onValueChange={(v) => setSaleDiscountKind(v as "valor" | "percent")}
+                        >
+                          <SelectTrigger className="w-24">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="valor">{currency}</SelectItem>
+                            <SelectItem value="percent">%</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Forma de pagamento</Label>
+                      <Select
+                        value={payMethod}
+                        onValueChange={(value) => {
+                          setPayMethod(value);
+                          setPayAmount("");
                         }}
-                      />
-                      Usar crédito neste pedido
-                    </label>
-                    {useCustomerCredit && (
-                      <div className="mt-2 max-w-xs">
-                        <Label htmlFor="customer-credit-amount">Valor a abater ({currency})</Label>
-                        <Input id="customer-credit-amount" value={customerCreditAmount}
-                          onChange={(event) => setCustomerCreditAmount(event.target.value)} inputMode="decimal"
-                          placeholder={formatMoney(Math.min(availableCredit,total),currency)} />
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          O restante permanece como crédito. Registre outros pagamentos depois de salvar o pedido.
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PAYMENT_METHODS.map((p) => (
+                            <SelectItem key={p} value={p}>
+                              {p}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {customerId && !sourceOrderId && (
+                      <div className="sm:col-span-2 rounded-lg border bg-primary/5 p-3">
+                        <p className="text-sm font-medium">
+                          Crédito disponível: {formatMoney(availableCredit, currency)}
                         </p>
+                        <label className="mt-2 flex items-center gap-2 text-sm">
+                          <Checkbox
+                            checked={useCustomerCredit}
+                            disabled={creditLoading || availableCredit <= 0 || payments.length > 0}
+                            onCheckedChange={(checked) => {
+                              setUseCustomerCredit(Boolean(checked));
+                              if (!checked) setCustomerCreditAmount("");
+                            }}
+                          />
+                          Usar crédito neste pedido
+                        </label>
+                        {useCustomerCredit && (
+                          <div className="mt-2 max-w-xs">
+                            <Label htmlFor="customer-credit-amount">
+                              Valor a abater ({currency})
+                            </Label>
+                            <Input
+                              id="customer-credit-amount"
+                              value={customerCreditAmount}
+                              onChange={(event) => setCustomerCreditAmount(event.target.value)}
+                              inputMode="decimal"
+                              placeholder={formatMoney(Math.min(availableCredit, total), currency)}
+                            />
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              O restante permanece como crédito. Registre outros pagamentos depois
+                              de salvar o pedido.
+                            </p>
+                          </div>
+                        )}
                       </div>
                     )}
+                    <div>
+                      <Label>Parcelas</Label>
+                      <Input
+                        value={payInstallments}
+                        onChange={(e) => setPayInstallments(e.target.value)}
+                        inputMode="numeric"
+                        placeholder="Ex.: 3"
+                      />
+                    </div>
+                    <div>
+                      <Label>Data deste pagamento</Label>
+                      <Input
+                        type="date"
+                        value={payDate}
+                        onChange={(e) => setPayDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label>
+                        Valor deste pagamento ({isPix(payMethod) ? "BRL · R$" : currency})
+                      </Label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={payAmount}
+                          onChange={(e) => setPayAmount(e.target.value)}
+                          inputMode="decimal"
+                          placeholder={String(
+                            isPix(payMethod)
+                              ? (rates.convert(remaining, currency, "BRL") ?? "")
+                              : remaining,
+                          )}
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => {
+                            if (!payMethod)
+                              return void toast.error("Escolha a forma de pagamento.");
+                            const receivedCurrency = isPix(payMethod) ? "BRL" : currency;
+                            const received = payAmount.trim()
+                              ? toNumber(payAmount)
+                              : rates.convert(remaining, currency, receivedCurrency);
+                            const converted =
+                              received === null
+                                ? null
+                                : rates.convert(received, receivedCurrency, currency);
+                            if (converted === null)
+                              return void toast.error(
+                                "Informe uma cotação válida para este pagamento.",
+                              );
+                            const value = round2(converted);
+                            if (!(value > 0))
+                              return void toast.error("Informe um valor maior que zero.");
+                            setPayments((prev) => [
+                              ...prev,
+                              {
+                                method: payMethod,
+                                installment: toNumber(payInstallments) || null,
+                                amount: value,
+                                received_amount: round2(received!),
+                                received_currency: receivedCurrency,
+                                paid_at: payDate || today(),
+                              },
+                            ]);
+                            setPayAmount("");
+                          }}
+                        >
+                          Adicionar
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                )}
-                <div>
-                  <Label>Parcelas</Label>
-                  <Input
-                    value={payInstallments}
-                    onChange={(e) => setPayInstallments(e.target.value)}
-                    inputMode="numeric"
-                    placeholder="Ex.: 3"
-                  />
-                </div>
-                <div>
-                  <Label>Data deste pagamento</Label>
-                  <Input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
-                </div>
-                <div className="sm:col-span-2">
-                  <Label>Valor deste pagamento ({isPix(payMethod) ? "BRL · R$" : currency})</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={payAmount}
-                      onChange={(e) => setPayAmount(e.target.value)}
-                      inputMode="decimal"
-                      placeholder={String(
-                        isPix(payMethod)
-                          ? (rates.convert(remaining, currency, "BRL") ?? "")
-                          : remaining,
-                      )}
-                    />
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => {
-                        if (!payMethod) return void toast.error("Escolha a forma de pagamento.");
-                        const receivedCurrency = isPix(payMethod) ? "BRL" : currency;
-                        const received = payAmount.trim()
-                          ? toNumber(payAmount)
-                          : rates.convert(remaining, currency, receivedCurrency);
-                        const converted =
-                          received === null
-                            ? null
-                            : rates.convert(received, receivedCurrency, currency);
-                        if (converted === null)
-                          return void toast.error(
-                            "Informe uma cotação válida para este pagamento.",
-                          );
-                        const value = round2(converted);
-                        if (!(value > 0))
-                          return void toast.error("Informe um valor maior que zero.");
-                        setPayments((prev) => [
-                          ...prev,
-                          {
-                            method: payMethod,
-                            installment: toNumber(payInstallments) || null,
-                            amount: value,
-                            received_amount: round2(received!),
-                            received_currency: receivedCurrency,
-                            paid_at: payDate || today(),
-                          },
-                        ]);
-                        setPayAmount("");
-                      }}
+
+                  {payments.length > 0 && (
+                    <div className="overflow-hidden rounded-lg border">
+                      <table className="w-full text-sm">
+                        <caption className="sr-only">Pagamentos lançados</caption>
+                        <thead className="bg-muted/60 text-xs text-muted-foreground">
+                          <tr>
+                            <th className="p-2 text-left">Forma</th>
+                            <th className="p-2 text-left">Parcelas</th>
+                            <th className="p-2 text-left">Data</th>
+                            <th className="p-2 text-right">Valor</th>
+                            <th className="p-2" />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {payments.map((p, i) => (
+                            <tr key={i} className="border-t">
+                              <td className="p-2">{p.method}</td>
+                              <td className="p-2">{p.installment ?? "—"}</td>
+                              <td className="p-2">{p.paid_at || "—"}</td>
+                              <td className="p-2 text-right">
+                                {formatMoney(
+                                  p.received_amount ?? p.amount,
+                                  p.received_currency ?? currency,
+                                )}
+                              </td>
+                              <td className="p-2 text-right">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() =>
+                                    setPayments((prev) => prev.filter((_, x) => x !== i))
+                                  }
+                                >
+                                  Remover
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-lg border bg-primary/5 p-3">
+                      <p className="text-xs text-muted-foreground">Valor pago</p>
+                      <CurrencyValues
+                        convert={rates.convert}
+                        value={paid}
+                        currency={currency}
+                        className="text-xl"
+                        emphasize
+                        primaryFirst
+                      />
+                    </div>
+                    <div
+                      className={`rounded-lg border p-3 ${remaining > 0 ? "bg-destructive/10" : "bg-muted"}`}
                     >
-                      Adicionar
-                    </Button>
+                      <p className="text-xs text-muted-foreground">Falta pagar</p>
+                      <CurrencyValues
+                        convert={rates.convert}
+                        value={remaining}
+                        currency={currency}
+                        className="text-xl"
+                        emphasize
+                        primaryFirst
+                      />
+                    </div>
                   </div>
-                </div>
-              </div>
-
-              {payments.length > 0 && (
-                <div className="overflow-hidden rounded-lg border">
-                  <table className="w-full text-sm">
-                    <caption className="sr-only">Pagamentos lançados</caption>
-                    <thead className="bg-muted/60 text-xs text-muted-foreground">
-                      <tr>
-                        <th className="p-2 text-left">Forma</th>
-                        <th className="p-2 text-left">Parcelas</th>
-                        <th className="p-2 text-left">Data</th>
-                        <th className="p-2 text-right">Valor</th>
-                        <th className="p-2" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {payments.map((p, i) => (
-                        <tr key={i} className="border-t">
-                          <td className="p-2">{p.method}</td>
-                          <td className="p-2">{p.installment ?? "—"}</td>
-                          <td className="p-2">{p.paid_at || "—"}</td>
-                          <td className="p-2 text-right">
-                            {formatMoney(
-                              p.received_amount ?? p.amount,
-                              p.received_currency ?? currency,
-                            )}
-                          </td>
-                          <td className="p-2 text-right">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => setPayments((prev) => prev.filter((_, x) => x !== i))}
-                            >
-                              Remover
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                </>
               )}
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-lg border bg-primary/5 p-3">
-                  <p className="text-xs text-muted-foreground">Valor pago</p>
-                  <CurrencyValues
-                    convert={rates.convert}
-                    value={paid}
-                    currency={currency}
-                    className="text-xl"
-                    emphasize
-                    primaryFirst
-                  />
-                </div>
-                <div
-                  className={`rounded-lg border p-3 ${remaining > 0 ? "bg-destructive/10" : "bg-muted"}`}
-                >
-                  <p className="text-xs text-muted-foreground">Falta pagar</p>
-                  <CurrencyValues
-                    convert={rates.convert}
-                    value={remaining}
-                    currency={currency}
-                    className="text-xl"
-                    emphasize
-                    primaryFirst
-                  />
-                </div>
-              </div>
-
               <div className="grid gap-3 rounded-lg border p-3 sm:grid-cols-2">
                 <div className="sm:col-span-2">
                   <Label>Estoque de origem</Label>
@@ -2105,94 +2353,104 @@ export function Pdv({
                     </Button>
                   </div>
                 </div>
-                <div className="sm:col-span-2 rounded-lg border bg-primary/5 p-3">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <Label>Percentual do frete</Label>
-                      <div className="relative">
+                {restrictedSeller ? (
+                  <div className="sm:col-span-2 rounded-lg border bg-primary/5 p-3 text-sm">
+                    {sourceOrderId && freight > 0
+                      ? "O frete já registrado é preservado nesta revisão."
+                      : "Frete incluído nos preços dos produtos. Não há cálculo adicional para enviar o pedido."}
+                  </div>
+                ) : (
+                  <div className="sm:col-span-2 rounded-lg border bg-primary/5 p-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <Label>Percentual do frete</Label>
+                        <div className="relative">
+                          <Input
+                            value={shippingPercentage ?? ""}
+                            readOnly
+                            inputMode="decimal"
+                            className="pr-9"
+                            placeholder="20"
+                          />
+                          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
+                            %
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <Label>Valor do frete ({currency})</Label>
                         <Input
-                          value={shippingPercentage ?? ""}
-                          readOnly
+                          value={shippingCost}
                           inputMode="decimal"
-                          className="pr-9"
-                          placeholder="20"
+                          onChange={(event) => {
+                            setShippingManuallyEdited(true);
+                            setShippingCalculationError("");
+                            setShippingCost(event.target.value);
+                          }}
                         />
-                        <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
-                          %
-                        </span>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {secondaryCurrencyValues(freight)}
+                        </p>
                       </div>
                     </div>
-                    <div>
-                      <Label>Valor do frete ({currency})</Label>
-                      <Input
-                        value={shippingCost}
-                        inputMode="decimal"
-                        onChange={(event) => {
-                          setShippingManuallyEdited(true);
-                          setShippingCalculationError("");
-                          setShippingCost(event.target.value);
-                        }}
-                      />
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {secondaryCurrencyValues(freight)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                    <span>
-                      {shippingManuallyEdited
-                        ? "Frete informado manualmente."
-                        : "Calculado pelas regras cadastradas em cada produto."}
-                    </span>
-                    {shippingManuallyEdited && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShippingManuallyEdited(false)}
-                      >
-                        Usar cálculo automático
-                      </Button>
-                    )}
-                    <strong className="text-foreground">
-                      {shippingManuallyEdited ? (
-                        "Valor manual"
-                      ) : shippingPercentage == null ? (
-                        "Informe o estado para calcular"
-                      ) : (
-                        <>
-                          {formatNumber(shippingPercentage, 2)}% ={" "}
-                          <CurrencyValues
-                            convert={rates.convert}
-                            value={freight}
-                            currency={currency}
-                            layout="inline"
-                            primaryFirst
-                          />
-                        </>
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                      <span>
+                        {shippingManuallyEdited
+                          ? "Frete informado manualmente."
+                          : "Calculado pelas regras cadastradas em cada produto."}
+                      </span>
+                      {shippingManuallyEdited && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShippingManuallyEdited(false)}
+                        >
+                          Usar cálculo automático
+                        </Button>
                       )}
-                    </strong>
+                      <strong className="text-foreground">
+                        {shippingManuallyEdited ? (
+                          "Valor manual"
+                        ) : shippingPercentage == null ? (
+                          "Informe o estado para calcular"
+                        ) : (
+                          <>
+                            {formatNumber(shippingPercentage, 2)}% ={" "}
+                            <CurrencyValues
+                              convert={rates.convert}
+                              value={freight}
+                              currency={currency}
+                              layout="inline"
+                              primaryFirst
+                            />
+                          </>
+                        )}
+                      </strong>
+                    </div>
+                    {shippingCalculationError && (
+                      <p className="mt-1 text-xs text-destructive">{shippingCalculationError}</p>
+                    )}
                   </div>
-                  {shippingCalculationError && (
-                    <p className="mt-1 text-xs text-destructive">{shippingCalculationError}</p>
-                  )}
-                </div>
-                <div>
-                  <Label>Outros custos variáveis ({currency})</Label>
-                  <Input
-                    value={variableCost}
-                    onChange={(e) => setVariableCost(e.target.value)}
-                    inputMode="decimal"
-                    placeholder="0,00"
-                  />
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {secondaryCurrencyValues(internalVariableCost)}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Custo interno usado no cálculo do lucro bruto; não aumenta o valor cobrado do
-                    cliente.
-                  </p>
-                </div>
+                )}
+                {!restrictedSeller && (
+                  <div>
+                    <Label>Outros custos variáveis ({currency})</Label>
+                    <Input
+                      value={variableCost}
+                      onChange={(e) => setVariableCost(e.target.value)}
+                      inputMode="decimal"
+                      placeholder="0,00"
+                    />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {secondaryCurrencyValues(internalVariableCost)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Custo interno usado no cálculo do lucro bruto; não aumenta o valor cobrado do
+                      cliente.
+                    </p>
+                  </div>
+                )}
                 <div>
                   <Label>Data de emissão do pedido</Label>
                   <Input
@@ -2214,6 +2472,7 @@ export function Pdv({
                   <Input
                     type="date"
                     value={deliveredAt}
+                    disabled={restrictedSeller}
                     onChange={(e) => setDeliveredAt(e.target.value)}
                   />
                 </div>
@@ -2264,7 +2523,7 @@ export function Pdv({
               </div>
 
               <div className="flex justify-end">
-                <Button type="button" onClick={() => finalize("pre_pedido")} disabled={saving || readOnly}>
+                <Button type="button" onClick={() => finalize("pre_pedido")} disabled={saving}>
                   {saving ? (
                     <Loader2 className="mr-1 h-4 w-4 animate-spin" />
                   ) : (
@@ -2274,7 +2533,9 @@ export function Pdv({
                     ? "Confirmar e gerar pedido"
                     : sourceOrderId
                       ? "Salvar nova versão"
-                      : "Criar pedido"}
+                      : restrictedSeller
+                        ? "Enviar pedido para aprovação"
+                        : "Criar pedido"}
                 </Button>
               </div>
             </TabsContent>
@@ -2301,26 +2562,29 @@ export function Pdv({
           <p className="text-sm text-muted-foreground">
             Cliente: {customer?.name ?? (counterSale ? "Venda balcão" : "não selecionado")}
           </p>
-          <div className="flex items-start gap-3 rounded-lg border p-3">
-            <Checkbox
-              id="commission-enabled"
-              checked={commissionEnabled}
-              onCheckedChange={(checked) => {
-                const enabled = checked === true;
-                setCommissionEnabled(enabled);
-                setLines((current) =>
-                  current.map((line) => ({ ...line, commission_enabled: enabled })),
-                );
-              }}
-            />
-            <div>
-              <Label htmlFor="commission-enabled">Comissão padrão do pedido</Label>
-              <p className="text-xs text-muted-foreground">
-                Acordos por venda prevalecem: produto → subcategoria → categoria → geral. Acordos do mesmo nível se somam. Sem acordo, vale a comissão padrão. Valores fixos são cobrados uma vez por venda e rateados entre os itens abrangidos.
-              </p>
+          {!restrictedSeller && (
+            <div className="flex items-start gap-3 rounded-lg border p-3">
+              <Checkbox
+                id="commission-enabled"
+                checked={commissionEnabled}
+                onCheckedChange={(checked) => {
+                  const enabled = checked === true;
+                  setCommissionEnabled(enabled);
+                  setLines((current) =>
+                    current.map((line) => ({ ...line, commission_enabled: enabled })),
+                  );
+                }}
+              />
+              <div>
+                <Label htmlFor="commission-enabled">Comissão padrão do pedido</Label>
+                <p className="text-xs text-muted-foreground">
+                  Acordos por venda prevalecem: produto → subcategoria → categoria → geral. Acordos
+                  do mesmo nível se somam. Sem acordo, vale a comissão padrão. Valores fixos são
+                  cobrados uma vez por venda e rateados entre os itens abrangidos.
+                </p>
+              </div>
             </div>
-          </div>
-
+          )}
           {lines.length === 0 ? (
             <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
               Nenhum item adicionado ainda.
@@ -2332,9 +2596,9 @@ export function Pdv({
                 const agreedLine = previewLine?.commission_source === "agreement";
                 const base = round2(l.quantity * l.unit_price);
                 const canEditLineDiscount = canManageDiscounts || l.max_discount_percent > 0;
-                const lineCommission = previewLine?.commission_amount ?? round2(
-                  Math.max(0, base - l.discount) * (l.commission_percent / 100),
-                );
+                const lineCommission =
+                  previewLine?.commission_amount ??
+                  round2(Math.max(0, base - l.discount) * (l.commission_percent / 100));
                 return (
                   <div key={l.key} className="rounded-lg border p-3">
                     {l.promotion_id && (
@@ -2377,10 +2641,21 @@ export function Pdv({
                       </Button>
                     </div>
                     {l.is_bonus ? (
-                      <p className="mt-2 text-xs text-primary">Bonificação: sem cobrança e sem comissão; o custo e a saída do estoque permanecem registrados.</p>
+                      <p className="mt-2 text-xs text-primary">
+                        Bonificação: sem cobrança e sem comissão; o custo e a saída do estoque
+                        permanecem registrados.
+                      </p>
                     ) : (
-                      <Button type="button" size="sm" variant="outline" className="mt-2"
-                        onClick={() => addBonusLine(l)}>+ Adicionar unidade bonificada</Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="mt-2"
+                        disabled={restrictedSeller}
+                        onClick={() => addBonusLine(l)}
+                      >
+                        + Adicionar unidade bonificada
+                      </Button>
                     )}
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       <div>
@@ -2414,9 +2689,12 @@ export function Pdv({
                           <Label className="text-xs">Custo manual por unidade ({currency})</Label>
                           <DecimalInput
                             value={l.unit_cost == null ? "" : String(l.unit_cost)}
-                            onChange={(e) => updateLine(l.key, {
-                              unit_cost: e.target.value.trim() === "" ? null : toNumber(e.target.value),
-                            })}
+                            onChange={(e) =>
+                              updateLine(l.key, {
+                                unit_cost:
+                                  e.target.value.trim() === "" ? null : toNumber(e.target.value),
+                              })
+                            }
                             inputMode="decimal"
                             placeholder="Usar custo do cadastro"
                             aria-label={`Custo por unidade de ${l.name}`}
@@ -2468,7 +2746,7 @@ export function Pdv({
                           {secondaryCurrencyValues(round2(base - l.discount))}
                         </p>
                       </div>
-                      {(commissionEnabled || agreedLine) && (
+                      {!restrictedSeller && (commissionEnabled || agreedLine) && (
                         <div className="col-span-2 grid gap-2 rounded-md bg-muted/40 p-2 sm:grid-cols-2">
                           <label className="flex items-center gap-2 text-xs font-medium">
                             <Checkbox
@@ -2483,7 +2761,9 @@ export function Pdv({
                           <div>
                             <Label className="text-xs">Comissão (%)</Label>
                             <DecimalInput
-                              value={String(agreedLine ? previewLine.commission_percent : l.commission_percent)}
+                              value={String(
+                                agreedLine ? previewLine.commission_percent : l.commission_percent,
+                              )}
                               disabled={agreedLine || !l.commission_enabled}
                               min={0}
                               max={100}
@@ -2546,9 +2826,16 @@ export function Pdv({
                 primaryFirst
               />
             </div>
-            {(commissionEnabled || commissionPreview.hasAgreement) && (
+            {!restrictedSeller && (commissionEnabled || commissionPreview.hasAgreement) && (
               <div className="flex justify-between">
-                <span>Comissões {commissionPreview.pending ? "(conferindo…)" : commissionPreview.error ? "(não conferidas)" : ""}</span>
+                <span>
+                  Comissões{" "}
+                  {commissionPreview.pending
+                    ? "(conferindo…)"
+                    : commissionPreview.error
+                      ? "(não conferidas)"
+                      : ""}
+                </span>
                 <CurrencyValues
                   convert={rates.convert}
                   value={commissionTotal}
