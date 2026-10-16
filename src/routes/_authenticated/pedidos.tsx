@@ -219,7 +219,7 @@ function Pedidos() {
             Pagamento parcial ({counts?.["pagamento_parcial"] ?? 0})
           </TabsTrigger>
           <TabsTrigger value="esperando_pagamento">
-            Esperando pagamento ({counts?.["esperando_pagamento"] ?? 0})
+            Pagamento atrasado ({counts?.["esperando_pagamento"] ?? 0})
           </TabsTrigger>
           <TabsTrigger value="perdido">Produtos perdidos ({counts?.["perdido"] ?? 0})</TabsTrigger>
           <TabsTrigger value="cancelado">Cancelados ({counts?.["cancelado"] ?? 0})</TabsTrigger>

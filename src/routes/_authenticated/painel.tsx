@@ -536,7 +536,7 @@ function PainelBase() {
       icon: BadgeDollarSign,
     },
     {
-      label: "Esperando pagamento",
+      label: "Pagamento atrasado",
       rows: orders.filter((o: any) => o.workflow_stage === "esperando_pagamento"),
       icon: Clock3,
     },
@@ -608,14 +608,14 @@ function PainelBase() {
     { name: "Entregues", total: statusCount("Entregues") },
     { name: "Pagos", total: statusCount("Pagos") },
     { name: "Parciais", total: statusCount("Pagamento parcial") },
-    { name: "Aguardando", total: statusCount("Esperando pagamento") },
+    { name: "Atrasados", total: statusCount("Pagamento atrasado") },
     { name: "Cancelados", total: statusCount("Cancelados") },
     { name: "Perdidos", total: statusCount("Produtos perdidos") },
   ];
   const dashboardSummary = {
     orders: orders.length, units: formatNumber(unitsInOrders), created: statusCount("Pedido feito"), inTransit: statusCount("A caminho"), delivered: statusCount("Entregues"),
     paid: statusCount("Pagos"), partial: statusCount("Pagamento parcial"),
-    awaiting: statusCount("Esperando pagamento"), cancelled: statusCount("Cancelados"), lost: statusCount("Produtos perdidos"),
+    awaiting: statusCount("Pagamento atrasado"), cancelled: statusCount("Cancelados"), lost: statusCount("Produtos perdidos"),
     gross: formatKpiMoney(gross, currency),
     cost: formatKpiMoney(totalCost, currency),
     shipping: formatKpiMoney(totalShipping, currency),
@@ -632,7 +632,7 @@ function PainelBase() {
     { label: "Entregues", text: "entregues" },
     { label: "Pagos", text: "pagos" },
     { label: "Pagamento parcial", text: "parciais" },
-    { label: "Esperando pagamento", text: "aguardando" },
+    { label: "Pagamento atrasado", text: "atrasados" },
     { label: "Cancelados", text: "cancelados" },
     { label: "Produtos perdidos", text: "perdidos" },
   ];

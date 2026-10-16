@@ -158,13 +158,13 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const WORKFLOW_OPTIONS = [
-  { value: "pedido_feito", label: "Pedido feito" },
-  { value: "esperando_pagamento", label: "Esperando pagamento" },
+  { value: "pedido_feito", label: "A preparar" },
+  { value: "esperando_pagamento", label: "Pagamento atrasado" },
   { value: "pagamento_parcial", label: "Pagamento parcial" },
-  { value: "vendido", label: "Pago" },
+  { value: "vendido", label: "Pagos" },
   { value: "em_caminho", label: "Em caminho" },
   { value: "perdido", label: "Produtos perdidos" },
-  { value: "cancelado", label: "Cancelado" },
+  { value: "cancelado", label: "Cancelados" },
 ];
 
 function workflowTone(stage: string) {
@@ -600,14 +600,16 @@ export function DocsList({
         );
 
   const stageLabel = (doc: any) => {
-    if (doc.status === "cancelado") return "Cancelado";
+    if (doc.status === "cancelado") return "Cancelados";
+    if (doc.id && orderReviewStage(doc) !== "approved") return orderReviewLabels[orderReviewStage(doc)];
+    if (doc.id && pendingPaymentOrders.data?.has(doc.id)) return orderReviewLabels.payment_pending;
     const labels: Record<string, string> = {
       perdido: "Produtos perdidos",
-      pedido_feito: "Pedido feito",
+      pedido_feito: "A preparar",
       em_caminho: "Em caminho",
-      vendido: "Pago",
+      vendido: "Pagos",
       pagamento_parcial: "Pagamento parcial",
-      esperando_pagamento: "Esperando pagamento",
+      esperando_pagamento: "Pagamento atrasado",
     };
     return labels[doc.workflow_stage] ?? STATUS_LABEL[doc.status] ?? doc.status;
   };
@@ -962,7 +964,7 @@ export function DocsList({
                 ),
               },
               {
-                label: "Pago",
+                label: "Pagos",
                 value: reportValues(
                   Number(doc.amount_paid ?? 0),
                   currency,
@@ -2377,21 +2379,18 @@ export function DocsList({
                       )}
                     </div>
                     <div className="flex shrink-0 items-center gap-3 lg:justify-end">
-                      {catalogRequest ? (
-                        <Badge variant="secondary">Aguardando revisão</Badge>
+                      {catalogRequest || orderReviewStage(d) !== "approved" ? (
+                        <Badge variant={orderReviewStage(d) === "rejected" ? "destructive" : "secondary"}>{orderReviewLabels[orderReviewStage(d)]}</Badge>
                       ) : !isQuote && !cancelled ? (
                         <Select
-                          value={d.workflow_stage ?? "pedido_feito"}
+                          value={pendingPaymentOrders.data?.has(d.id) ? "payment_pending" : d.workflow_stage ?? "pedido_feito"}
                           onValueChange={(next) => {
                             if (next === "cancelado") {
                               setCancelReason("");
                               suggestReturnWarehouse(d, false);
                               setCancelDoc(d);
-                            } else if (next === "pagamento_parcial") {
-                              setDetailDoc(d);
-                              toast.info(
-                                "Registre o valor recebido e vincule o comprovante nos detalhes do pedido.",
-                              );
+                            } else if (["vendido", "pagamento_parcial", "esperando_pagamento", "payment_pending"].includes(next)) {
+                              toast.info("Use Lançar pagamento. A situação financeira é atualizada após a confirmação do financeiro.");
                             } else if (next !== d.workflow_stage) {
                               void changeStage(d, next);
                             }
@@ -2408,9 +2407,15 @@ export function DocsList({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="pending" disabled>Em análise</SelectItem>
+                            <SelectItem value="changes_requested" disabled>Ajuste solicitado</SelectItem>
+                            <SelectItem value="rejected" disabled>Reprovado</SelectItem>
+                            <SelectItem value="approved" disabled>Pedido aprovado</SelectItem>
+                            <SelectItem value="payment_pending" disabled>Aguardando financeiro</SelectItem>
                             {WORKFLOW_OPTIONS.map((option) => (
                               <SelectItem
                                 key={option.value}
+                                disabled={["vendido", "pagamento_parcial", "esperando_pagamento"].includes(option.value)}
                                 value={option.value}
                                 className={
                                   option.value === "cancelado"

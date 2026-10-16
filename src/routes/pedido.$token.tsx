@@ -29,8 +29,8 @@ export const Route = createFileRoute("/pedido/$token")({
 });
 
 const stageLabel: Record<string, string> = {
-  pedido_feito: "Pedido feito",
-  esperando_pagamento: "Esperando pagamento",
+  pedido_feito: "A preparar",
+  esperando_pagamento: "Pagamento atrasado",
   pagamento_parcial: "Pagamento parcial",
   vendido: "Pago",
   em_caminho: "Em caminho",
