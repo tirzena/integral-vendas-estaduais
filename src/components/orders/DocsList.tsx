@@ -439,6 +439,27 @@ export function DocsList({
     },
   });
 
+
+  const pendingPaymentAmounts = useQuery({
+    queryKey: ["pending-payment-amounts", userId, (data?.docs ?? []).map((doc: any) => doc.id).sort().join(",")],
+    enabled: !isQuote && !!data?.docs?.length,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const ids = (data?.docs ?? []).map((doc: any) => doc.id);
+      const amounts: Record<string, number> = {};
+      for (let offset = 0; offset < ids.length; offset += 100) {
+        const result = await readAllRows(
+          (supabase.from("payments") as any).select("order_id,amount")
+            .in("order_id", ids.slice(offset, offset + 100)).eq("status", "pendente"),
+        );
+        for (const payment of result.data) {
+          amounts[payment.order_id] = (amounts[payment.order_id] ?? 0) + Math.max(0, Number(payment.amount) || 0);
+        }
+      }
+      return amounts;
+    },
+  });
+
   const customers = useMemo(() => data?.customers ?? [], [data?.customers]);
   const people = useMemo(() => data?.people ?? [], [data?.people]);
   const teams = useMemo(() => data?.teams ?? [], [data?.teams]);
@@ -2505,7 +2526,7 @@ export function DocsList({
                   )}
                   {!isQuote && !stockOnly && !cancelled && (
                     <PaymentMeter
-                      paid={Number(d.amount_paid || 0)}
+                      pending={pendingPaymentAmounts.data?.[d.id] ?? 0} paid={Number(d.amount_paid || 0)}
                       total={Number(d.total || 0)}
                     />
                   )}
