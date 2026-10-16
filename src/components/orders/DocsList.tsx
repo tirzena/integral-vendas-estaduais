@@ -3124,7 +3124,7 @@ export function DocsList({
                 </div>
                 {!isCatalogRequest(detailDoc) && (
                   <div className="space-y-3 rounded-lg border p-3">
-                    <p className="font-medium">Comprovantes de pagamento</p>
+                    <p className="font-medium">Histórico e comprovantes de pagamento</p>
                     <p className="text-xs text-muted-foreground">Registre pagamentos e solicite o uso de crédito pelo botão Lançar pagamento na lista. Os valores só são abatidos após a conferência financeira.</p>
                     {(detailQuery.data?.proofs ?? []).map((proof: any) => (
                       <div key={proof.id} className="text-sm">

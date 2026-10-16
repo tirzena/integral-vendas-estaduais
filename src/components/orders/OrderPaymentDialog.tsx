@@ -165,9 +165,9 @@ export function OrderPaymentDialog({ orderId, onClose }: { orderId: string; onCl
                   {formatMoney(Number(data.receivable), cur)}
                 </p>
               </div>
-              <section className="space-y-2 rounded-lg border p-3">
+              <section aria-label="Consultar e usar crédito do cliente" className="space-y-2 rounded-lg border p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="font-medium text-sm">Crédito do cliente</p>
+                  <p className="font-medium text-sm">Crédito disponível do cliente</p>
                   <Button
                     type="button"
                     size="sm"
