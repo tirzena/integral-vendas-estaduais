@@ -55,6 +55,9 @@ BEGIN
    OR round((submitted->>'unit_price')::numeric*(1-(submitted->>'discount_percent')::numeric/100),2)
     <round((authorized->>'unit_price')::numeric*(1-(authorized->>'max_discount_percent')::numeric/100),2)
  ) THEN
+  IF NOT coalesce((p_args->>'p_price_confirmation_supported')::boolean,false) THEN
+   RAISE EXCEPTION 'A cotação do pedido foi atualizada. Salve o rascunho e atualize a página para conferir os preços antes de enviar.';
+  END IF;
   RETURN jsonb_build_object('requires_price_confirmation',true,'quote',quote);
  END IF;
  quote:=private.seller_calculate(actor,payload);

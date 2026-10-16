@@ -1354,6 +1354,7 @@ export function Pdv({
                     p_tracking_code: trackingCode,
                   }
                 : {
+                    ...(restrictedSeller ? { p_price_confirmation_supported: true } : {}),
                     p_kind: "pre_pedido",
                     p_customer_id: customerId || null,
                     p_product_id: scoped ? productId : null,
