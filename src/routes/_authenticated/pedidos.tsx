@@ -191,7 +191,7 @@ function Pedidos() {
             <Card>
               <CardContent className="pt-5">
                 {sellerPortal && !draft?.sourceOrderId ? (
-                  <SellerOrderForm onFinished={closeOrderEditor} />
+                  <SellerOrderForm onFinished={() => { closeOrderEditor(); setTab("solicitacoes"); }} />
                 ) : (
                   <Pdv productId={productId} draft={draft} readOnly={!estadualAccess.canWrite} onFinished={closeOrderEditor} />
                 )}
