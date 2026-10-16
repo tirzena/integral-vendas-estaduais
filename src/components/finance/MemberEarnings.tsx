@@ -1,3 +1,4 @@
+import { MemberPaymentReceipts } from "./MemberPaymentReceipts";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from "react";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
@@ -150,6 +151,7 @@ export function MemberEarnings({ currency = "USD" }: { currency?: Currency }) {
   if (finance.error) return <p role="alert">Não foi possível carregar as comissões.</p>;
   return (
     <div className="space-y-4">
+      <MemberPaymentReceipts />
       <p className="text-sm text-muted-foreground">
         Saldo acumulado desde o início, em todas as categorias. Comissão liberada proporcionalmente
         ao pagamento de cada pedido; bonificações liberadas integralmente ao serem concedidas.

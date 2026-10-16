@@ -73,6 +73,9 @@ export function useRanking(
         .select("id,seller_id,status,total,currency,created_at,product_id,workflow_stage,order_date")
         .is("deleted_at", null)
         .is("superseded_at", null)
+        .or("approval_status.is.null,approval_status.eq.approved")
+        .is("replacement_for_order_id", null)
+        .or("customer_resolution.is.null,customer_resolution.neq.credit")
         .limit(3000);
       // Category filtering uses the lines of mixed orders, not just the header.
       const [ordersResult, profilesResult, awardsResult, rolesResult] = await Promise.all([

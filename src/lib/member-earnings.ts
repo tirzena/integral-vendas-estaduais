@@ -23,6 +23,9 @@ export function memberEarnings(data: any, convert: any, productId = "todos") {
       !o.seller_id ||
       !scoped(o) ||
       o.kind !== "venda" ||
+      (o.approval_status != null && o.approval_status !== "approved") ||
+      !!o.replacement_for_order_id ||
+      o.customer_resolution === "credit" ||
       o.deleted_at ||
       o.superseded_at ||
       ["cancelado", "rascunho", "solicitacao_catalogo"].includes(o.workflow_stage) ||

@@ -212,111 +212,7 @@ export function PayrollSection({
             </DialogContent>
           </Dialog>
 
-          <TabsContent value="acordos" className="pt-4">
-            <ResourcePage
-              title="Quanto cada pessoa recebe"
-              description={`A mesma pessoa pode ter vários acordos ao mesmo tempo: um percentual em uma categoria, um valor fixo em outra, outro em marketing. ${scopeNote}`}
-              table="member_compensations"
-              filter={scopeFilter}
-              beforeSave={(v: any) => {
-                const item = (compensationItems.data ?? []).find((item: any) => item.id === v["item_id"]);
-                if (item && ((v["product_id"] && v["product_id"] !== item.product_id) || (v["category_id"] && v["category_id"] !== item.category_id)))
-                  throw new Error("O produto deve pertencer à categoria e subcategoria escolhidas.");
-                return { ...v, product_id: item?.product_id || v["product_id"] || (productId === "todos" ? null : productId), category_id: item?.category_id || v["category_id"] || null, item_id: v["item_id"] || null };
-              }}
-              canWrite={isAdmin}
-              searchKeys={["notes", "label"]}
-              emptyTitle="Nenhum acordo cadastrado"
-              emptyDescription="Defina quanto cada membro recebe por categoria, subcategoria, semana, dia ou mês."
-              columns={[
-                { key: "user_id", label: "Pessoa", render: (r: any) => nameOf(r.user_id) },
-                { key: "label", label: "Acordo", render: (r: any) => r.label || "—" },
-                {
-                  key: "product_id",
-                  label: "Categoria",
-                  render: (r: any) =>
-                    itemOptions.find((item: any) => item.value === r.item_id)?.label ??
-                    categoryLabel(r.category_id) ??
-                    productOptions.find((p) => p.value === r.product_id)?.label ??
-                    "Todas",
-                },
-                {
-                  key: "comp_type",
-                  label: "Como recebe",
-                  render: (r: any) =>
-                    r.comp_type === "percent" ? (
-                      `${r.amount}% sobre a venda`
-                    ) : (
-                      <CurrencyValues value={r.amount} currency={r.currency} />
-                    ),
-                },
-                {
-                  key: "period",
-                  label: "Periodicidade",
-                  render: (r: any) => PERIODS.find((p) => p.value === r.period)?.label ?? r.period,
-                },
-                {
-                  key: "active",
-                  label: "Ativo",
-                  render: (r: any) => (
-                    <Badge variant={r.active ? "default" : "secondary"}>
-                      {r.active ? "Sim" : "Não"}
-                    </Badge>
-                  ),
-                },
-              ]}
-              fields={[
-                { name: "user_id", label: "Pessoa", type: "select", required: true, options },
-                {
-                  name: "label",
-                  label: "Nome do acordo",
-                  placeholder: "Comissão de vendas, fixo de marketing…",
-                  full: true,
-                },
-                {
-                  name: "product_id",
-                  label: "Macro categoria (deixe vazio para valer em tudo)",
-                  type: "select",
-                  options: productOptions,
-                },
-                {
-                  name: "category_id",
-                  label: "Subcategoria (opcional)",
-                  type: "select",
-                  options: categoryOptions,
-                },
-
-                { name: "item_id", label: "Produto individual (opcional)", type: "select", options: itemOptions },
-                {
-                  name: "comp_type",
-                  label: "Forma de pagamento",
-                  type: "select",
-                  defaultValue: "percent",
-                  options: [
-                    { value: "percent", label: "Percentual sobre a venda" },
-                    { value: "fixed", label: "Valor fixo" },
-                  ],
-                },
-                { name: "amount", label: "Valor ou percentual", type: "number", required: true },
-                {
-                  name: "currency",
-                  label: "Moeda",
-                  type: "select",
-                  defaultValue: "USD",
-                  options: CURRENCIES.map((c) => ({ value: c.value, label: c.label })),
-                },
-                {
-                  name: "period",
-                  label: "Periodicidade",
-                  type: "select",
-                  defaultValue: "month",
-                  options: PERIODS,
-                },
-                { name: "active", label: "Acordo ativo", type: "switch", defaultValue: true },
-                { name: "notes", label: "Observações", type: "textarea" },
-              ]}
-            />
-          </TabsContent>
+          <TabsContent value="acordos" className="pt-4"><p className="rounded-lg border p-4 text-sm">Os acordos são definidos em <a className="font-medium text-primary underline" href="/financeiro#politicas">Financeiro → Políticas de remuneração</a>. O cadastro por cargo e as exceções individuais usam essa mesma configuração.</p></TabsContent>
 
           <TabsContent value="lancamentos" className="pt-4">
             <ResourcePage
@@ -369,7 +265,7 @@ export function PayrollSection({
                   label: "Tipo de valor",
                   type: "select",
                   defaultValue: "fixed",
-                  options: ENTRY_TYPES,
+                  options: ENTRY_TYPES.filter((t) => !["commission", "bonus"].includes(t.value)),
                 },
                 { name: "description", label: "Descrição", full: true },
                 {

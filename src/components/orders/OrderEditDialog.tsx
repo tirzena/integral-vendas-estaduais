@@ -31,18 +31,13 @@ export function OrderEditDialog({
     queryKey: ["order-editor", orderId, actor.userId, actor.isAdmin],
     enabled: !!orderId && !actor.loading,
     queryFn: async () => {
-      const r = await (supabase as any).rpc("integral_order_context", {
-        p_order_id: orderId,
-      });
+      const r = await (supabase as any).rpc("integral_order_context", { p_order_id: orderId });
       if (r.error) throw r.error;
       const [catalog, customers, warehouses] = await Promise.all(
         actor.isAdmin
           ? [
               (supabase as any).rpc("sales_items_for_sale"),
-              (supabase as any)
-                .from("customers")
-                .select("id,name")
-                .is("deleted_at", null),
+              (supabase as any).from("customers").select("id,name").is("deleted_at", null),
               (supabase as any).rpc("sales_warehouses"),
             ]
           : [
@@ -55,13 +50,8 @@ export function OrderEditDialog({
       if (customers.error) throw customers.error;
       r.data.catalog = actor.isAdmin ? catalog.data : catalog.data.items;
       r.data.customers = customers.data ?? [];
-      r.data.warehouses = actor.isAdmin
-        ? (warehouses.data ?? [])
-        : (catalog.data.warehouses ?? []);
-      const next = {
-        ...r.data.order,
-        items: r.data.items.map((i: any) => ({ ...i })),
-      };
+      r.data.warehouses = actor.isAdmin ? (warehouses.data ?? []) : (catalog.data.warehouses ?? []);
+      const next = { ...r.data.order, items: r.data.items.map((i: any) => ({ ...i })) };
       setForm(next);
       return r.data;
     },
@@ -69,9 +59,7 @@ export function OrderEditDialog({
   async function save() {
     if (!form || busy) return;
     if (reason.trim().length < 5)
-      return void toast.error(
-        "Descreva a alteração com pelo menos 5 caracteres.",
-      );
+      return void toast.error("Descreva a alteração com pelo menos 5 caracteres.");
     setBusy(true);
     try {
       const args = {
@@ -129,7 +117,9 @@ export function OrderEditDialog({
       toast.success(
         r.data.pending_approval
           ? "Solicitação enviada para aprovação. O pedido permanece inalterado."
-          : "Alterações salvas e auditadas.",
+          : r.data.awaiting_approval
+            ? "Pedido reenviado para aprovação. Acompanhe o status nos detalhes."
+            : "Alterações salvas e auditadas.",
       );
       await client.invalidateQueries();
       onClose();
@@ -139,8 +129,7 @@ export function OrderEditDialog({
       setBusy(false);
     }
   }
-  const change = (key: string, value: any) =>
-    setForm({ ...form, [key]: value });
+  const change = (key: string, value: any) => setForm({ ...form, [key]: value });
   return (
     <Dialog
       open={!!orderId}
@@ -151,10 +140,8 @@ export function OrderEditDialog({
       <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {query.data?.requires_approval
-              ? "Solicitar alteração"
-              : "Editar pedido"}{" "}
-            #{form?.number}
+            {query.data?.requires_approval ? "Solicitar alteração" : "Editar pedido"} #
+            {form?.number}
           </DialogTitle>
         </DialogHeader>
         {query.isLoading ? (
@@ -165,13 +152,13 @@ export function OrderEditDialog({
           form && (
             <div className="space-y-4">
               <p>
-                Cliente: {query.data.customer?.name ?? "Venda balcão"} ·
-                Estoque: {query.data.warehouse?.name ?? "Não definido"}
+                Cliente: {query.data.customer?.name ?? "Venda balcão"} · Estoque:{" "}
+                {query.data.warehouse?.name ?? "Não definido"}
               </p>
               {query.data.requires_approval && (
                 <p className="rounded-lg border p-3 text-sm">
-                  Este pedido tem pagamento confirmado ou envio iniciado. As
-                  alterações só serão aplicadas após aprovação administrativa.
+                  Este pedido tem pagamento confirmado ou envio iniciado. As alterações só serão
+                  aplicadas após aprovação administrativa.
                 </p>
               )}
               <div className="grid gap-3 sm:grid-cols-2">
@@ -180,9 +167,7 @@ export function OrderEditDialog({
                   <select
                     className="rounded-md border bg-background p-2"
                     value={form.customer_id ?? ""}
-                    onChange={(e) =>
-                      change("customer_id", e.target.value || null)
-                    }
+                    onChange={(e) => change("customer_id", e.target.value || null)}
                   >
                     <option value="">Venda balcão</option>
                     {query.data.customers.map((c: any) => (
@@ -218,9 +203,7 @@ export function OrderEditDialog({
                   className="rounded-md border bg-background p-2"
                   value=""
                   onChange={(e) => {
-                    const item = query.data.catalog.find(
-                      (i: any) => i.id === e.target.value,
-                    );
+                    const item = query.data.catalog.find((i: any) => i.id === e.target.value);
                     if (!item) return;
                     if (form.items.some((i: any) => i.item_id === item.id))
                       return void toast.error("O produto já está no pedido.");
@@ -228,10 +211,7 @@ export function OrderEditDialog({
                       query.data.exchange_rates_snapshot?.[item.currency] ??
                         (item.currency === form.currency ? 1 : 0),
                     );
-                    if (!(rate > 0))
-                      return void toast.error(
-                        "Cotação do produto indisponível.",
-                      );
+                    if (!(rate > 0)) return void toast.error("Cotação do produto indisponível.");
                     change("items", [
                       ...form.items,
                       {
@@ -242,8 +222,7 @@ export function OrderEditDialog({
                         barcode: item.barcode,
                         unit: item.unit ?? "UN",
                         quantity: 1,
-                        unit_price:
-                          Math.round((Number(item.price) / rate) * 100) / 100,
+                        unit_price: Math.round((Number(item.price) / rate) * 100) / 100,
                         discount: 0,
                         commission_enabled: true,
                         commission_percent: 5,
@@ -284,11 +263,8 @@ export function OrderEditDialog({
                               onChange={(e) =>
                                 setForm({
                                   ...form,
-                                  items: form.items.map(
-                                    (old: any, i: number) =>
-                                      i === index
-                                        ? { ...old, [key]: e.target.value }
-                                        : old,
+                                  items: form.items.map((old: any, i: number) =>
+                                    i === index ? { ...old, [key]: e.target.value } : old,
                                   ),
                                 })
                               }
@@ -303,9 +279,7 @@ export function OrderEditDialog({
                             onClick={() =>
                               change(
                                 "items",
-                                form.items.filter(
-                                  (_: any, i: number) => i !== index,
-                                ),
+                                form.items.filter((_: any, i: number) => i !== index),
                               )
                             }
                           >
@@ -334,19 +308,13 @@ export function OrderEditDialog({
                 ).map(([key, label]) => (
                   <label className="grid gap-1 text-sm" key={key}>
                     {label}
-                    <Input
-                      value={form[key] ?? ""}
-                      onChange={(e) => change(key, e.target.value)}
-                    />
+                    <Input value={form[key] ?? ""} onChange={(e) => change(key, e.target.value)} />
                   </label>
                 ))}
               </div>
               <label className="grid gap-1 text-sm">
                 Justificativa obrigatória
-                <Input
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                />
+                <Input value={reason} onChange={(e) => setReason(e.target.value)} />
               </label>
             </div>
           )

@@ -1,3 +1,5 @@
+import { CommissionBreakdown } from "@/components/orders/CommissionBreakdown";
+import { OrderReviewStatus } from "@/components/orders/OrderReviewStatus";
 import { readAllRows } from "@/lib/read-all-rows";
 import { OrderPaymentDialog } from "@/components/orders/OrderPaymentDialog";
 import { OrderEditDialog } from "@/components/orders/OrderEditDialog";
@@ -1096,6 +1098,7 @@ export function DocsList({
     doc: any,
     audience: "customer" | "internal" = "customer",
   ) {
+    if (!isQuote && doc.approval_status != null && doc.approval_status !== "approved") return void toast.error("A guia fica disponível após aprovação.");
     const selectedPrintFormat = printOverrides[doc.id] ?? printFormat;
     if (isQuote) {
       if (!printSalesDocument(buildPrint(doc), selectedPrintFormat, audience))
@@ -1260,18 +1263,18 @@ export function DocsList({
     setBusy(true);
     try {
       if (isQuote) await cancelQuote(cancelDoc.id, cancelReason);
-      else {
-        if (cancelWarehouseId)
-          await setCancelReturnWarehouse(cancelDoc.id, cancelWarehouseId);
+      else if (cancelDoc.approval_status != null) {
+        const result = await (supabase as any).rpc("remuneration_request_cancellation", {
+          p_order: cancelDoc.id, p_reason: cancelReason, p_warehouse: cancelWarehouseId || null,
+        });
+        if (result.error) throw result.error;
+      } else {
+        if (cancelWarehouseId) await setCancelReturnWarehouse(cancelDoc.id, cancelWarehouseId);
         await deleteOrderWithReservationRepair({
           data: { orderId: cancelDoc.id, reason: cancelReason },
         });
       }
-      toast.success(
-        isQuote
-          ? "Orçamento recusado."
-          : "Pedido excluído e totais recalculados.",
-      );
+      toast.success(isQuote ? "Orçamento recusado." : cancelDoc.approval_status != null ? "Cancelamento enviado para revisão. Envolvidos notificados." : "Pedido excluído e totais recalculados.");
       setCancelDoc(null);
       setCancelReason("");
       setCancelWarehouseId("");
@@ -1318,6 +1321,7 @@ export function DocsList({
     setBusy(true);
     try {
       await setOrderStage(doc.id, next);
+      if (next === "perdido") setDetailDoc({ ...doc, workflow_stage: "perdido", fulfillment_status: "perdido" });
       toast.success("Estágio do pedido atualizado.");
       await queryClient.invalidateQueries();
     } catch (e: any) {
@@ -2648,6 +2652,8 @@ export function DocsList({
               {orderNumber(detailDoc?.number, detailDoc?.revision_no)}
             </DialogTitle>
           </DialogHeader>
+          {detailDoc && <OrderReviewStatus order={detailDoc} />}
+          {detailDoc && !isQuote && <CommissionBreakdown orderId={detailDoc.id} />}
           {detailDoc && detailDoc.status !== "cancelado" && (
             <div className="flex flex-wrap gap-2">
               <Button

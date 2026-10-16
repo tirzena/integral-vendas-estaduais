@@ -68,6 +68,7 @@ export function calculateFinance(
   const orders = (data.orders ?? []).filter(
     (o: any) =>
       financeOrderShare(data, o) > 0 &&
+      (o.approval_status == null || o.approval_status === "approved") &&
       !o.deleted_at &&
       !o.superseded_at &&
       o.status !== "cancelado" &&
@@ -76,6 +77,8 @@ export function calculateFinance(
       !["rascunho", "solicitacao_catalogo"].includes(o.workflow_stage),
   );
   const ids = new Set(orders.flatMap((o: any) => [o.id, o.root_order_id].filter(Boolean)));
+  const lossByOrder = new Map((data.lossResolutions ?? []).map((r: any) => [r.order_id, r]));
+  let creditCash = 0;
   const sellerSales = new Map<string, { total: number; paid: number }>();
   let saleCosts = 0,
     realExpenses = 0;
@@ -87,7 +90,8 @@ export function calculateFinance(
         : usd(amount, o.currency);
     };
     const share = financeOrderShare(data, o);
-    const total = orderUsd(o.total) * share;
+    const creditResolved = o.customer_resolution === "credit";
+    const total = creditResolved ? 0 : orderUsd(o.total) * share;
     const payments = (data.payments ?? []).filter(
       (p: any) => p.order_id === o.id && p.status === "pago",
     );
@@ -117,15 +121,24 @@ export function calculateFinance(
       o.total_cost_usd !== null && o.total_cost_usd !== undefined
         ? Number(o.total_cost_usd)
         : orderUsd(o.merchandise_cost ?? 0);
-    const expenses =
-      merchandise +
-      orderUsd(o.shipping_cost) +
-      orderUsd(o.commission_total) +
-      orderUsd(o.bonus_amount);
+    const operatingCosts = merchandise + orderUsd(o.transport_cost_order_amount ?? o.shipping_cost) + orderUsd(o.variable_cost);
+    const remuneration = orderUsd(o.commission_total) + orderUsd(o.bonus_amount);
+    const expenses = operatingCosts + remuneration;
+    const loss: any = lossByOrder.get(o.id);
+    const consumedAt = o.stock_consumed_at ?? (creditResolved ? loss?.recorded_at : null);
+    const consumedTime = consumedAt ? new Date(consumedAt).getTime() : Infinity;
+    const recognized = (through: number) => {
+      if (consumedTime <= through) return 1;
+      if (!(orderAmount > 0)) return 0;
+      const confirmed = payments.filter((p: any) => new Date(p.paid_at ?? p.created_at).getTime() <= through)
+        .reduce((n: number, p: any) => n + nominal(p), 0);
+      return Math.min(1, Math.max(0, confirmed / orderAmount));
+    };
+    const costFraction = Math.max(0, recognized(now.getTime()) - (from ? recognized(from.getTime() - 1) : 0));
     const seller = sellerSales.get(o.seller_id) ?? { total: 0, paid: 0 };
     if (inPeriod(o.order_date ?? o.created_at)) {
       t.salesTotal += total;
-      saleCosts += expenses * share;
+      if (!creditResolved) saleCosts += expenses * share;
       if (
         o.fulfillment_status !== "perdido" &&
         o.workflow_stage !== "perdido" &&
@@ -138,15 +151,26 @@ export function calculateFinance(
         t.inTransit += total;
     }
     seller.total += total;
-    seller.paid += receivedPeriod * share;
+    if (!creditResolved) seller.paid += receivedPeriod * share;
     sellerSales.set(o.seller_id, seller);
     for (const p of payments.filter((p: any) => inPeriod(p.paid_at ?? p.created_at)))
       cash(p.paid_at ?? p.created_at, "in", paidUsd(p) * share, "Vendas");
-    t.salesPaid += receivedPeriod * share;
-    t.realCost += merchandise * ratio * share;
-    realExpenses += expenses * ratio * share;
+    if (creditResolved) creditCash += receivedPeriod * share;
+    else t.salesPaid += receivedPeriod * share;
+    t.realCost += merchandise * costFraction * share;
+    realExpenses += (operatingCosts * costFraction + remuneration * ratio) * share;
+    if (creditResolved && inPeriod(loss?.recorded_at ?? o.stock_consumed_at ?? o.order_date)) saleCosts += operatingCosts * share;
     // Saldo em aberto é posição atual, mesmo quando a emissão precede o período.
-    t.receivableOpen += orderUsd(Math.max(0, Number(o.total) - paid)) * share;
+    if (!creditResolved && !o.replacement_for_order_id) t.receivableOpen += orderUsd(Math.max(0, Number(o.total) - paid)) * share;
+  }
+  for (const loss of data.lossResolutions ?? []) {
+    if (orders.some((o: any) => o.id === loss.order_id) || !inPeriod(loss.recorded_at)) continue;
+    const original = (data.orders ?? []).find((o: any) => o.id === loss.order_id && !o.deleted_at && !o.superseded_at);
+    if (!original) continue;
+    const share = financeOrderShare(data, original);
+    const cost = usd(Number(loss.merchandise_cost ?? 0) + Number(loss.freight_cost ?? 0), loss.currency) * share;
+    saleCosts += cost; realExpenses += cost;
+    t.realCost += usd(loss.merchandise_cost, loss.currency) * share;
   }
   const purchases = (data.purchases ?? []).filter(
     (p: any) =>
@@ -198,7 +222,7 @@ export function calculateFinance(
       cash(pay.paid_at ?? pay.created_at, "out", amount, "Fornecedores");
     }
   }
-  t.cashIn = t.salesPaid;
+  t.cashIn = t.salesPaid + creditCash;
   t.cashOut = t.purchasesPaid;
   for (const r of (data.receivable ?? []).filter(selected)) {
     if (r.order_id || r.status === "cancelado") continue;
@@ -228,7 +252,8 @@ export function calculateFinance(
     const amount = usd(b.amount, b.currency);
     saleCosts += amount;
     const seller = sellerSales.get(b.user_id);
-    realExpenses += amount * (seller?.total ? Math.min(1, seller.paid / seller.total) : 0);
+    realExpenses += b.remuneration_policy_id ? amount : amount * (seller?.total ? Math.min(1, seller.paid / seller.total) : 0);
+    if (b.remuneration_policy_id && b.status !== "pago") t.payableOpen += amount;
     if (b.status === "pago") {
       t.cashOut += amount;
       cash(b.created_at, "out", amount, "Bonificações");

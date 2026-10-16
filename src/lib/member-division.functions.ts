@@ -85,13 +85,16 @@ export const createMemberWithDivisionAccess = createServerFn({ method: "POST" })
       throw new Error("Somente superadmin pode conceder esse cargo.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const email = data.email.trim().toLowerCase();
-    // An unshared random secret prevents login before activation. It is never returned.
-    const secret = crypto.randomUUID() + crypto.randomUUID();
+    const initial = await (supabaseAdmin as any).rpc("integral_initial_member_password");
+    if (initial.error || typeof initial.data !== "string" || initial.data.length < 6)
+      throw new Error("A senha inicial dos membros ainda não foi configurada pelo administrador.");
+    const secret = initial.data;
     const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password: secret,
       email_confirm: true,
       user_metadata: { full_name: data.full_name },
+      app_metadata: { initial_setup_suggested: true },
     });
     if (createError || !created.user)
       throw new Error(createError?.message ?? "Falha ao criar a conta.");
@@ -103,19 +106,7 @@ export const createMemberWithDivisionAccess = createServerFn({ method: "POST" })
         p_payload: { ...data, email },
       });
       if (configured.error) throw configured.error;
-      const activated = await supabaseAdmin.auth.admin.generateLink({
-        type: "recovery",
-        email,
-        options: {
-          redirectTo: "https://login.qrcodevalidacao.com/auth?recuperar=1",
-        },
-      });
-      if (activated.error || !activated.data.properties?.action_link)
-        throw activated.error ?? new Error("Falha ao preparar a ativação.");
-      return {
-        id: memberId,
-        activationLink: activated.data.properties.action_link,
-      };
+      return { id: memberId, activationLink: "", initialAccessReady: true };
     } catch (failure) {
       const cleanup = await supabaseAdmin.auth.admin.deleteUser(memberId);
       if (cleanup.error)

@@ -1,3 +1,10 @@
+import { PeriodPolicyAccruals } from "@/components/finance/PeriodPolicyAccruals";
+import { useCurrentUser } from "@/hooks/useAuth";
+import { useOperationalAccess } from "@/hooks/useOperationalAccess";
+import { CompanyReadOnlyView } from "@/components/finance/CompanyReadOnlyView";
+import { LogisticsConsole } from "@/components/orders/LogisticsConsole";
+import { OrderApprovalQueue } from "@/components/finance/OrderApprovalQueue";
+import { RemunerationPolicies } from "@/components/finance/RemunerationPolicies";
 import { PendingPaymentReceipts } from "@/components/finance/PendingPaymentReceipts";
 import { FinanceStock } from "@/components/finance/FinanceStock";
 import { CustomerCreditsSection } from "@/components/finance/CustomerCreditsSection";
@@ -17,7 +24,7 @@ import { FinanceSummary } from "@/components/finance/FinanceSummary";
 import { useFinanceTotals } from "@/hooks/useFinanceTotals";
 import { PayrollSection } from "@/components/finance/PayrollSection";
 import { InvestmentsSection } from "@/components/finance/InvestmentsSection";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Filter, MapPin, RotateCcw } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -67,11 +74,13 @@ function statusBadge(r: any) {
   );
 }
 
-function Financeiro() {
+function FinanceiroBase() {
   const { seesCompanyFinance, userId, roles, isAdmin } = usePermissions();
   const canReviewPayments = isAdmin || roles.includes("financeiro");
   const { productId, products } = useProductScope();
   const [displayCurrency, setDisplayCurrency] = useState<Currency>("BRL");
+  const [financeTab, setFinanceTab] = useState("resumo");
+  useEffect(() => { const sync = () => { const value=window.location.hash.slice(1); if (["aprovacoes","politicas","conferencias"].includes(value)) setFinanceTab(value); }; sync(); window.addEventListener("hashchange",sync); return () => window.removeEventListener("hashchange",sync); }, []);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [sellerFilter, setSellerFilter] = useState("all");
@@ -549,11 +558,13 @@ function Financeiro() {
         {scopeBanner}
         {filters}
 
-        <Tabs defaultValue="resumo">
+        <Tabs value={financeTab} onValueChange={setFinanceTab}>
           <TabsList className="flex-wrap">
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="receber">A receber</TabsTrigger>
             {canReviewPayments && <TabsTrigger value="conferencias">Conferir pagamentos</TabsTrigger>}
+            {canReviewPayments && <TabsTrigger value="aprovacoes">Aprovações</TabsTrigger>}
+            <TabsTrigger value="politicas">Políticas de remuneração</TabsTrigger>
             <TabsTrigger value="creditos">Créditos de clientes</TabsTrigger>
             <TabsTrigger value="pagar">A pagar</TabsTrigger>
             <TabsTrigger value="estoque">Em estoque</TabsTrigger>
@@ -561,6 +572,8 @@ function Financeiro() {
             <TabsTrigger value="lucros">Participação nos lucros</TabsTrigger>
           </TabsList>
           {canReviewPayments && <TabsContent value="conferencias" className="pt-4"><PendingPaymentReceipts productId={effectiveProductId} /></TabsContent>}
+          {canReviewPayments && <TabsContent value="aprovacoes" className="pt-4"><OrderApprovalQueue /></TabsContent>}
+          <TabsContent value="politicas" className="pt-4"><RemunerationPolicies /><PeriodPolicyAccruals /></TabsContent>
           <TabsContent value="resumo" className="pt-4">
             <Tabs defaultValue="visao">
               <TabsList className="flex-wrap">
@@ -681,4 +694,13 @@ function Financeiro() {
       </div>
     </DisplayCurrencyContext.Provider>
   );
+}
+
+function Financeiro() {
+  const operational = useOperationalAccess();
+  const { isAdmin,roles,loading } = useCurrentUser();
+  if (loading || operational.isLoading) return <p className="p-4 text-sm text-muted-foreground">Conferindo acesso…</p>;
+  if (!isAdmin && operational.companyObserver) return <CompanyReadOnlyView initialSection="receivable" />;
+  
+  return <FinanceiroBase />;
 }

@@ -30,9 +30,7 @@ export function OrderApprovals() {
         p_note: note[id] ?? "",
       });
       if (r.error) throw r.error;
-      toast.success(
-        approve ? "Alteração aprovada e aplicada." : "Solicitação rejeitada.",
-      );
+      toast.success(approve ? "Alteração aprovada e aplicada." : "Solicitação rejeitada.");
       await client.invalidateQueries();
     } catch (e) {
       toast.error((e as Error).message);
@@ -48,17 +46,12 @@ export function OrderApprovals() {
       ) : query.error ? (
         <p role="alert">{(query.error as Error).message}</p>
       ) : !query.data?.length ? (
-        <p className="text-sm text-muted-foreground">
-          Nenhuma solicitação pendente.
-        </p>
+        <p className="text-sm text-muted-foreground">Nenhuma solicitação pendente.</p>
       ) : (
         query.data.map((r) => (
           <article key={r.id} className="space-y-3 rounded-lg border p-3">
             <p className="font-medium">
-              Pedido{" "}
-              {r.previous_snapshot?.number ??
-                r.previous_snapshot?.order?.number ??
-                "—"}
+              Pedido {r.previous_snapshot?.number ?? r.previous_snapshot?.order?.number ?? "—"}
             </p>
             <p>{r.reason}</p>
             <details>
@@ -90,13 +83,11 @@ export function OrderApprovals() {
                   ))}
                 </tbody>
               </table>
-              <p className="mt-3 font-medium">
-                Produtos e quantidades propostas
-              </p>
+              <p className="mt-3 font-medium">Produtos e quantidades propostas</p>
               {(r.proposed_args?.p_items ?? []).map((item: any, i: number) => (
                 <p className="text-sm" key={i}>
-                  {item.description} · {item.quantity} un. · preço{" "}
-                  {item.unit_price} · desconto {item.discount ?? 0}
+                  {item.description} · {item.quantity} un. · preço {item.unit_price} · desconto{" "}
+                  {item.discount ?? 0}
                 </p>
               ))}
             </details>
@@ -106,10 +97,7 @@ export function OrderApprovals() {
               onChange={(e) => setNote({ ...note, [r.id]: e.target.value })}
             />
             <div className="flex gap-2">
-              <Button
-                disabled={busy === r.id}
-                onClick={() => review(r.id, true)}
-              >
+              <Button disabled={busy === r.id} onClick={() => review(r.id, true)}>
                 Aprovar e aplicar
               </Button>
               <Button
