@@ -1215,6 +1215,7 @@ export function DocsList({
         doc.delivery_recipient_document ?? requestCustomer?.document ?? "",
       shippingCost: Number(doc.shipping_cost ?? 0),
       shippingManuallyEdited: !isQuote && !request,
+      shippingMode: doc.delivery?.shipping_mode ?? (Number(doc.shipping_cost ?? 0) > 0 ? "value" : "included"),
       variableCost: Number(doc.variable_cost ?? 0),
       shippingPercentage:
         doc.shipping_percentage == null

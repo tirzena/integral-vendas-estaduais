@@ -144,6 +144,7 @@ export type PdvDraft = {
   sellerId?: string | null;
   deliveryRecipientName?: string | null;
   deliveryRecipientDocument?: string | null;
+  shippingMode?: "included" | "value" | "percent" | "automatic";
   shippingCost?: number;
   shippingCostInput?: string;
   shippingManuallyEdited?: boolean;
@@ -300,6 +301,9 @@ export function Pdv({
   const [deliveryRecipientDocument, setDeliveryRecipientDocument] = useState("");
   const [recipientPickerOpen, setRecipientPickerOpen] = useState(false);
   const [sameRecipientAsCustomer, setSameRecipientAsCustomer] = useState(true);
+  const [shippingMode, setShippingMode] = useState<"included" | "value" | "percent" | "automatic">(
+    "included",
+  );
   const [shippingCost, setShippingCost] = useState("0");
   const [variableCost, setVariableCost] = useState("0");
   const [shippingPercentage, setShippingPercentage] = useState<number | null>(null);
@@ -525,6 +529,9 @@ export function Pdv({
     setDeliveryRecipientName(draft.deliveryRecipientName ?? "");
     setDeliveryRecipientDocument(draft.deliveryRecipientDocument ?? "");
     setSameRecipientAsCustomer(false);
+    setShippingMode(
+      draft.shippingMode ?? (Number(draft.shippingCost ?? 0) > 0 ? "value" : "included"),
+    );
     setShippingCost(draft.shippingCostInput ?? String(draft.shippingCost ?? 0));
     setPayments(draft.payments ?? []);
     setCounterSale(Boolean(draft.counterSale));
@@ -655,7 +662,11 @@ export function Pdv({
   const netAfterItems = Math.max(0, round2(gross - itemDiscounts));
   const generalDiscount = discountValue(netAfterItems, toNumber(saleDiscount), saleDiscountKind);
   const freight =
-    restrictedSeller && !sourceOrderId ? 0 : Math.max(0, round2(toNumber(shippingCost)));
+    shippingMode === "included"
+      ? 0
+      : shippingMode === "percent"
+        ? round2((Math.max(0, netAfterItems - generalDiscount) * (shippingPercentage ?? 0)) / 100)
+        : Math.max(0, round2(toNumber(shippingCost)));
   const internalVariableCost = Math.max(0, round2(toNumber(variableCost)));
   const total = Math.max(0, round2(netAfterItems - generalDiscount + freight));
   const manualCommissionTotal = round2(
@@ -741,6 +752,7 @@ export function Pdv({
         sellerId: selectedSellerId || null,
         deliveryRecipientName: deliveryRecipientName || null,
         deliveryRecipientDocument: deliveryRecipientDocument || null,
+        shippingMode,
         shippingCost: freight,
         shippingCostInput: shippingCost,
         shippingManuallyEdited,
@@ -761,6 +773,7 @@ export function Pdv({
   }, [
     userId,
     sourceOrderId,
+    shippingMode,
     shippingCost,
     shippingManuallyEdited,
     payments,
@@ -798,7 +811,7 @@ export function Pdv({
   ]);
 
   useEffect(() => {
-    if (restrictedSeller) return;
+    if (restrictedSeller || shippingMode !== "automatic") return;
     if (shippingCountry !== "Paraguai" && !shippingState.trim()) return;
     if (!lines.length || shippingManuallyEdited) return;
     let active = true;
@@ -842,6 +855,7 @@ export function Pdv({
     };
   }, [
     restrictedSeller,
+    shippingMode,
     calculateShipping,
     currency,
     shippingItemsKey,
@@ -1109,6 +1123,7 @@ export function Pdv({
     setDeliveryRecipientName("");
     setDeliveryRecipientDocument("");
     setSameRecipientAsCustomer(true);
+    setShippingMode("included");
     setShippingCost("0");
     setShippingPercentage(null);
     setShippingCalculationError("");
@@ -1277,6 +1292,14 @@ export function Pdv({
         setStep("finalizacao");
         return void toast.error("Informe um percentual de frete entre 0% e 100%.");
       }
+      if (
+        (shippingMode === "percent" && shippingPercentage == null) ||
+        (shippingMode === "value" &&
+          (!Number.isFinite(Number(shippingCost.replace(",", "."))) || toNumber(shippingCost) < 0))
+      ) {
+        setStep("finalizacao");
+        return void toast.error("Informe um frete válido, em percentual ou valor não negativo.");
+      }
       const invalidCommission = lines.find(
         (line) => line.commission_percent < 0 || line.commission_percent > 100,
       );
@@ -1387,6 +1410,7 @@ export function Pdv({
                     p_payments: [],
                   },
               p_followup: {
+                shipping_mode: shippingMode,
                 delivered_at: deliveredAt || null,
                 seller_id: selectedSellerId,
                 warehouse_id: warehouseId,
@@ -2392,86 +2416,87 @@ export function Pdv({
                     </Button>
                   </div>
                 </div>
-                {restrictedSeller ? (
-                  <div className="sm:col-span-2 rounded-lg border bg-primary/5 p-3 text-sm">
-                    {sourceOrderId && freight > 0
-                      ? "O frete já registrado é preservado nesta revisão."
-                      : "Frete incluído nos preços dos produtos. Não há cálculo adicional para enviar o pedido."}
-                  </div>
-                ) : (
-                  <div className="sm:col-span-2 rounded-lg border bg-primary/5 p-3">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <Label>Percentual do frete</Label>
-                        <div className="relative">
-                          <Input
-                            value={shippingPercentage ?? ""}
-                            readOnly
-                            inputMode="decimal"
-                            className="pr-9"
-                            placeholder="20"
-                          />
-                          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
-                            %
-                          </span>
-                        </div>
-                      </div>
-                      <div>
-                        <Label>Valor do frete ({currency})</Label>
-                        <Input
-                          value={shippingCost}
-                          inputMode="decimal"
-                          onChange={(event) => {
-                            setShippingManuallyEdited(true);
-                            setShippingCalculationError("");
-                            setShippingCost(event.target.value);
-                          }}
-                        />
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {secondaryCurrencyValues(freight)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                      <span>
-                        {shippingManuallyEdited
-                          ? "Frete informado manualmente."
-                          : "Calculado pelas regras cadastradas em cada produto."}
-                      </span>
-                      {shippingManuallyEdited && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setShippingManuallyEdited(false)}
-                        >
-                          Usar cálculo automático
-                        </Button>
+                <div className="sm:col-span-2 rounded-lg border bg-primary/5 p-3">
+                  <Label>Frete do pedido</Label>
+                  <Select
+                    value={shippingMode}
+                    onValueChange={(value) => {
+                      setShippingMode(value as typeof shippingMode);
+                      setShippingCalculationError("");
+                      setShippingManuallyEdited(value !== "automatic");
+                      if (value === "included") {
+                        setShippingCost("0");
+                        setShippingPercentage(null);
+                      }
+                      if (value === "value") {
+                        setShippingCost(String(freight));
+                        setShippingPercentage(null);
+                      }
+                      if (value === "percent") setShippingPercentage(0);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="included">Frete embutido nos produtos</SelectItem>
+                      <SelectItem value="value">Adicionar valor de frete</SelectItem>
+                      <SelectItem value="percent">Adicionar percentual de frete</SelectItem>
+                      {!restrictedSeller && (
+                        <SelectItem value="automatic">Usar regras cadastradas</SelectItem>
                       )}
-                      <strong className="text-foreground">
-                        {shippingManuallyEdited ? (
-                          "Valor manual"
-                        ) : shippingPercentage == null ? (
-                          "Informe o estado para calcular"
-                        ) : (
-                          <>
-                            {formatNumber(shippingPercentage, 2)}% ={" "}
-                            <CurrencyValues
-                              convert={rates.convert}
-                              value={freight}
-                              currency={currency}
-                              layout="inline"
-                              primaryFirst
-                            />
-                          </>
-                        )}
-                      </strong>
+                    </SelectContent>
+                  </Select>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <Label>Percentual do frete (%)</Label>
+                      <Input
+                        inputMode="decimal"
+                        value={shippingPercentage ?? ""}
+                        readOnly={shippingMode !== "percent"}
+                        placeholder="0"
+                        onChange={(event) => {
+                          setShippingPercentage(
+                            event.target.value.trim() === "" ? null : toNumber(event.target.value),
+                          );
+                          setShippingManuallyEdited(true);
+                        }}
+                      />
                     </div>
-                    {shippingCalculationError && (
-                      <p className="mt-1 text-xs text-destructive">{shippingCalculationError}</p>
-                    )}
+                    <div>
+                      <Label>Valor do frete ({currency})</Label>
+                      <Input
+                        inputMode="decimal"
+                        value={
+                          shippingMode === "value" || shippingMode === "automatic"
+                            ? shippingCost
+                            : String(freight)
+                        }
+                        readOnly={shippingMode !== "value"}
+                        onChange={(event) => {
+                          setShippingCost(event.target.value);
+                          setShippingManuallyEdited(true);
+                          setShippingCalculationError("");
+                        }}
+                      />
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {secondaryCurrencyValues(freight)}
+                      </p>
+                    </div>
                   </div>
-                )}
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {shippingMode === "included"
+                      ? "Frete incluído nos preços dos produtos. Nenhum adicional será cobrado."
+                      : shippingMode === "percent"
+                        ? "Percentual sobre o subtotal dos produtos após descontos. O adicional aparece separado no total."
+                        : shippingMode === "automatic"
+                          ? "Calculado pelas regras cadastradas em cada produto."
+                          : "Valor adicional de frete, separado do preço dos produtos."}
+                  </p>
+                  {shippingCalculationError && (
+                    <p className="mt-1 text-xs text-destructive">{shippingCalculationError}</p>
+                  )}
+                </div>
                 {!restrictedSeller && (
                   <div>
                     <Label>Outros custos variáveis ({currency})</Label>
