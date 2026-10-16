@@ -86,6 +86,17 @@ const paymentLabel: Record<string, string> = {
   cancelado: "Cancelado",
 };
 
+const purchaseTabs = [
+  { value: "ativas", label: "Compras" },
+  { value: "trajeto", label: "Em caminho" },
+  { value: "pagos", label: "Pagos" },
+  { value: "parcial", label: "Pagamento parcial" },
+  { value: "pendentes", label: "Esperando pagamento" },
+  { value: "perdidas", label: "Produtos perdidos" },
+  { value: "consolidadas", label: "Compras consolidadas" },
+  { value: "canceladas", label: "Compras canceladas" },
+];
+
 function PurchasesPage() {
   const { isAdmin, loading } = useCurrentUser();
   const rates = useRates();
@@ -314,28 +325,32 @@ function PurchasesPage() {
     () => filterOperationalRows(filterRows, filters),
     [filterRows, filters],
   );
-  const filtered = useMemo(() => {
-    return globalRows.filter((purchase) => {
+  const purchasesByTab = useMemo(() => Object.fromEntries(
+    purchaseTabs.map(({ value: tab }) => [
+      tab,
+      globalRows.filter((purchase) => {
       const consolidated = isConsolidatedPurchase(purchase);
-      if (purchaseTab === "consolidadas") return consolidated;
+      if (tab === "consolidadas") return consolidated;
       if (consolidated) return false;
       const cancelled = purchase.status === "cancelada";
       const lost =
         purchase.source_order?.fulfillment_status === "perdido" || purchase.status === "perdida";
-      if (purchaseTab === "canceladas" ? !cancelled : cancelled) return false;
-      if (purchaseTab === "perdidas" ? !lost : purchaseTab === "ativas" && lost) return false;
+      if (tab === "canceladas" ? !cancelled : cancelled) return false;
+      if (tab === "perdidas" ? !lost : tab === "ativas" && lost) return false;
       if (
-        purchaseTab === "trajeto" &&
+        tab === "trajeto" &&
         (lost ||
           purchase.source_order?.delivered_at ||
           purchase.source_order?.fulfillment_status !== "a_caminho")
       )
         return false;
-      const tabPayment = { pagos: "pago", parcial: "parcial", pendentes: "pendente" }[purchaseTab];
+      const tabPayment = { pagos: "pago", parcial: "parcial", pendentes: "pendente" }[tab];
       if (tabPayment && purchase.payment_status !== tabPayment) return false;
       return true;
-    });
-  }, [purchaseTab, globalRows]);
+      }),
+    ]),
+  ), [globalRows]);
+  const filtered = purchasesByTab[purchaseTab] ?? [];
 
   const summaries = useMemo(() => {
     return globalRows.reduce(
@@ -535,25 +550,11 @@ function PurchasesPage() {
         }}
       >
         <TabsList className="h-auto w-full justify-start overflow-x-auto p-1">
-          <TabsTrigger value="ativas">
-            Compras ({globalRows.filter((p) => p.status !== "cancelada").length})
-          </TabsTrigger>
-          <TabsTrigger value="trajeto">Em caminho</TabsTrigger>
-          <TabsTrigger value="pagos">Pagos</TabsTrigger>
-          <TabsTrigger value="parcial">Pagamento parcial</TabsTrigger>
-          <TabsTrigger value="pendentes">Esperando pagamento</TabsTrigger>
-          <TabsTrigger value="perdidas">Produtos perdidos</TabsTrigger>
-          <TabsTrigger value="consolidadas">
-            Compras consolidadas ({globalRows.filter(isConsolidatedPurchase).length})
-          </TabsTrigger>
-          <TabsTrigger value="canceladas">
-            Compras canceladas (
-            {
-              globalRows.filter((p) => p.status === "cancelada" && !isConsolidatedPurchase(p))
-                .length
-            }
-            )
-          </TabsTrigger>
+          {purchaseTabs.map(({ value, label }) => (
+            <TabsTrigger key={value} value={value}>
+              {label} ({purchasesByTab[value]?.length ?? 0})
+            </TabsTrigger>
+          ))}
         </TabsList>
       </Tabs>
 
