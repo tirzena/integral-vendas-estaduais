@@ -1,4 +1,8 @@
+import { useSalesCatalog } from "@/hooks/useSalesCatalog";
+import { informationSourceUrl } from "@/lib/product-information";
+import { StockEntryDialog } from "@/components/inventory/StockEntryDialog";
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { catalogViewPath } from "@/lib/catalog-views";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -25,6 +29,7 @@ import { useRows } from "@/lib/db";
 import { useRates, DISPLAY_CURRENCIES, type Currency } from "@/hooks/useRates";
 import { catalogPriceBreakdown, convertCatalogPriceRules } from "@/lib/catalog-pricing";
 import { useBaseCurrency } from "@/hooks/useBaseCurrency";
+import { useCurrentUser } from "@/hooks/useAuth";
 import {
   saveProductCatalogConfig,
   uploadProductImage,
@@ -92,6 +97,29 @@ const PAYMENT_OPTIONS = [
   "Boleto",
 ];
 
+function CatalogViewLinks({ slug }: { slug: string }) {
+  const views = [
+    { audience: "vendedor" as const, label: "vendedor", description: "Com preços" },
+    { audience: "cliente" as const, label: "cliente", description: "Sem preços" },
+  ];
+  return <div className="mt-2 grid gap-2">
+    {views.map((view) => <div key={view.audience} className="flex flex-wrap items-center gap-1">
+      <Button size="sm" variant="outline" onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(window.location.origin + catalogViewPath(slug, view.audience));
+          toast.success(`Link ${view.label} copiado.`);
+        } catch { toast.error("Não foi possível copiar o link."); }
+      }}><Copy className="mr-1 size-3" />Link {view.label}</Button>
+      <Button size="sm" variant="outline" asChild>
+        <a href={catalogViewPath(slug, view.audience)} target="_blank" rel="noreferrer">
+          <ExternalLink className="mr-1 size-3" />Ver {view.label}
+        </a>
+      </Button>
+      <span className="text-xs text-muted-foreground">{view.description}</span>
+    </div>)}
+  </div>;
+}
+
 function slugify(s: string) {
   return normalize(s)
     .replace(/[^a-z0-9]+/g, "-")
@@ -125,7 +153,7 @@ function CatalogPricing({
   onChange: (value: any) => void;
   items: any[];
   currency: Currency;
-  convert: (value: number, from: Currency, to: Currency) => number | null;
+  convert: (value: number | null | undefined, from: Currency, to: Currency) => number | null;
 }) {
   const rules = value ?? {};
   const [search, setSearch] = useState("");
@@ -157,12 +185,12 @@ function CatalogPricing({
       <div>
         <p className="mb-2 text-sm font-medium">Padrão para os produtos deste catálogo</p>
         <div className="grid gap-3 sm:grid-cols-4">
-          {[
+          {([
             ["freight", "Frete (%)"],
             ["commission", "Comissão (%)"],
             ["markup", "Markup (%)"],
             ["discount", "Desconto (%)"],
-          ].map(([key, label]) => (
+          ] as const).map(([key, label]) => (
             <div key={key}>
               <Label className="text-xs">{label}</Label>
               <Input
@@ -268,12 +296,12 @@ function CatalogPricing({
                         onChange={(e) => update("extra", e.target.value)}
                       />
                     </div>
-                    {[
+                    {([
                       ["freight", "Frete (%)"],
                       ["commission", "Comissão (%)"],
                       ["markup", "Markup (%)"],
                       ["discount", "Desconto (%)"],
-                    ].map(([key, label]) => (
+                    ] as const).map(([key, label]) => (
                       <div key={key}>
                         <Label>{label}</Label>
                         <Input
@@ -386,11 +414,18 @@ function CatalogPricing({
   );
 }
 
-export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] }) {
+export function CatalogSection({ macros, subs, sellerMode = false, displaySection }: { macros: Macro[]; subs: Sub[]; sellerMode?: boolean; displaySection?: "products" | "catalogs" | "tables" }) {
   const baseCurrency = useBaseCurrency();
+  const { userId, roles, isAdmin } = useCurrentUser();
+  const sellerOnly = sellerMode || (roles.includes("vendedor") && !isAdmin && roles.every((role) => role === "vendedor"));
   const [currency, setCurrency] = useState<Currency>("USD");
   const [currencyTouched, setCurrencyTouched] = useState(false);
   const [view, setView] = useState<"cards" | "lista">("cards");
+  const [internalSectionTab, setSectionTab] = useState<"catalogo" | "tabelas">("catalogo");
+  const sectionTab = displaySection === "tables" ? "tabelas" : displaySection ? "catalogo" : internalSectionTab;
+  const showProducts = !displaySection || displaySection === "products";
+  const showCatalogs = !displaySection || displaySection === "catalogs";
+  const salesCatalog = useSalesCatalog(sellerOnly);
   const [search, setSearch] = useState("");
   const [macroFilter, setMacroFilter] = useState("todos");
   const [subFilter, setSubFilter] = useState("todos");
@@ -400,9 +435,11 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
   const [selected, setSelected] = useState<string[]>([]);
   const [bulkAction, setBulkAction] = useState("");
   const [form, setForm] = useState<any | null>(null);
+  const [stockEntry, setStockEntry] = useState<any | null>(null);
   const [saving, setSaving] = useState(false);
   const [open, setOpen] = useState(false);
   const [catalogForm, setCatalogForm] = useState<any | null>(null);
+  const [catalogLayout, setCatalogLayout] = useState<"cards" | "lista">("cards");
   const [quick, setQuick] = useState<any | null>(null);
   const [quickSaving, setQuickSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -431,26 +468,37 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
   }, [baseCurrency.currency, baseCurrency.loading, currencyTouched]);
 
   const itemsQuery = useRows<any>("inventory_items", {
+    enabled: !sellerOnly,
+    select: "id,name,sku,barcode,brand,description,public_description,intended_use,usage_instructions,information_source_url,product_id,category_id,supplier_id,quantity,min_quantity,reserved,unit,price,price_currency,currency,cost,cost_currency,image_url,is_active,variation,size,weight,volume,location,catalog_family,catalog_bestseller",
     orderBy: { column: "name", ascending: true },
     limit: 1000,
   });
-  const items = useMemo(() => itemsQuery.data ?? [], [itemsQuery.data]);
+  const items = useMemo(() => sellerOnly ? salesCatalog.data?.items ?? [] : itemsQuery.data ?? [], [sellerOnly, salesCatalog.data, itemsQuery.data]);
   const suppliersQuery = useRows<any>("suppliers", {
+    enabled: !sellerOnly,
     select: "id,name",
     orderBy: { column: "name", ascending: true },
   });
   const suppliers = suppliersQuery.data ?? [];
   const catalogsQuery = useRows<any>("digital_catalogs", {
+    enabled: !sellerOnly,
     orderBy: { column: "created_at", ascending: false },
   });
-  const catalogs = catalogsQuery.data ?? [];
+  const catalogs = sellerOnly ? salesCatalog.data?.catalogs ?? [] : catalogsQuery.data ?? [];
+  const visibleCatalogs = catalogs.filter((c:any) =>
+    c.visible_to_all_members !== false ||
+    (c.visible_member_ids ?? []).includes(userId) ||
+    c.created_by === userId
+  );
   const sellersQuery = useRows<any>("profiles", {
+    enabled: !!catalogForm && !sellerOnly,
     select: "id,full_name,is_active",
     filter: { is_active: true },
     orderBy: { column: "full_name", ascending: true },
     limit: 500,
   });
   const sellerRolesQuery = useRows<any>("user_roles", {
+    enabled: !!catalogForm && !sellerOnly,
     select: "user_id,role",
     filter: { role: "vendedor" },
     orderBy: { column: "created_at", ascending: true },
@@ -480,19 +528,15 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
         : [],
     [form?.catalog_media],
   );
-  const imagesQuery = useProductImages([
-    ...items.map((i: any) => i.image_url),
-    ...mediaPaths,
-    form?.image_url,
-    ...formMediaPaths,
-  ]);
-  const imageOf = (i: any) => (i.image_url ? imagesQuery.data?.[i.image_url] : undefined);
-
   const macroNames = useMemo(
     () => new Map(macros.map((macro) => [macro.id, macro.name])),
     [macros],
   );
-  const subNames = useMemo(() => new Map(subs.map((sub) => [sub.id, sub.name])), [subs]);
+  const visibleSubs = useMemo(
+    () => subs.filter((sub) => items.some((item: any) => item.category_id === sub.id)),
+    [subs, items],
+  );
+  const subNames = useMemo(() => new Map(visibleSubs.map((sub) => [sub.id, sub.name])), [visibleSubs]);
   const macroName = (id: string) => macroNames.get(id) ?? "Sem categoria";
   const subName = (id: string | null) => (id ? subNames.get(id) : undefined) ?? "Sem subcategoria";
   const supplierName = (id: string | null) => suppliers.find((s: any) => s.id === id)?.name ?? "—";
@@ -551,6 +595,14 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
     });
   }, [items, search, macroFilter, subFilter, brandFilter, supplierFilter, stockFilter]);
 
+  const imagesQuery = useProductImages([
+    ...items.map((i: any) => i.image_url),
+    ...mediaPaths,
+    form?.image_url,
+    ...formMediaPaths,
+  ]);
+  const imageOf = (i: any) => (i.image_url ? imagesQuery.data?.[i.image_url] : undefined);
+
   const grouped = useMemo(() => {
     const map = new Map<string, any[]>();
     for (const i of filtered) {
@@ -567,6 +619,23 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
   function specOf(i: any) {
     return [i.variation, i.size, i.weight, i.volume].filter(Boolean).join(" · ");
   }
+
+  const reportItems = useMemo(
+    () =>
+      filtered
+        .map((item: any) => ({
+          ...item,
+          reportBrand: item.brand || subName(item.category_id),
+        }))
+        .sort((a: any, b: any) => {
+          const byCategory = macroName(a.product_id).localeCompare(macroName(b.product_id), "pt-BR");
+          if (byCategory) return byCategory;
+          const bySub = subName(a.category_id).localeCompare(subName(b.category_id), "pt-BR");
+          if (bySub) return bySub;
+          return String(a.name).localeCompare(String(b.name), "pt-BR");
+        }),
+    [filtered, macroNames, subNames],
+  );
 
   function catalogRows() {
     return [
@@ -592,7 +661,7 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
         i.quantity ?? 0,
         ...(["BRL", "USD", "PYG"] as Currency[]).map(
           (target) =>
-            pricesInAllCurrencies(i.price, i.currency ?? "USD").find(
+            pricesInAllCurrencies(i.price, i.price_currency ?? i.currency ?? "USD").find(
               (entry) => entry.currency === target,
             )?.text ?? `${target}: —`,
         ),
@@ -611,7 +680,7 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
       for (const i of list) {
         const spec = specOf(i);
         lines.push(
-          `• ${i.name}${spec ? ` (${spec})` : ""} — ${priceTextInAllCurrencies(i.price, i.currency ?? "USD")} — ${formatNumber(i.quantity ?? 0)} un`,
+          `• ${i.name}${spec ? ` (${spec})` : ""} — ${priceTextInAllCurrencies(i.price, i.price_currency ?? i.currency ?? "USD")} — ${formatNumber(i.quantity ?? 0)} un`,
         );
       }
       lines.push("");
@@ -644,6 +713,8 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
             is_active: true,
             product_id: macroFilter !== "todos" ? macroFilter : null,
             category_id: subFilter !== "todos" ? subFilter : null,
+            catalog_family: "",
+            catalog_bestseller: false,
             catalog_media: [],
             info_group_url: "",
             catalog_seller_ids: [],
@@ -666,7 +737,7 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
     try {
       const path = await uploadProductImage(file);
       setForm((f: any) => ({ ...f, image_url: path }));
-      toast.success("Foto enviada.");
+      toast.success("Foto enviada. Clique em “Salvar produto” para confirmar a alteração.");
     } catch {
       toast.error("Não foi possível enviar a foto.");
     }
@@ -732,6 +803,7 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
         return void toast.error("Informe um link válido para o grupo de informações.");
       }
     }
+    if (form.information_source_url?.trim() && !informationSourceUrl(form.information_source_url)) return void toast.error("Informe uma fonte válida com HTTPS.");
     setSaving(true);
     const payload: any = {
       name: form.name,
@@ -739,6 +811,10 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
       barcode: form.barcode || null,
       brand: form.brand || null,
       description: form.description || null,
+      public_description: form.public_description?.trim() || null,
+      intended_use: form.intended_use?.trim() || null,
+      usage_instructions: form.usage_instructions?.trim() || null,
+      information_source_url: informationSourceUrl(form.information_source_url),
       location: form.location || null,
       image_url: form.image_url || null,
       product_id: form.product_id || null,
@@ -750,6 +826,8 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
       volume: form.volume || null,
       unit: form.unit || null,
       currency: form.currency ?? "USD",
+      price_currency: form.price_currency ?? form.currency ?? "USD",
+      cost_currency: form.cost_currency ?? form.currency ?? "USD",
       quantity: Number(form.quantity ?? 0),
       min_quantity: Number(form.min_quantity ?? 0),
       cost: Number(form.cost ?? 0),
@@ -757,8 +835,12 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
       tax_percent: Number(form.tax_percent ?? 0),
       extra_cost: Number(form.extra_cost ?? 0),
       markup_percent: Number(form.markup_percent ?? 0),
+      catalog_family: String(form.catalog_family ?? "").trim() || null,
+      catalog_bestseller: form.catalog_bestseller === true,
       is_active: form.is_active !== false,
     };
+    // Existing stock changes only through purchases/transfers, never catalogue metadata.
+    if (form.id) delete payload.quantity;
     const result = form.id
       ? await supabase
           .from("inventory_items")
@@ -769,24 +851,40 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
       : await supabase.from("inventory_items").insert(payload).select("id").single();
     const { data: savedItem, error } = result;
     if (!error && savedItem?.id) {
-      try {
-        await saveProductCatalogConfig(savedItem.id, {
-          media: Array.isArray(form.catalog_media) ? form.catalog_media : [],
-          infoGroupUrl: groupUrl || null,
-          sellerIds: Array.isArray(form.catalog_seller_ids) ? form.catalog_seller_ids : [],
-        });
-      } catch {
-        setSaving(false);
-        return void toast.error(
-          "O produto foi salvo, mas não foi possível salvar a mídia do catálogo.",
-        );
+      const nextCatalogConfig = {
+        media: Array.isArray(form.catalog_media) ? form.catalog_media : [],
+        infoGroupUrl: groupUrl || null,
+        sellerIds: Array.isArray(form.catalog_seller_ids) ? form.catalog_seller_ids : [],
+      };
+      const previousCatalogConfig = catalogConfigs[savedItem.id] ?? {
+        media: [],
+        infoGroupUrl: null,
+        sellerIds: [],
+      };
+      if (JSON.stringify(previousCatalogConfig) !== JSON.stringify(nextCatalogConfig)) {
+        try {
+          await saveProductCatalogConfig(savedItem.id, nextCatalogConfig);
+        } catch {
+          setSaving(false);
+          return void toast.error(
+            "O produto foi salvo, mas não foi possível salvar a mídia do catálogo.",
+          );
+        }
       }
     }
     setSaving(false);
-    if (error) return void toast.error("Não foi possível salvar o produto.");
+    if (error) return void toast.error(`Não foi possível salvar o produto: ${error.message}`);
     toast.success("Produto salvo.");
     setForm(null);
-    queryClient.invalidateQueries();
+    void queryClient.invalidateQueries({
+      refetchType: "active",
+      predicate: (query) =>
+        query.queryKey[0] === "inventory_items" ||
+        query.queryKey[0] === "warehouse_inventory" ||
+        query.queryKey[0] === "pdv-data" ||
+        query.queryKey[0] === "product-images" ||
+        query.queryKey[0] === "product-catalog-configs",
+    });
   }
 
   /* ---------------- ações em massa ---------------- */
@@ -818,11 +916,12 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
       show_prices: true,
       orders_enabled: true,
       currency,
-      default_seller_id: "",
+      default_seller_id: sellerOnly ? (userId ?? "") : "",
     });
   }
 
   async function bulk(action: string) {
+    if (sellerOnly) return void toast.error("O catálogo estadual é somente para consulta.");
     if (action === "catalogo") {
       openQuick(
         selected.length ? "selecionados" : macroFilter !== "todos" ? "categoria" : "selecionados",
@@ -841,7 +940,7 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
           i.quantity ?? 0,
           ...(["BRL", "USD", "PYG"] as Currency[]).map(
             (target) =>
-              pricesInAllCurrencies(i.price, i.currency ?? "USD").find(
+              pricesInAllCurrencies(i.price, i.price_currency ?? i.currency ?? "USD").find(
                 (entry) => entry.currency === target,
               )?.text ?? `${target}: —`,
           ),
@@ -865,7 +964,7 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
       const list = items.filter((i: any) => selected.includes(i.id));
       const copies = list.map((i: any) => {
         const { id: _id, created_at, updated_at, ...rest } = i;
-        return { ...rest, name: `${i.name} (cópia)` };
+        return { ...rest, quantity: 0, reserved: 0, name: `${i.name} (cópia)` };
       });
       const { error } = await supabase.from("inventory_items").insert(copies);
       if (error) return void toast.error("Não foi possível duplicar.");
@@ -903,13 +1002,14 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
         title: q.title.trim(),
         slug,
         currency: q.currency ?? "USD",
-        show_prices: !!q.show_prices,
+        show_prices: true,
         orders_enabled: !!q.orders_enabled,
         is_published: !!q.is_published,
         item_ids: q.scope === "selecionados" ? selected : [],
         product_ids: q.scope === "categoria" ? [q.macroId] : [],
         category_ids: q.scope === "subcategoria" ? [q.subId] : [],
-        default_seller_id: q.default_seller_id || null,
+        default_seller_id: sellerOnly ? userId : (q.default_seller_id || null),
+        created_by: userId,
       } as any)
       .select("slug")
       .maybeSingle();
@@ -926,7 +1026,7 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
         "O catálogo foi criado, mas a lista de contatos não pôde ser criada.",
       );
     }
-    await navigator.clipboard?.writeText(linkOf(data.slug)).catch(() => undefined);
+    await navigator.clipboard?.writeText(linkOf(data.slug) + "?publico=cliente").catch(() => undefined);
     toast.success("Catálogo e lista de contatos criados. Link copiado.");
     setQuick(null);
     setSelected([]);
@@ -966,7 +1066,7 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
   ) {
     const source = `catalogo:${slug}`;
     const listName = `Catálogo — ${title.trim()}`;
-    const productId = listProductId(scope);
+    const productId = listProductId(scope) ?? null;
     const { data: existing, error: readError } = await supabase
       .from("contact_lists")
       .select("id")
@@ -1001,7 +1101,8 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
     return created.id;
   }
 
-  const openCatalogForm = (c?: any) =>
+  const openCatalogForm = (c?: any, layout: "cards" | "lista" = "cards") => {
+    setCatalogLayout((c?.layout ?? layout) as "cards" | "lista");
     setCatalogForm(
       c
         ? { ...c }
@@ -1051,24 +1152,33 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
             item_ids: [],
             offer_item_ids: [],
             is_published: true,
+            visible_to_all_members: true,
+            visible_member_ids: [],
+            default_seller_id: sellerOnly ? (userId ?? "") : "",
+            created_by: userId,
+            layout,
           },
     );
+  };
 
   async function saveCatalog() {
     const f = catalogForm;
     if (!f?.title) return void toast.error("Dê um nome ao catálogo.");
-    const invalid = pricingError(
-      f.pricing_rules,
-      items.filter((i) =>
-        f.item_ids?.length
-          ? f.item_ids.includes(i.id)
-          : f.category_ids?.length
-            ? f.category_ids.includes(i.category_id)
-            : f.product_ids?.length
-              ? f.product_ids.includes(i.product_id)
-              : true,
-      ),
-    );
+    const invalid =
+      f.catalog_kind === "general"
+        ? null
+        : pricingError(
+            f.pricing_rules,
+            items.filter((i) =>
+              f.item_ids?.length
+                ? f.item_ids.includes(i.id)
+                : f.category_ids?.length
+                  ? f.category_ids.includes(i.category_id)
+                  : f.product_ids?.length
+                    ? f.product_ids.includes(i.product_id)
+                    : true,
+            ),
+          );
     if (invalid) return void toast.error(invalid);
     const slug = slugify(f.slug || f.title) || `catalogo-${Date.now()}`;
     const payload: any = {
@@ -1077,8 +1187,8 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
       slug,
       description: f.description || null,
       about: f.about || null,
-      show_prices: !!f.show_prices,
-      default_seller_id: f.default_seller_id || null,
+      show_prices: true,
+      default_seller_id: sellerOnly ? userId : (f.default_seller_id || null),
       currency: f.currency ?? "USD",
       whatsapp: f.whatsapp || null,
       contact_email: f.contact_email || null,
@@ -1105,10 +1215,13 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
       shipping_days:
         f.shipping_days === "" || f.shipping_days == null ? null : Number(f.shipping_days),
       shipping_regions: (f.shipping_regions ?? []).filter((r: any) => r?.name),
-      product_ids: f.product_ids ?? [],
-      category_ids: f.category_ids ?? [],
+      catalog_kind: f.catalog_kind ?? "selection",
+      product_ids: f.catalog_kind === "general" ? [] : (f.product_ids ?? []),
+      category_ids: f.catalog_kind === "general" ? [] : (f.category_ids ?? []),
       offer_item_ids: f.offer_item_ids ?? [],
+      item_ids: f.catalog_kind === "general" ? [] : (f.item_ids ?? []),
       is_published: f.is_published !== false,
+      created_by: f.id ? (f.created_by ?? userId) : userId,
     };
     const { error } = f.id
       ? await supabase.from("digital_catalogs").update(payload).eq("id", f.id)
@@ -1129,12 +1242,16 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
     } catch {
       return void toast.error("O catálogo foi salvo, mas a lista de contatos não pôde ser criada.");
     }
-    toast.success("Catálogo e lista de contatos salvos.");
+    toast.success("Versões vendedor e cliente e lista de contatos salvas.");
     setCatalogForm(null);
     queryClient.invalidateQueries();
   }
 
   async function deleteCatalog(id: string) {
+    const catalog = catalogs.find((entry: any) => entry.id === id);
+    if (sellerOnly && catalog?.created_by !== userId) {
+      return void toast.error("Você pode excluir apenas os catálogos criados por você.");
+    }
     if (!window.confirm("Excluir este catálogo digital?")) return;
     const { error } = await supabase.from("digital_catalogs").delete().eq("id", id);
     if (error) return void toast.error("Não foi possível excluir.");
@@ -1147,19 +1264,45 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
       : `${window.location.origin}/catalogo/${slug}`;
 
   return (
-    <section className="surface-card mt-6 p-4">
+    <section className="surface-card p-4">
+      {!displaySection && <div className="mb-5 flex flex-wrap gap-2">
+        <Button type="button" variant={sectionTab === "catalogo" ? "default" : "outline"} onClick={() => setSectionTab("catalogo")}>
+          Catálogo de produtos
+        </Button>
+        <Button type="button" variant={sectionTab === "tabelas" ? "default" : "outline"} onClick={() => setSectionTab("tabelas")}>
+          Tabelas de venda
+        </Button>
+      </div>
+      }
+      {sectionTab === "tabelas" && (
+        <SalesTables
+          items={items}
+          macros={macros}
+          subs={subs}
+          currency={currency}
+          convert={convert}
+          imageOf={imageOf}
+          catalogs={visibleCatalogs}
+          readOnly={sellerOnly}
+          openCatalogForm={openCatalogForm}
+          linkOf={linkOf}
+        />
+      )}
+      <div className={sectionTab === "catalogo" ? "" : "hidden"}>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="font-display text-lg font-semibold">Catálogo e tabela de preços</h2>
+          <h2 className="font-display text-lg font-semibold">{showProducts && displaySection ? "Produtos disponíveis" : "Catálogos online"}</h2>
           <p className="text-muted-foreground text-sm">
-            Vitrine montada a partir do estoque, com foto, ficha completa e link para enviar ao
-            cliente.
+            {showProducts && displaySection ? "Produtos, quantidades disponíveis e valores de venda definidos pela direção." : "Catálogos publicados, rascunhos e links separados para vendedor e cliente."}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={() => openCatalogForm()}>
-            <Globe className="mr-2 size-4" /> Novo catálogo digital
-          </Button>
+          {!sellerOnly && showCatalogs && <Button variant="outline" onClick={() => openCatalogForm(undefined, "cards")}>
+            <Globe className="mr-2 size-4" /> Novo catálogo online
+          </Button>}
+          {!sellerOnly && !displaySection && <Button variant="outline" onClick={() => openCatalogForm(undefined, "lista")}>
+            <List className="mr-2 size-4" /> Nova tabela de venda
+          </Button>}
           <Select
             value={currency}
             onValueChange={(v) => {
@@ -1178,9 +1321,12 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
               ))}
             </SelectContent>
           </Select>
-          <Button variant="outline" onClick={() => setOpen(true)}>
-            <Wand2 className="mr-2 size-4" /> Atualizar estoque por texto
-          </Button>
+          {!sellerOnly && showProducts && (
+            <Button variant="outline" onClick={() => setOpen(true)}>
+              <Wand2 className="mr-2 size-4" /> Atualizar estoque por texto
+            </Button>
+          )}
+          {showProducts && <>
           <Button variant="outline" onClick={exportText}>
             <FileText className="mr-2 size-4" /> Exportar texto
           </Button>
@@ -1193,48 +1339,53 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
             filename="catalogo"
             build={() => ({
               highlights: [
-                { label: "Produtos", value: String(filtered.length) },
+                { label: "Produtos", value: String(reportItems.length) },
                 {
                   label: "Quantidade total",
                   value: formatNumber(
-                    filtered.reduce((s: number, i: any) => s + Number(i.quantity ?? 0), 0),
+                    reportItems.reduce((s: number, i: any) => s + Number(i.quantity ?? 0), 0),
                   ),
                 },
                 {
                   label: "Valor em estoque",
-                  value: stockValueTextInAllCurrencies(filtered),
+                  value: stockValueTextInAllCurrencies(reportItems),
                 },
               ],
               headers: [
                 "Categoria",
                 "Subcategoria",
                 "Produto",
+                "Marca",
                 "Quantidade",
-                "Preço (BRL)",
-                "Preço (USD)",
-                "Preço (PYG)",
+                "Preço-base",
+                "Equiv. BRL",
+                "Equiv. USD",
+                "Equiv. PYG",
               ],
-              rows: filtered.map((i: any) => [
+              rows: reportItems.map((i: any) => [
                 macroName(i.product_id),
                 subName(i.category_id),
                 i.name,
+                i.reportBrand,
                 i.quantity ?? 0,
+                formatMoney(Number(i.price ?? 0), (i.price_currency ?? i.currency ?? "USD") as Currency),
                 ...(["BRL", "USD", "PYG"] as Currency[]).map(
                   (target) =>
-                    pricesInAllCurrencies(i.price, i.currency ?? "USD").find(
+                    pricesInAllCurrencies(i.price, i.price_currency ?? i.currency ?? "USD").find(
                       (entry) => entry.currency === target,
                     )?.text ?? `${target}: —`,
                 ),
               ]),
             })}
           />
+          </>}
         </div>
       </div>
 
       {/* catálogos digitais */}
-      {catalogs.length > 0 && (
+      {showCatalogs && visibleCatalogs.some((c: any) => c.layout !== "lista") && (
         <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {catalogs.map((c: any) => (
+          {visibleCatalogs.filter((c: any) => c.layout !== "lista").map((c: any) => (
             <div key={c.id} className="rounded-lg border p-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -1246,36 +1397,26 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
                 </Badge>
               </div>
               <p className="text-muted-foreground mt-1 text-xs">
-                {c.show_prices ? "Com preços" : "Sem preços (sob consulta)"}
+                Vendedor com preços · Cliente sem preços
               </p>
-              <div className="mt-2 flex flex-wrap gap-1">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    navigator.clipboard.writeText(linkOf(c.slug));
-                    toast.success("Link copiado.");
-                  }}
-                >
-                  <Copy className="mr-1 size-3" /> Copiar link
-                </Button>
-                <Button size="sm" variant="outline" asChild>
-                  <a href={`/catalogo/${c.slug}`} target="_blank" rel="noreferrer">
-                    <ExternalLink className="mr-1 size-3" /> Abrir
-                  </a>
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => openCatalogForm(c)}>
-                  <Pencil className="size-3" />
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => deleteCatalog(c.id)}>
-                  <Trash2 className="text-destructive size-3" />
-                </Button>
-              </div>
+              <CatalogViewLinks slug={c.slug} />
+              {!sellerOnly && (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  <Button size="sm" variant="ghost" onClick={() => openCatalogForm(c)}>
+                    <Pencil className="size-3" />
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => deleteCatalog(c.id)}>
+                    <Trash2 className="text-destructive size-3" />
+                  </Button>
+                </div>
+              )}
             </div>
           ))}
         </div>
       )}
 
+      {showCatalogs && !visibleCatalogs.some((c: any) => c.layout !== "lista") && <p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">Nenhum catálogo online disponível.</p>}
+      {showProducts && <>
       {/* filtros */}
       <div className="mb-4 grid gap-2 md:grid-cols-3 lg:grid-cols-6">
         <div className="relative lg:col-span-2">
@@ -1306,8 +1447,7 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todas as subcategorias</SelectItem>
-            {subs
-              .filter((s) => macroFilter === "todos" || s.product_id === macroFilter)
+            {visibleSubs.filter((s) => macroFilter === "todos" || s.product_id === macroFilter)
               .map((s) => (
                 <SelectItem key={s.id} value={s.id}>
                   {s.name}
@@ -1328,7 +1468,7 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
             ))}
           </SelectContent>
         </Select>
-        <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+        {!sellerOnly && <Select value={supplierFilter} onValueChange={setSupplierFilter}>
           <SelectTrigger>
             <SelectValue placeholder="Fornecedor" />
           </SelectTrigger>
@@ -1340,7 +1480,7 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
               </SelectItem>
             ))}
           </SelectContent>
-        </Select>
+        </Select>}
         <Select value={stockFilter} onValueChange={setStockFilter}>
           <SelectTrigger>
             <SelectValue placeholder="Estoque" />
@@ -1374,6 +1514,7 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
         </div>
       </div>
 
+      {!sellerOnly && <>
       {/* ações em massa */}
       <div className="mb-4 space-y-3 rounded-lg border p-3">
         <div className="grid gap-3 md:grid-cols-2">
@@ -1429,6 +1570,8 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
         </div>
       </div>
 
+      </>}
+      </>}
       <Dialog open={!!quick} onOpenChange={(v) => !v && setQuick(null)}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
@@ -1511,7 +1654,7 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
                       <SelectValue placeholder="Escolher" />
                     </SelectTrigger>
                     <SelectContent>
-                      {subs.map((s) => (
+                      {visibleSubs.map((s) => (
                         <SelectItem key={s.id} value={s.id}>
                           {macroName(s.product_id)} · {s.name}
                         </SelectItem>
@@ -1540,27 +1683,34 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label className="text-xs">Vendedor responsável pelos pedidos</Label>
-                  <Select
-                    value={quick.default_seller_id || "nenhum"}
-                    onValueChange={(v) =>
-                      setQuick({ ...quick, default_seller_id: v === "nenhum" ? "" : v })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sem responsável" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="nenhum">Sem responsável</SelectItem>
-                      {sellers.map((s: any) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.full_name ?? "Sem nome"}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {!sellerOnly ? (
+                  <div>
+                    <Label className="text-xs">Vendedor responsável pelos pedidos</Label>
+                    <Select
+                      value={quick.default_seller_id || "nenhum"}
+                      onValueChange={(v) =>
+                        setQuick({ ...quick, default_seller_id: v === "nenhum" ? "" : v })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sem responsável" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="nenhum">Sem responsável</SelectItem>
+                        {sellers.map((s: any) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.full_name ?? "Sem nome"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div>
+                    <Label className="text-xs">Responsável</Label>
+                    <Input value="Você será o responsável pelos pedidos deste catálogo" readOnly />
+                  </div>
+                )}
               </div>
               <div className="space-y-3 rounded-lg border p-3">
                 <div className="flex items-center justify-between gap-3">
@@ -1575,18 +1725,7 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
                     onCheckedChange={(v) => setQuick({ ...quick, is_published: v })}
                   />
                 </div>
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium">Mostrar preços</p>
-                    <p className="text-muted-foreground text-xs">
-                      Desligado, o cliente vê o botão de consultar.
-                    </p>
-                  </div>
-                  <Switch
-                    checked={!!quick.show_prices}
-                    onCheckedChange={(v) => setQuick({ ...quick, show_prices: v })}
-                  />
-                </div>
+                <p className="text-sm text-muted-foreground">Serão criadas duas versões vinculadas: vendedor com preços e cliente sem preços.</p>
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium">Receber pedidos</p>
@@ -1613,6 +1752,7 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
         </DialogContent>
       </Dialog>
 
+      {showProducts && <>
       {filtered.length === 0 ? (
         <p className="text-muted-foreground text-sm">
           Nenhum produto encontrado com esses filtros.
@@ -1649,11 +1789,13 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
               </div>
               <div className="space-y-1 p-3">
                 <p className="truncate font-medium">{i.name}</p>
+                {i.public_description && <p className="line-clamp-2 text-xs text-muted-foreground">{i.public_description}</p>}
+                <ProductInformation item={i} />
                 <p className="text-muted-foreground truncate text-xs">
                   {macroName(i.product_id)} › {subName(i.category_id)}
                 </p>
                 <div className="space-y-0.5">
-                  {pricesInAllCurrencies(i.price, i.currency ?? "USD").map((value) => (
+                  {pricesInAllCurrencies(i.price, i.price_currency ?? i.currency ?? "USD").map((value) => (
                     <p
                       key={value.currency}
                       className={cn(
@@ -1671,16 +1813,19 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
                   <span>{i.barcode ?? i.sku ?? "sem código"}</span>
                   <span>{formatNumber(i.quantity ?? 0)} un</span>
                 </div>
-                <div className="flex gap-1 pt-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => openForm(i)}
-                  >
-                    <Pencil className="mr-1 size-3" /> Editar
-                  </Button>
-                </div>
+                {!sellerOnly && (
+                  <div className="flex gap-1 pt-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => openForm(i)}
+                    >
+                      <Pencil className="mr-1 size-3" /> Editar
+                    </Button>
+                    {isAdmin && <Button size="sm" variant="outline" onClick={() => setStockEntry(i)}>Abastecer</Button>}
+                  </div>
+                )}
               </div>
             </article>
           ))}
@@ -1698,7 +1843,7 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
                       <TableHead>Produto</TableHead>
                       <TableHead>Marca</TableHead>
                       <TableHead>Especificações</TableHead>
-                      <TableHead>Fornecedor</TableHead>
+                      {!sellerOnly && <TableHead>Fornecedor</TableHead>}
                       <TableHead className="text-right">Quantidade</TableHead>
                       <TableHead className="text-right">Preço</TableHead>
                       <TableHead></TableHead>
@@ -1715,6 +1860,8 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
                         </TableCell>
                         <TableCell className="font-medium">
                           {i.name}
+                          {i.public_description && <p className="line-clamp-2 max-w-sm text-xs font-normal text-muted-foreground">{i.public_description}</p>}
+                          <ProductInformation item={i} />
                           {i.is_demo && (
                             <Badge variant="secondary" className="ml-2 text-[10px]">
                               demo
@@ -1723,15 +1870,15 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
                         </TableCell>
                         <TableCell className="text-muted-foreground">{i.brand ?? "—"}</TableCell>
                         <TableCell className="text-muted-foreground">{specOf(i) || "—"}</TableCell>
-                        <TableCell className="text-muted-foreground">
+                        {!sellerOnly && <TableCell className="text-muted-foreground">
                           {supplierName(i.supplier_id)}
-                        </TableCell>
+                        </TableCell>}
                         <TableCell className="text-right">
                           {formatNumber(i.quantity ?? 0)}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="space-y-0.5">
-                            {pricesInAllCurrencies(i.price, i.currency ?? "USD").map((value) => (
+                            {pricesInAllCurrencies(i.price, i.price_currency ?? i.currency ?? "USD").map((value) => (
                               <p
                                 key={value.currency}
                                 className={cn(
@@ -1747,9 +1894,13 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button size="sm" variant="ghost" onClick={() => openForm(i)}>
-                            <Pencil className="size-4" />
-                          </Button>
+                          {!sellerOnly && (
+                            <Button size="sm" variant="ghost" onClick={() => openForm(i)}>
+                              <Pencil className="size-4" />
+                            </Button>
+                          )}
+                          {isAdmin && <Button size="sm" variant="outline" onClick={() => setStockEntry(i)}>Abastecer</Button>}
+
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1761,6 +1912,8 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
         </div>
       )}
 
+      </>}
+      {stockEntry && <StockEntryDialog key={stockEntry.id} item={stockEntry} onClose={() => setStockEntry(null)} />}
       {/* ficha completa do produto */}
       <Dialog open={!!form} onOpenChange={(v) => !v && setForm(null)}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
@@ -1951,13 +2104,17 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
                       />
                     </div>
                     <div className="sm:col-span-2">
-                      <Label>Descrição / observações</Label>
+                      <Label>Observações internas</Label>
                       <Textarea
                         rows={3}
                         value={form.description ?? ""}
                         onChange={(e) => setForm({ ...form, description: e.target.value })}
                       />
                     </div>
+                    <div className="sm:col-span-2"><Label>Descrição pública do produto</Label><Textarea rows={3} value={form.public_description ?? ""} onChange={(e) => setForm({ ...form, public_description: e.target.value })} /></div>
+                    <div className="sm:col-span-2"><Label>Para que serve</Label><Textarea rows={3} value={form.intended_use ?? ""} onChange={(e) => setForm({ ...form, intended_use: e.target.value })} /></div>
+                    <div className="sm:col-span-2"><Label>Orientações de uso</Label><Textarea rows={3} value={form.usage_instructions ?? ""} onChange={(e) => setForm({ ...form, usage_instructions: e.target.value })} /></div>
+                    <div className="sm:col-span-2"><Label>Fonte das informações (HTTPS)</Label><Input type="url" value={form.information_source_url ?? ""} onChange={(e) => setForm({ ...form, information_source_url: e.target.value })} /><p className="mt-1 text-xs text-muted-foreground">Use a bula ou documentação do fabricante. Confirme a apresentação antes de informar instruções.</p></div>
                     <div className="flex items-center gap-2 sm:col-span-2">
                       <Switch
                         checked={form.is_active !== false}
@@ -1970,6 +2127,35 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
               </TabsContent>
 
               <TabsContent value="catalogo" className="space-y-5 pt-3">
+                <section className="space-y-3 rounded-lg border p-4">
+                  <div>
+                    <h3 className="font-medium">Organização no catálogo geral</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Categoria e subcategoria vêm do cadastro do produto. Use o grupo comercial para
+                      organizar destaques como Tirzepatida, Retatrutida ou Ácido hialurônico.
+                    </p>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                    <div>
+                      <Label>Grupo comercial</Label>
+                      <Input
+                        value={form.catalog_family ?? ""}
+                        onChange={(e) => setForm({ ...form, catalog_family: e.target.value })}
+                        placeholder="Ex.: Tirzepatida"
+                      />
+                    </div>
+                    <label className="flex min-h-10 items-center gap-2 rounded-md border px-3">
+                      <Switch
+                        checked={form.catalog_bestseller === true}
+                        onCheckedChange={(value) =>
+                          setForm({ ...form, catalog_bestseller: value })
+                        }
+                      />
+                      <span className="text-sm font-medium">Mais vendido</span>
+                    </label>
+                  </div>
+                </section>
+
                 <section className="space-y-3 rounded-lg border p-4">
                   <div>
                     <h3 className="font-medium">Carrossel do produto</h3>
@@ -2223,13 +2409,17 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
                     />
                   </div>
                   <div>
-                    <Label>Estoque atual</Label>
+                    <Label>{form.id ? "Estoque atual (somente leitura)" : "Saldo inicial no estoque principal"}</Label>
                     <Input
                       type="number"
                       step="0.001"
                       value={form.quantity ?? 0}
+                      disabled={Boolean(form.id)}
+                      min="0"
                       onChange={(e) => setForm({ ...form, quantity: e.target.value })}
                     />
+                    {form.id && isAdmin && <Button type="button" variant="outline" className="mt-2" onClick={() => setStockEntry(form)}>Abastecer no estoque principal</Button>}
+                    <p className="mt-1 text-xs text-muted-foreground">{form.id ? "Para abastecer, use Estoques → Estoque principal → Registrar compra. Para mudar o local, use Transferir." : "O saldo informado será vinculado ao estoque principal. Compras posteriores devem ser registradas em Estoques ou Compras."}</p>
                   </div>
                 </div>
               </TabsContent>
@@ -2360,6 +2550,9 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
                               setCatalogForm({
                                 ...catalogForm,
                                 product_ids: v ? [...list, m.id] : list.filter((x) => x !== m.id),
+                                category_ids: [],
+                                item_ids: [],
+                                offer_item_ids: [],
                               })
                             }
                           />
@@ -2372,7 +2565,10 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
                 <div className="sm:col-span-2">
                   <Label>Subcategorias incluídas</Label>
                   <div className="grid max-h-40 gap-1 overflow-y-auto rounded-md border p-2 sm:grid-cols-2">
-                    {subs.map((s) => {
+                    {subs.filter((s) =>
+                      !(catalogForm.product_ids ?? []).length ||
+                      (catalogForm.product_ids ?? []).includes(s.product_id)
+                    ).map((s) => {
                       const list: string[] = catalogForm.category_ids ?? [];
                       return (
                         <label key={s.id} className="flex items-center gap-2 text-sm">
@@ -2382,6 +2578,8 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
                               setCatalogForm({
                                 ...catalogForm,
                                 category_ids: v ? [...list, s.id] : list.filter((x) => x !== s.id),
+                                item_ids: [],
+                                offer_item_ids: [],
                               })
                             }
                           />
@@ -2392,9 +2590,32 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
                   </div>
                 </div>
                 <div className="sm:col-span-2">
+                  <Label>Produtos incluídos</Label>
+                  <p className="text-muted-foreground mb-2 text-xs">A lista abaixo respeita as categorias e subcategorias selecionadas.</p>
+                  <div className="grid max-h-48 gap-1 overflow-y-auto rounded-md border p-2 sm:grid-cols-2">
+                    {items.filter((i:any) =>
+                      (!(catalogForm.product_ids ?? []).length || (catalogForm.product_ids ?? []).includes(i.product_id)) &&
+                      (!(catalogForm.category_ids ?? []).length || (catalogForm.category_ids ?? []).includes(i.category_id))
+                    ).map((i:any) => {
+                      const list:string[] = catalogForm.item_ids ?? [];
+                      return <label key={i.id} className="flex items-center gap-2 text-sm"><Checkbox checked={list.includes(i.id)} onCheckedChange={(v) => setCatalogForm({...catalogForm,item_ids:v?[...list,i.id]:list.filter((x)=>x!==i.id)})}/><span className="truncate">{i.name}</span></label>;
+                    })}
+                  </div>
+                </div>
+                <div className="sm:col-span-2 rounded-lg border p-3">
+                  <Label>Quem pode visualizar no painel</Label>
+                  <label className="mt-2 flex items-center gap-2 text-sm"><Switch checked={catalogForm.visible_to_all_members !== false} onCheckedChange={(v)=>setCatalogForm({...catalogForm,visible_to_all_members:v,visible_member_ids:v?[]:(catalogForm.visible_member_ids??[])})}/> Todos os membros autorizados</label>
+                  {catalogForm.visible_to_all_members === false && <div className="mt-3 grid max-h-48 gap-1 overflow-y-auto rounded-md border p-2 sm:grid-cols-2">
+                    {(sellersQuery.data ?? []).map((member:any) => { const list:string[] = catalogForm.visible_member_ids ?? []; return <label key={member.id} className="flex items-center gap-2 text-sm"><Checkbox checked={list.includes(member.id)} onCheckedChange={(v)=>setCatalogForm({...catalogForm,visible_member_ids:v?[...list,member.id]:list.filter((x)=>x!==member.id)})}/>{member.full_name ?? "Sem nome"}</label>; })}
+                  </div>}
+                </div>
+                <div className="sm:col-span-2">
                   <Label>Produtos em oferta (destaque)</Label>
                   <div className="grid max-h-40 gap-1 overflow-y-auto rounded-md border p-2 sm:grid-cols-2">
-                    {items.slice(0, 300).map((i: any) => {
+                    {items.filter((i: any) =>
+                      (!(catalogForm.product_ids ?? []).length || (catalogForm.product_ids ?? []).includes(i.product_id)) &&
+                      (!(catalogForm.category_ids ?? []).length || (catalogForm.category_ids ?? []).includes(i.category_id))
+                    ).slice(0, 300).map((i: any) => {
                       const list: string[] = catalogForm.offer_item_ids ?? [];
                       return (
                         <label key={i.id} className="flex items-center gap-2 text-sm">
@@ -2543,13 +2764,7 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
                   </Select>
                 </div>
                 <div className="flex flex-col gap-3 sm:col-span-2">
-                  <label className="flex items-center gap-2 text-sm">
-                    <Switch
-                      checked={catalogForm.show_prices !== false}
-                      onCheckedChange={(v) => setCatalogForm({ ...catalogForm, show_prices: v })}
-                    />
-                    Mostrar preços
-                  </label>
+                  <p className="text-sm text-muted-foreground">Duas versões: vendedor com preços e cliente sem preços. Ao salvar, ambas são atualizadas.</p>
                   <label className="flex items-center gap-2 text-sm">
                     <Switch
                       checked={catalogForm.show_availability !== false}
@@ -2670,7 +2885,7 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
                 </div>
                 <div className="sm:col-span-2 rounded-lg border bg-muted/20 p-3">
                   <div className="mb-3">
-                    <Label>Fretes por cidade</Label>
+                    <Label>Regras de frete por território</Label>
                     <p className="text-xs text-muted-foreground">
                       Cadastre valores diferentes por cidade. Quando a cidade não estiver cadastrada,
                       o catálogo usa a regra de frete do produto.
@@ -2678,16 +2893,39 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
                   </div>
                   <div className="space-y-2">
                     {(catalogForm.shipping_regions ?? []).map((region: any, index: number) => (
-                      <div key={index} className="grid gap-2 sm:grid-cols-[1fr_180px_140px_auto]">
+                      <div key={index} className="grid gap-2 sm:grid-cols-[160px_1fr_180px_140px_auto]">
+                        <Select value={region.scope ?? "city"} onValueChange={(scope) => {
+                          const rows = [...(catalogForm.shipping_regions ?? [])];
+                          rows[index] = { ...rows[index], scope, name: scope === "country" ? "Brasil" : "" };
+                          setCatalogForm({ ...catalogForm, shipping_regions: rows });
+                        }}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="country">Brasil inteiro</SelectItem>
+                            <SelectItem value="region">Região</SelectItem>
+                            <SelectItem value="state">Estado</SelectItem>
+                            <SelectItem value="city">Cidade</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {region.scope === "region" ? (
+                          <Select value={region.name ?? ""} onValueChange={(name) => {
+                            const rows = [...(catalogForm.shipping_regions ?? [])]; rows[index] = { ...rows[index], name }; setCatalogForm({ ...catalogForm, shipping_regions: rows });
+                          }}><SelectTrigger><SelectValue placeholder="Selecione a região" /></SelectTrigger><SelectContent>{["Norte","Nordeste","Centro-Oeste","Sudeste","Sul"].map((x)=><SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select>
+                        ) : region.scope === "state" ? (
+                          <Select value={region.name ?? ""} onValueChange={(name) => {
+                            const rows = [...(catalogForm.shipping_regions ?? [])]; rows[index] = { ...rows[index], name }; setCatalogForm({ ...catalogForm, shipping_regions: rows });
+                          }}><SelectTrigger><SelectValue placeholder="Selecione a UF" /></SelectTrigger><SelectContent>{["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"].map((x)=><SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select>
+                        ) : (
                         <Input
-                          placeholder="Cidade (ex.: São Paulo)"
+                          disabled={region.scope === "country"}
+                          placeholder={region.scope === "country" ? "Brasil" : "Cidade (ex.: São Paulo)"}
                           value={region.name ?? ""}
                           onChange={(e) => {
                             const rows = [...(catalogForm.shipping_regions ?? [])];
                             rows[index] = { ...rows[index], name: e.target.value };
                             setCatalogForm({ ...catalogForm, shipping_regions: rows });
                           }}
-                        />
+                        />)}
                         <Input
                           inputMode="decimal"
                           placeholder={`Frete (${catalogForm.currency ?? "BRL"})`}
@@ -2733,12 +2971,12 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
                           ...catalogForm,
                           shipping_regions: [
                             ...(catalogForm.shipping_regions ?? []),
-                            { name: "", fee: "", days: "" },
+                            { scope: "city", name: "", fee: "", days: "" },
                           ],
                         })
                       }
                     >
-                      <Plus className="mr-2 size-4" /> Adicionar cidade
+                      <Plus className="mr-2 size-4" /> Adicionar regra de frete
                     </Button>
                   </div>
                 </div>
@@ -2766,6 +3004,72 @@ export function CatalogSection({ macros, subs }: { macros: Macro[]; subs: Sub[] 
       </Dialog>
 
       <SupplierImportDialog open={open} onOpenChange={setOpen} items={items as any[]} />
+      </div>
     </section>
   );
+}
+
+
+function SalesTables({ items, macros, subs, currency, convert, imageOf, catalogs, openCatalogForm, linkOf, readOnly = false }: any) {
+  const [title, setTitle] = useState("Tabela geral de produtos");
+  const [macroId, setMacroId] = useState("todos");
+  const [subId, setSubId] = useState("todos");
+  const macroName = (id: string) => macros.find((m: any) => m.id === id)?.name ?? "Sem categoria";
+  const subName = (id: string | null) => subs.find((x: any) => x.id === id)?.name ?? "Sem subcategoria";
+  const rows = items.filter((item: any) =>
+    (macroId === "todos" || item.product_id === macroId) &&
+    (subId === "todos" || item.category_id === subId) &&
+    item.is_active !== false
+  );
+  const money = (item: any) => {
+    const baseCurrency = item.price_currency ?? item.currency ?? "USD";
+    const value = Number(item.price ?? 0);
+    return Number.isFinite(value) ? formatMoney(value, baseCurrency) : "—";
+  };
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 className="font-display text-lg font-semibold">Tabelas de venda</h2>
+          <p className="text-sm text-muted-foreground">{readOnly ? "Consulte as tabelas e os preços definidos pela direção." : "Crie tabelas publicáveis com as mesmas configurações do catálogo online, em formato de lista."}</p>
+        </div>
+        {!readOnly && <Button variant="outline" onClick={() => openCatalogForm(undefined, "lista")}><Plus className="mr-2 size-4" /> Nova tabela de venda</Button>}
+      </div>
+      {catalogs.filter((c:any) => c.layout === "lista").length > 0 && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {catalogs.filter((c:any) => c.layout === "lista").map((c:any) => <div key={c.id} className="rounded-lg border p-3">
+          <div className="flex items-start justify-between gap-2"><div><p className="font-medium">{c.title}</p><p className="text-xs text-muted-foreground">/catalogo/{c.slug}</p></div><Badge variant={c.is_published ? "secondary" : "outline"}>{c.is_published ? "publicado" : "rascunho"}</Badge></div>
+          <CatalogViewLinks slug={c.slug} />{!readOnly && <div className="mt-2 flex gap-1"><Button size="sm" variant="ghost" onClick={() => openCatalogForm(c, "lista")}><Pencil className="size-3"/></Button></div>}
+        </div>)}
+      </div>}
+      <div className="grid gap-2 md:grid-cols-3">
+        <div><Label>Título</Label><Input value={title} onChange={(e) => setTitle(e.target.value)} /></div>
+        <div><Label>Categoria</Label><Select value={macroId} onValueChange={(v) => { setMacroId(v); setSubId("todos"); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Todas as categorias</SelectItem>{macros.map((m:any)=><SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}</SelectContent></Select></div>
+        <div><Label>Subcategoria</Label><Select value={subId} onValueChange={setSubId}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="todos">Todas as subcategorias</SelectItem>{subs.filter((x:any)=>macroId==="todos"||x.product_id===macroId).map((x:any)=><SelectItem key={x.id} value={x.id}>{x.name}</SelectItem>)}</SelectContent></Select></div>
+      </div>
+      <div className="rounded-xl border overflow-x-auto">
+        <div className="border-b p-4">
+          <h3 className="text-xl font-bold">{title || "Tabela de produtos"}</h3>
+          <p className="text-sm text-muted-foreground">Categoria: {macroId === "todos" ? "Todas" : macroName(macroId)} · Subcategoria: {subId === "todos" ? "Todas" : subName(subId)}</p>
+        </div>
+        <Table>
+          <TableHeader><TableRow><TableHead>Nome / produto</TableHead><TableHead>Quantidade</TableHead><TableHead>Unidade</TableHead><TableHead>Valor de venda</TableHead><TableHead>Estoque</TableHead></TableRow></TableHeader>
+          <TableBody>
+            {rows.map((item:any)=><TableRow key={item.id}><TableCell><div className="flex items-center gap-3"><div className="size-12 shrink-0 overflow-hidden rounded-lg border bg-muted/20">{imageOf(item) ? <img src={imageOf(item)} alt={item.name} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center"><ImageIcon className="size-5 text-muted-foreground" /></div>}</div><span className="font-medium">{item.name}</span></div></TableCell><TableCell>{formatNumber(item.quantity ?? 0, 3)}</TableCell><TableCell>{item.unit ?? "un."}</TableCell><TableCell>{money(item)}</TableCell><TableCell>{item.location ?? "Estoque principal"}</TableCell></TableRow>)}
+            {!rows.length && <TableRow><TableCell colSpan={5}>Nenhum produto nesta seleção.</TableCell></TableRow>}
+          </TableBody>
+        </Table>
+      </div>
+      <ReportButton title={title || "Tabela de produtos"} filename="tabela-venda" build={() => ({
+        highlights: [{label:"Produtos",value:String(rows.length)}],
+        headers:["Categoria","Subcategoria","Nome / produto","Quantidade","Unidade","Valor de venda","Estoque"],
+        rows: rows.map((item:any)=>[macroName(item.product_id),subName(item.category_id),item.name,item.quantity ?? 0,item.unit ?? "un.",money(item),item.location ?? "Estoque principal"])
+      })} />
+    </div>
+  );
+}
+
+function ProductInformation({ item }: { item: any }) {
+  const source = informationSourceUrl(item.information_source_url);
+  if (!item.public_description && !item.intended_use && !item.usage_instructions && !source) return null;
+  return <details className="text-xs font-normal"><summary className="cursor-pointer text-primary">Informações do produto</summary><div className="space-y-2 whitespace-pre-line py-2">{item.public_description && <p>{item.public_description}</p>}{item.intended_use && <p><strong>Para que serve: </strong>{item.intended_use}</p>}{item.usage_instructions && <p><strong>Orientações de uso: </strong>{item.usage_instructions}</p>}{source && <a href={source} target="_blank" rel="noopener noreferrer" className="text-primary underline">Consultar fonte</a>}</div></details>;
 }

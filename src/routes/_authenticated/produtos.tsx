@@ -1,3 +1,5 @@
+import { SalesCatalogWorkspace } from "@/components/catalog/SalesCatalogWorkspace";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
@@ -118,6 +120,12 @@ const ITEM_FIELDS: { name: string; label: string; type?: string; placeholder?: s
 ];
 
 export function Catalogo({ section = "catalogo" }: { section?: "catalogo" | "categorias" | "estoque" }) {
+ if (section === "catalogo") return <SalesCatalogWorkspace />;
+ return <CatalogoManagement section={section} />;
+}
+
+function CatalogoManagement({ section = "catalogo" }: { section?: "catalogo" | "categorias" | "estoque" }) {
+ const [catalogTab, setCatalogTab] = useState<"products" | "catalogs" | "tables">("products");
   const { can } = usePermissions();
   const canManageCatalog = can("inventory_manage");
   const { products, productId } = useProductScope();

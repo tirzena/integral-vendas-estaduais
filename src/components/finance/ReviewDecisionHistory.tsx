@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 
 const labels: Record<string, string> = {
   approve: "Pedido aprovado", reject: "Pedido reprovado", request_changes: "Ajuste solicitado",
-  confirmed: "Pagamento aprovado", rejected: "Pagamento reprovado", changes_requested: "Correção solicitada",
+  confirmed: "Pagamento aprovado", rejected: "Pagamento reprovado", changes_requested: "Ajuste solicitado",
   adjusted: "Pagamento ajustado", closed: "Baixa financeira concluída",
 };
 const fields: Record<string,string> = { amount: "Valor no pedido", received_amount: "Valor recebido", received_currency: "Moeda recebida", method: "Forma", paid_at: "Data", status: "Situação", financial_closed_at: "Baixa financeira" };

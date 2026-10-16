@@ -5,11 +5,11 @@ import { formatMoney, type Currency } from "@/lib/format";
 
 type Summary = {
   orders: { pending: number; approved: number; changes_requested: number; rejected: number };
-  payments: { pending: number; approved: number; rejected: number };
-  recent_payments: { id: string; order_id: string; number: number; revision_no: number; amount: number; currency: Currency; review_stage: "pending" | "approved" | "rejected"; review_note: string | null }[];
+  payments: { pending: number; approved: number; rejected: number; changes_requested: number };
+  recent_payments: { id: string; order_id: string; number: number; revision_no: number; amount: number; currency: Currency; review_stage: "pending" | "approved" | "rejected" | "changes_requested"; review_note: string | null }[];
   balances: { currency: Currency; amount: number }[];
 };
-const paymentLabels = { pending: "Aguardando financeiro", approved: "Pagamento aprovado", rejected: "Reprovado / corrigir" };
+const paymentLabels = { pending: "Em análise", approved: "Aprovado", rejected: "Reprovado", changes_requested: "Ajuste solicitado" };
 
 export function SellerApprovalSummary() {
   const { userId, viewAs } = useCurrentUser();
@@ -56,10 +56,11 @@ export function SellerApprovalSummary() {
       <div className="mt-3">
       <a href="/pedidos?aba=aguardando_financeiro" className="mb-3 block text-sm font-medium text-primary">Acompanhar pagamentos →</a>
       {query.isLoading ? <p className="text-sm text-muted-foreground">Conferindo seus pagamentos…</p> : <>
-        <div className="grid grid-cols-3 gap-2 text-sm">
+        <div className="grid grid-cols-2 gap-2 text-sm">
           <a href="/pedidos?aba=aguardando_financeiro" className="rounded-lg bg-muted/50 p-3 hover:bg-muted"><span className="block text-xs">Em análise</span><strong>{summary?.payments.pending ?? 0}</strong></a>
+          <div className="rounded-lg bg-muted/50 p-3"><span className="block text-xs">Ajuste solicitado</span><strong>{summary?.payments.changes_requested ?? 0}</strong></div>
+          <div className="rounded-lg bg-muted/50 p-3"><span className="block text-xs">Reprovados</span><strong>{summary?.payments.rejected ?? 0}</strong></div>
           <div className="rounded-lg bg-muted/50 p-3"><span className="block text-xs">Aprovados</span><strong>{summary?.payments.approved ?? 0}</strong></div>
-          <div className="rounded-lg bg-muted/50 p-3"><span className="block text-xs">Reprovados / corrigir</span><strong>{summary?.payments.rejected ?? 0}</strong></div>
         </div>
         <div className="mt-3 space-y-2 text-sm">
           {summary?.recent_payments.map(payment => <a key={payment.id} href={`/pedidos?aba=${payment.review_stage === "pending" ? "aguardando_financeiro" : "pedidos"}&pedido=${payment.order_id}`} className="block rounded-lg border p-2 hover:bg-muted/50">

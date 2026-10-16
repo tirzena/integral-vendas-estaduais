@@ -1,3 +1,4 @@
+import { OrderTrackingDialog } from "./OrderTrackingDialog";
 import { paymentDelayDays, collectionWorkflow } from "@/lib/payment-delay";
 import { matchesOrderReview, orderReviewStage, orderReviewLabels, usePendingPaymentOrders, type OrderReviewFilter } from "@/lib/order-review-flow";
 import { CommissionBreakdown } from "@/components/orders/CommissionBreakdown";
@@ -202,6 +203,7 @@ export function DocsList({
   const rates = useRates();
   const inventoryMetadata = useOperationalMetadata(true);
   const inventoryItems = inventoryMetadata.data?.items ?? [];
+  const [trackingOrderId, setTrackingOrderId] = useState<string | null>(null);
   const [supplierFilter, setSupplierFilter] = useState("todos");
   const isQuote = kind === "orcamento";
   const [dateFrom, setDateFrom] = useState("");
@@ -1824,6 +1826,8 @@ export function DocsList({
   if (isLoading) {
     return (
       <div className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
+      {trackingOrderId && <OrderTrackingDialog orderId={trackingOrderId} onClose={() => setTrackingOrderId(null)} />}
+
         <Loader2 className="h-4 w-4 animate-spin" /> Carregando documentos…
       </div>
     );
@@ -2038,9 +2042,7 @@ export function DocsList({
             </SelectContent>
           </Select>
         </div>
-      </div>
-
-      <div className="flex justify-end">
+      <div className="flex items-end gap-2">
         {!isQuote && (
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -2214,6 +2216,9 @@ export function DocsList({
           </div>
         )}
       </div>
+      </div>
+
+
 
       {docs.length === 0 ? (
         <EmptyState
@@ -2553,7 +2558,8 @@ export function DocsList({
                         {operations.data?.includes("orders.delete") && <Button type="button" size="icon" variant="outline" className="text-destructive" aria-label="Excluir pedido" title="Excluir pedido ou solicitar cancelamento" onClick={()=>{setDeleteReason("");setDeleteDoc(d);}}><Trash2 className="size-4" /></Button>}
                       </>
                     )}
-                    {!isQuote &&
+                    <div className="flex flex-col items-stretch gap-2">
+{!isQuote &&
                       !catalogRequest &&
                       !cancelled &&
                       operations.data?.includes("payments.create") && (
@@ -2566,6 +2572,8 @@ export function DocsList({
                           <Wallet className="mr-1 h-4 w-4" /> Lançar pagamento
                         </Button>
                       )}
+                    {!isQuote && !catalogRequest && <Button type="button" size="sm" variant="outline" onClick={() => setTrackingOrderId(d.id)}>Código de rastreio</Button>}
+                    </div>
                     {!catalogRequest && (
                       <>
                         <div className="flex items-center gap-1.5">
@@ -2610,16 +2618,7 @@ export function DocsList({
                             interno
                           </Button>
                         )}
-                        {!isQuote && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => void copyOrderLink(d)}
-                          >
-                            <Copy className="mr-1 h-4 w-4" /> Gerar link
-                          </Button>
-                        )}
+                        
                       </>
                     )}
                     <Button
@@ -3114,11 +3113,14 @@ export function DocsList({
                                   </p>
                                   {payment.review_note && (
                                   <p className="mt-1 text-sm text-muted-foreground">
-                                    {payment.review_decision === "rejected" ? "Pagamento reprovado" : payment.review_decision === "changes_requested" ? "Correção solicitada" : "Pagamento ajustado"}: {payment.review_note}
+                                    {payment.review_decision === "rejected" ? "Pagamento reprovado" : payment.review_decision === "changes_requested" ? "Ajuste solicitado" : "Pagamento ajustado"}: {payment.review_note}
                                   </p>
                                 )}
-                                {payment.status === "pendente" && <Badge className="mt-1" variant="secondary">Aguardando confirmação financeira</Badge>}
-                                {payment.status === "cancelado" && (
+                                {payment.status === "pago" && <Badge className="mt-1" variant="secondary">Aprovado</Badge>}
+                        {payment.review_decision === "changes_requested" && <Badge className="mt-1" variant="secondary">Ajuste solicitado</Badge>}
+                        {payment.review_decision === "rejected" && <Badge className="mt-1" variant="destructive">Reprovado</Badge>}
+                        {payment.status === "pendente" && <Badge className="mt-1" variant="secondary">Em análise · Aguardando financeiro</Badge>}
+                                {payment.status === "cancelado" && !["changes_requested", "rejected"].includes(payment.review_decision) && (
                                     <Badge
                                       variant="destructive"
                                       className="mt-1"

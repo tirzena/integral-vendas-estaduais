@@ -1,0 +1,31 @@
+BEGIN;
+DO $$
+DECLARE a uuid:=gen_random_uuid(); b uuid:=gen_random_uuid(); c uuid:=gen_random_uuid(); inactive uuid:=gen_random_uuid(); conv uuid; grp uuid; msg uuid; r jsonb; denied boolean:=false;
+BEGIN
+ INSERT INTO auth.users(id,email,created_at) VALUES(a,'chat-a-'||a||'@example.invalid',now()),(b,'chat-b-'||b||'@example.invalid',now()),(c,'chat-c-'||c||'@example.invalid',now()),(inactive,'chat-off-'||inactive||'@example.invalid',now());
+ UPDATE public.profiles SET full_name='Chat fixture',is_active=true WHERE id IN(a,b,c); UPDATE public.profiles SET is_active=false WHERE id=inactive;
+ INSERT INTO public.user_roles(user_id,role) VALUES(a,'vendedor'),(b,'vendedor'),(c,'vendedor') ON CONFLICT DO NOTHING;
+ PERFORM set_config('request.jwt.claim.sub',a::text,true); EXECUTE 'SET LOCAL ROLE authenticated';
+ r:=public.integral_chat('directory'); ASSERT EXISTS(SELECT 1 FROM jsonb_array_elements(r) v WHERE v->>'id'=b::text),'Directory omits active member'; ASSERT NOT EXISTS(SELECT 1 FROM jsonb_array_elements(r) v WHERE v->>'id'=inactive::text),'Inactive visible';
+ BEGIN PERFORM public.integral_chat('create',jsonb_build_object('type','direta','members',jsonb_build_array(inactive))); RAISE EXCEPTION 'Inactive participant accepted'; EXCEPTION WHEN raise_exception THEN IF SQLERRM <> 'Participante indisponível.' THEN RAISE; END IF; END;
+ BEGIN PERFORM public.integral_chat('create',jsonb_build_object('type','direta','members',jsonb_build_array(gen_random_uuid()))); RAISE EXCEPTION 'Unknown participant accepted'; EXCEPTION WHEN raise_exception THEN IF SQLERRM <> 'Participante indisponível.' THEN RAISE; END IF; END;
+ conv:=(public.integral_chat('create',jsonb_build_object('type','direta','members',jsonb_build_array(b)))#>>'{}')::uuid;
+ ASSERT conv=(public.integral_chat('create',jsonb_build_object('type','direta','members',jsonb_build_array(b)))#>>'{}')::uuid,'Direct duplicated';
+ grp:=(public.integral_chat('create',jsonb_build_object('type','grupo','name','Teste controlado','members',jsonb_build_array(b,c)))#>>'{}')::uuid;
+ msg:=(public.integral_chat('send',jsonb_build_object('conversation_id',conv,'body','Teste fictício'))#>>'{}')::uuid;
+ PERFORM set_config('request.jwt.claim.sub',b::text,true);
+ r:=public.integral_chat('messages',jsonb_build_object('conversation_id',conv)); ASSERT jsonb_array_length(r)=1,'Recipient cannot read';
+ PERFORM public.integral_chat('send',jsonb_build_object('conversation_id',conv,'body','Resposta fictícia','reply_to',msg));
+ BEGIN PERFORM public.integral_chat('delete',jsonb_build_object('id',msg)); EXCEPTION WHEN insufficient_privilege THEN denied:=true; END; ASSERT denied,'Can delete another sender';
+ PERFORM set_config('request.jwt.claim.sub',c::text,true); denied:=false;
+ BEGIN PERFORM public.integral_chat('messages',jsonb_build_object('conversation_id',conv)); EXCEPTION WHEN insufficient_privilege THEN denied:=true; END; ASSERT denied,'Outsider reads private messages';
+ ASSERT jsonb_array_length(public.integral_chat('list'))=1,'Outsider sees private conversation';
+ PERFORM public.integral_chat('send',jsonb_build_object('conversation_id',grp,'body','Mensagem do grupo'));
+ PERFORM set_config('request.jwt.claim.sub',a::text,true);
+ ASSERT jsonb_array_length(public.integral_chat('messages',jsonb_build_object('conversation_id',grp)))=1,'Group unavailable';
+ PERFORM public.integral_chat('delete',jsonb_build_object('id',msg));
+ ASSERT EXISTS(SELECT 1 FROM jsonb_array_elements(public.integral_chat('messages',jsonb_build_object('conversation_id',conv))) v WHERE v->>'id'=msg::text AND v->>'body' IS NULL AND v->>'deleted_at' IS NOT NULL),'Delete failed';
+ EXECUTE 'RESET ROLE';
+ ASSERT NOT EXISTS(SELECT 1 FROM private.chat_action_context),'Context leaked';
+END $$;
+ROLLBACK;

@@ -22,7 +22,7 @@ import { ChatAttachment, CHAT_BUCKET, Linkify } from "@/components/chat/ChatAtta
 import { supabase } from "@/integrations/supabase/client";
 import { authenticatedFileClient } from "@/lib/authenticated-storage";
 import { useCurrentUser } from "@/hooks/useAuth";
-import { usePeople } from "@/hooks/usePeople";
+
 import { useEstadualAccess } from "@/hooks/useEstadualAccess";
 import { initials } from "@/lib/format";
 import { PageHeader, EmptyState } from "@/components/common/PageHeader";
@@ -54,6 +54,15 @@ export const Route = createFileRoute("/_authenticated/chat")({
   component: Chat,
 });
 
+async function chatRequest(action: string, payload: Record<string, unknown> = {}) {
+  const { data, error } = await (supabase.rpc as any)("integral_chat", {
+    p_action: action,
+    p_payload: payload,
+  });
+  if (error) throw error;
+  return data;
+}
+
 function timeLabel(iso?: string | null) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -66,7 +75,21 @@ function timeLabel(iso?: string | null) {
 
 function Chat() {
   const { userId } = useCurrentUser();
-  const { people, nameOf } = usePeople();
+  const directory = useQuery({
+    queryKey: ["chat-directory", userId],
+    enabled: !!userId,
+    staleTime: 30_000,
+    queryFn: () => chatRequest("directory"),
+  });
+  const people: { id: string; name: string; is_active: boolean }[] = directory.data ?? [];
+  const nameOf = (id?: string) => people.find((p) => p.id === id)?.name ?? "Membro";
+  const [memberSearch, setMemberSearch] = useState("");
+  const [creating, setCreating] = useState(false);
+  const availablePeople = people.filter(
+    (p) =>
+      p.id !== userId &&
+      p.name.toLocaleLowerCase("pt-BR").includes(memberSearch.trim().toLocaleLowerCase("pt-BR")),
+  );
   const { canWrite } = useEstadualAccess();
   const queryClient = useQueryClient();
 
@@ -88,39 +111,10 @@ function Chat() {
   /* Conversas em que eu participo, com os membros de cada uma. */
   const { data: conversations } = useQuery({
     queryKey: ["chat-conversations", userId],
+    refetchInterval: 10_000,
     enabled: !!userId,
     queryFn: async () => {
-      const { data: mine } = await supabase
-        .from("internal_conversation_members")
-        .select("conversation_id")
-        .eq("user_id", userId!);
-      const ids = (mine ?? []).map((m: any) => m.conversation_id);
-      if (!ids.length) return [];
-      const [{ data: convs }, { data: members }, { data: lastMessages }] = await Promise.all([
-        supabase.from("internal_conversations").select("*").in("id", ids),
-        supabase.from("internal_conversation_members").select("conversation_id,user_id").in("conversation_id", ids),
-        supabase
-          .from("internal_messages")
-          .select("conversation_id,body,created_at,sender_id,deleted_at")
-          .in("conversation_id", ids)
-          .order("created_at", { ascending: false })
-          .limit(400),
-      ]);
-      const lastByConv = new Map<string, any>();
-      (lastMessages ?? []).forEach((m: any) => {
-        if (!lastByConv.has(m.conversation_id)) lastByConv.set(m.conversation_id, m);
-      });
-      return (convs ?? [])
-        .map((c: any) => ({
-          ...c,
-          members: (members ?? []).filter((m: any) => m.conversation_id === c.id).map((m: any) => m.user_id),
-          last: lastByConv.get(c.id) ?? null,
-        }))
-        .sort(
-          (a: any, b: any) =>
-            new Date(b.last?.created_at ?? b.updated_at).getTime() -
-            new Date(a.last?.created_at ?? a.updated_at).getTime(),
-        );
+      return chatRequest("list");
     },
   });
 
@@ -145,14 +139,10 @@ function Chat() {
 
   const { data: messages } = useQuery({
     queryKey: ["chat-messages", selected],
+    refetchInterval: 5_000,
     enabled: !!selected,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("internal_messages")
-        .select("*, profiles:sender_id(full_name)")
-        .eq("conversation_id", selected!)
-        .order("created_at");
-      return data ?? [];
+      return chatRequest("messages", { conversation_id: selected });
     },
   });
 
@@ -174,62 +164,32 @@ function Chat() {
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [messages, selected]);
 
-  async function openDirect(personId: string) {
-    if (!canWrite) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
-    const existing = list.find(
-      (c: any) =>
-        c.conversation_type === "direta" &&
-        (c.members ?? []).length === 2 &&
-        c.members.includes(personId) &&
-        c.members.includes(userId),
-    );
-    if (existing) {
-      setSelected(existing.id);
+  async function startConversation(type: "direta" | "grupo", members: string[], name?: string) {
+    if (creating) return;
+    setCreating(true);
+    try {
+      const id = await chatRequest("create", { type, members, name });
+      await queryClient.invalidateQueries({ queryKey: ["chat-conversations", userId] });
+      setSelected(id);
       setOpen(false);
-      return;
+      setGroupName("");
+      setGroupMembers([]);
+      setMemberSearch("");
+    } catch (error: any) {
+      toast.error(error?.message ?? "Não foi possível criar a conversa.");
+    } finally {
+      setCreating(false);
     }
-    const { data, error } = await supabase
-      .from("internal_conversations")
-      .insert({ conversation_type: "direta", name: null, created_by: userId ?? null })
-      .select("id")
-      .single();
-    if (error || !data) {
-      toast.error("Não foi possível iniciar a conversa.");
-      return;
-    }
-    await supabase.from("internal_conversation_members").insert([
-      { conversation_id: data.id, user_id: userId! },
-      { conversation_id: data.id, user_id: personId },
-    ]);
-    await queryClient.invalidateQueries({ queryKey: ["chat-conversations", userId] });
-    setSelected(data.id);
-    setOpen(false);
   }
-
+  async function openDirect(personId: string) {
+    await startConversation("direta", [personId]);
+  }
   async function createGroup() {
-    if (!canWrite) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
-    if (!groupName.trim()) {
-      toast.error("Dê um nome para o grupo.");
+    if (!groupName.trim() || groupMembers.length === 0) {
+      toast.error("Informe o nome e selecione pelo menos um participante.");
       return;
     }
-    const { data, error } = await supabase
-      .from("internal_conversations")
-      .insert({ name: groupName.trim(), conversation_type: "grupo", created_by: userId ?? null })
-      .select("id")
-      .single();
-    if (error || !data) {
-      toast.error("Não foi possível criar o grupo.");
-      return;
-    }
-    const ids = Array.from(new Set([userId!, ...groupMembers]));
-    await supabase
-      .from("internal_conversation_members")
-      .insert(ids.map((id) => ({ conversation_id: data.id, user_id: id })));
-    await queryClient.invalidateQueries({ queryKey: ["chat-conversations", userId] });
-    setGroupName("");
-    setGroupMembers([]);
-    setOpen(false);
-    setSelected(data.id);
+    await startConversation("grupo", groupMembers, groupName.trim());
   }
 
   async function send(e: React.FormEvent) {
@@ -238,22 +198,14 @@ function Chat() {
     if (!text.trim() || !selected) return;
     const body = text.trim();
     setText("");
-    const { error } = await supabase.from("internal_messages").insert({
-      conversation_id: selected,
-      sender_id: userId ?? null,
-      body,
-      reply_to: replyTo?.id ?? null,
-    });
-    if (error) {
-      toast.error("Não foi possível enviar a mensagem.");
+    try {
+      await chatRequest("send", { conversation_id: selected, body, reply_to: replyTo?.id ?? null });
+    } catch (error: any) {
+      toast.error(error?.message ?? "Não foi possível enviar a mensagem.");
       setText(body);
       return;
     }
     setReplyTo(null);
-    await supabase
-      .from("internal_conversations")
-      .update({ updated_at: new Date().toISOString() })
-      .eq("id", selected);
     queryClient.invalidateQueries({ queryKey: ["chat-messages", selected] });
     queryClient.invalidateQueries({ queryKey: ["chat-conversations", userId] });
   }
@@ -283,25 +235,21 @@ function Chat() {
         .upload(path, file, { contentType: file.type || "application/octet-stream" });
       if (upErr) throw upErr;
       const caption = text.trim();
-      const { error } = await client.from("internal_messages").insert({
-        conversation_id: selected,
-        sender_id: userId,
-        body: caption || null,
-        attachment_url: path,
-        attachment_type: kindOf(file.type || ""),
-        attachment_name: name ?? file.name,
-        reply_to: replyTo?.id ?? null,
-      });
-      if (error) {
+      try {
+        await chatRequest("send", {
+          conversation_id: selected,
+          body: caption || null,
+          attachment_url: path,
+          attachment_type: kindOf(file.type || ""),
+          attachment_name: name ?? file.name,
+          reply_to: replyTo?.id ?? null,
+        });
+      } catch (error) {
         await client.storage.from(CHAT_BUCKET).remove([path]);
         throw error;
       }
       setText("");
       setReplyTo(null);
-      await client
-        .from("internal_conversations")
-        .update({ updated_at: new Date().toISOString() })
-        .eq("id", selected);
       queryClient.invalidateQueries({ queryKey: ["chat-messages", selected] });
       queryClient.invalidateQueries({ queryKey: ["chat-conversations", userId] });
     } catch (error: any) {
@@ -341,15 +289,14 @@ function Chat() {
     }
   }
 
-
   async function removeMessage(id: string) {
-    if (!canWrite) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
-    const { error } = await supabase
-      .from("internal_messages")
-      .update({ deleted_at: new Date().toISOString(), body: null })
-      .eq("id", id);
-    if (error) toast.error("Não foi possível apagar a mensagem.");
-    else queryClient.invalidateQueries({ queryKey: ["chat-messages", selected] });
+    try {
+      await chatRequest("delete", { id });
+      queryClient.invalidateQueries({ queryKey: ["chat-messages", selected] });
+      queryClient.invalidateQueries({ queryKey: ["chat-conversations", userId] });
+    } catch {
+      toast.error("Não foi possível apagar a mensagem.");
+    }
   }
 
   const msgs = messages ?? [];
@@ -360,14 +307,20 @@ function Chat() {
         title="Chat interno"
         description="Converse com a equipe em tempo real, individualmente ou em grupos."
         actions={
-          <Button onClick={() => setOpen(true)} disabled={!canWrite} title={!canWrite ? "Acesso somente leitura" : undefined}>
+          <Button
+            onClick={() => setOpen(true)}
+            disabled={!canWrite}
+            title={!canWrite ? "Acesso somente leitura" : undefined}
+          >
             <Plus className="mr-2 size-4" /> Nova conversa
           </Button>
         }
       />
 
       <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
-        <div className={cn("surface-card flex max-h-[72vh] flex-col", selected && "hidden lg:flex")}>
+        <div
+          className={cn("surface-card flex max-h-[72vh] flex-col", selected && "hidden lg:flex")}
+        >
           <div className="relative border-b p-3">
             <Search className="absolute top-5.5 left-6 size-4 text-muted-foreground" />
             <Input
@@ -483,14 +436,16 @@ function Chat() {
                       >
                         {!mine && current.conversation_type === "grupo" && (
                           <p className="mb-0.5 text-xs font-medium opacity-70">
-                            {m.profiles?.full_name ?? "Usuário"}
+                            {m.profiles?.full_name ?? nameOf(m.sender_id)}
                           </p>
                         )}
                         {quoted && (
                           <p
                             className={cn(
                               "mb-1 truncate rounded-md border-l-2 px-2 py-1 text-xs",
-                              mine ? "border-primary-foreground/60 bg-black/10" : "border-primary bg-background/60",
+                              mine
+                                ? "border-primary-foreground/60 bg-black/10"
+                                : "border-primary bg-background/60",
                             )}
                           >
                             {quoted.deleted_at ? "Mensagem apagada" : quoted.body}
@@ -626,7 +581,11 @@ function Chat() {
                         : "Escreva uma mensagem ou cole um link…"
                   }
                 />
-                <Button type="submit" aria-label="Enviar" disabled={!canWrite || uploading || recording}>
+                <Button
+                  type="submit"
+                  aria-label="Enviar"
+                  disabled={!canWrite || uploading || recording}
+                >
                   <Send className="size-4" />
                 </Button>
               </form>
@@ -645,32 +604,48 @@ function Chat() {
           </DialogHeader>
 
           <Tabs defaultValue="direta">
+            <Input
+              aria-label="Buscar membro"
+              placeholder="Buscar membro…"
+              value={memberSearch}
+              onChange={(e) => setMemberSearch(e.target.value)}
+              className="mb-3"
+            />
+            {directory.isLoading && (
+              <p className="py-2 text-sm text-muted-foreground">Carregando membros…</p>
+            )}
+            {directory.isError && (
+              <div className="py-2 text-sm text-destructive">
+                Não foi possível carregar os membros.{" "}
+                <Button variant="link" onClick={() => directory.refetch()}>
+                  Tentar novamente
+                </Button>
+              </div>
+            )}
             <TabsList>
               <TabsTrigger value="direta">Pessoa</TabsTrigger>
               <TabsTrigger value="grupo">Grupo</TabsTrigger>
             </TabsList>
 
             <TabsContent value="direta" className="mt-3 space-y-1">
-              {people
-                .filter((p) => p.id !== userId)
-                .map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => openDirect(p.id)}
-                    className="flex w-full items-center gap-3 rounded-lg p-2.5 text-left hover:bg-muted"
-                  >
-                    <Avatar className="size-8">
-                      <AvatarFallback>{initials(p.name)}</AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{p.name}</p>
-                      <p className="truncate text-xs text-muted-foreground">{p.email ?? ""}</p>
-                    </div>
-                  </button>
-                ))}
-              {people.filter((p) => p.id !== userId).length === 0 && (
+              {availablePeople.map((p) => (
+                <button
+                  key={p.id}
+                  disabled={creating}
+                  onClick={() => openDirect(p.id)}
+                  className="flex w-full items-center gap-3 rounded-lg p-2.5 text-left hover:bg-muted"
+                >
+                  <Avatar className="size-8">
+                    <AvatarFallback>{initials(p.name)}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{p.name}</p>
+                  </div>
+                </button>
+              ))}
+              {!directory.isLoading && !directory.isError && availablePeople.length === 0 && (
                 <p className="p-4 text-center text-sm text-muted-foreground">
-                  Ainda não há outros membros cadastrados.
+                  Nenhum membro encontrado.
                 </p>
               )}
             </TabsContent>
@@ -689,31 +664,31 @@ function Chat() {
               <div>
                 <Label>Participantes</Label>
                 <div className="mt-1.5 max-h-56 space-y-1 overflow-y-auto rounded-lg border p-2">
-                  {people
-                    .filter((p) => p.id !== userId)
-                    .map((p) => (
-                      <label
-                        key={p.id}
-                        className="flex cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-muted"
-                      >
-                        <Checkbox
-                          checked={groupMembers.includes(p.id)}
-                          onCheckedChange={(v) =>
-                            setGroupMembers((prev) =>
-                              v ? [...prev, p.id] : prev.filter((id) => id !== p.id),
-                            )
-                          }
-                        />
-                        <span className="text-sm">{p.name}</span>
-                      </label>
-                    ))}
+                  {availablePeople.map((p) => (
+                    <label
+                      key={p.id}
+                      className="flex cursor-pointer items-center gap-2 rounded-md p-2 hover:bg-muted"
+                    >
+                      <Checkbox
+                        checked={groupMembers.includes(p.id)}
+                        onCheckedChange={(v) =>
+                          setGroupMembers((prev) =>
+                            v ? [...prev, p.id] : prev.filter((id) => id !== p.id),
+                          )
+                        }
+                      />
+                      <span className="text-sm">{p.name}</span>
+                    </label>
+                  ))}
                 </div>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setOpen(false)}>
                   Cancelar
                 </Button>
-                <Button onClick={createGroup} disabled={!canWrite}>Criar grupo</Button>
+                <Button onClick={createGroup} disabled={!canWrite}>
+                  Criar grupo
+                </Button>
               </DialogFooter>
             </TabsContent>
           </Tabs>
