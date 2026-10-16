@@ -213,7 +213,7 @@ export const guideChapters: GuideChapter[] = [
     route: "/produtos",
     scope: "both",
     summary:
-      "Consulte materiais publicados e, na Direção Geral, crie um catálogo para compartilhar.",
+      "Consulte materiais publicados e crie seu catálogo com produtos liberados ao seu perfil.",
     steps: [
       {
         title: "Abra Catálogos online",
@@ -221,7 +221,7 @@ export const guideChapters: GuideChapter[] = [
       },
       {
         title: "Crie seu material",
-        text: "Na Direção Geral, use Novo catálogo e suas configurações administrativas. No Estadual, clique em Novo catálogo online, informe título, descrição, moeda e WhatsApp opcional; selecione categorias inteiras, subcategorias ou produtos individuais entre os liberados e escolha se deseja publicar.",
+        text: "Nos dois sistemas, clique em Novo catálogo online. Informe título, descrição, moeda e WhatsApp opcional. Na seção Categorias, selecione os grupos desejados: suas subcategorias e produtos entram automaticamente. Desmarque subcategorias ou produtos que não deseja. A busca pelo nome permite adicionar produtos de qualquer categoria.",
       },
       {
         title: "Confira as duas versões",
@@ -259,7 +259,7 @@ export const guideChapters: GuideChapter[] = [
       },
       {
         title: "Confira a lista",
-        text: "Revise produto, foto, quantidade, unidade e valor de venda. O preço é apresentado na moeda cadastrada para a venda.",
+        text: "Revise os produtos, a quantidade disponível e o valor de venda. O preço é apresentado na moeda cadastrada para a venda.",
       },
       {
         title: "Exporte a seleção",
@@ -267,7 +267,7 @@ export const guideChapters: GuideChapter[] = [
       },
       {
         title: "Crie uma tabela online",
-        text: "Clique em Nova tabela de vendas no Estadual ou Nova tabela de venda na Direção Geral. Informe título, moeda, descrição e as categorias, subcategorias ou produtos desejados. Salve e confira os links Vendedor e Cliente do cartão. O vendedor monta o material sem alterar preços dos produtos.",
+        text: "Nos dois sistemas, clique em Nova tabela de vendas. Informe título, moeda e descrição. Escolha categorias, retire as subcategorias que não deseja e revise os produtos. Use a busca pelo nome para adicionar produtos avulsos. Salve e confira os links Vendedor e Cliente do cartão. O vendedor monta o material sem alterar preços dos produtos.",
       },
       {
         title: "Defina a visibilidade interna",
@@ -282,7 +282,7 @@ export const guideChapters: GuideChapter[] = [
   },
   {
     id: "categorias",
-    title: "Categorias e subcategorias",
+    title: "Categorias, subcategorias e produtos",
     group: "Comercial",
     route: "/categorias",
     scope: "general",
@@ -290,7 +290,7 @@ export const guideChapters: GuideChapter[] = [
     steps: [
       {
         title: "Procure a classificação",
-        text: "Abra Categorias e confira se a categoria principal e a subcategoria já existem.",
+        text: "Abra Categorias. O menu horizontal separa Categorias, Subcategorias e Produtos. Confira a classificação antes de criar novos cadastros.",
       },
       {
         title: "Crie ou ajuste",
@@ -298,7 +298,7 @@ export const guideChapters: GuideChapter[] = [
       },
       {
         title: "Classifique os produtos",
-        text: "No cadastro do produto, selecione a categoria e a subcategoria. Evite criar categorias diferentes para a mesma finalidade.",
+        text: "Em Categorias → Produtos, crie ou edite a ficha completa e selecione categoria e subcategoria. Esse é o local de edição dos produtos; a aba Catálogo permite somente consultar e montar materiais.",
       },
       {
         title: "Confira os acessos",

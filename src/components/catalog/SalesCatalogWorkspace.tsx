@@ -9,7 +9,7 @@ import { CatalogSection } from "@/components/catalog/CatalogSection";
 import { useSalesCatalog } from "@/hooks/useSalesCatalog";
 
 export function SalesCatalogWorkspace() {
-  const { roles, isAdmin, viewAs } = useCurrentUser();
+  const { roles, viewAs } = useCurrentUser();
   const [createLayout, setCreateLayout] = useState<"cards" | "lista" | null>(null);
   const [materialVersion, setMaterialVersion] = useState(0);
   const canCreate = !viewAs && roles.length > 0;
@@ -18,7 +18,7 @@ export function SalesCatalogWorkspace() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Catálogo de produtos"
+        title="Catálogo"
         description="Consulte produtos e preços; monte seus catálogos e tabelas com os materiais liberados."
       />
       <Tabs value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
@@ -27,7 +27,7 @@ export function SalesCatalogWorkspace() {
             Produtos{query.data ? ` (${query.data.items.length})` : ""}
           </TabsTrigger>
           <TabsTrigger value="catalogs">Catálogos online</TabsTrigger>
-          <TabsTrigger value="tables">Tabelas de preços</TabsTrigger>
+          <TabsTrigger value="tables">Listas / Tabelas de preços</TabsTrigger>
         </TabsList>
       </Tabs>
       {canCreate && tab !== "products" && (

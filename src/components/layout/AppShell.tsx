@@ -80,7 +80,8 @@ export const NAV_GROUPS = [
   {
     label: "Comercial",
     items: [
-      { to: "/produtos", label: "Catálogo e preços", icon: Package },
+      { to: "/produtos", label: "Catálogo", icon: Package },
+      { to: "/categorias", label: "Categorias", icon: Layers },
       { to: "/pedidos", label: "Pedidos", icon: FileText },
       { to: "/promocoes", label: "Promoções", icon: Sparkles },
       { to: "/entregas", label: "Entregas", icon: Truck },
@@ -128,7 +129,8 @@ function NavList({ onNavigate, collapsed }: { onNavigate?: () => void; collapsed
   const operational = useOperationalAccess();
   const { canOpen, viewAs } = usePermissions();
   const isAdmin = viewAs ? false : realAdmin;
-  const sellerOnly = roles.includes("vendedor") && !isAdmin && roles.every((role) => role === "vendedor");
+  const sellerOnly =
+    roles.includes("vendedor") && !isAdmin && roles.every((role) => role === "vendedor");
   const sellerHidden = new Set([
     "/trafego-pago",
     "/compras",
@@ -142,12 +144,8 @@ function NavList({ onNavigate, collapsed }: { onNavigate?: () => void; collapsed
   const normalGroups = [
     ...NAV_GROUPS.map((g) => ({
       label: g.label,
-      items: [
-        ...g.items.filter((i) => canOpen(i.to) && (!sellerOnly || !sellerHidden.has(i.to))),
-
-      ],
+      items: [...g.items.filter((i) => canOpen(i.to) && (!sellerOnly || !sellerHidden.has(i.to)))],
     })),
-
   ].filter((g) => g.items.length > 0);
 
   const groups =
@@ -170,7 +168,7 @@ function NavList({ onNavigate, collapsed }: { onNavigate?: () => void; collapsed
                 icon: Coins,
               },
               { to: "/guia-de-estudo", label: "Guia de estudo", icon: BookOpen },
-      { to: "/como-usar", label: "Como usar o sistema", icon: BookOpen },
+              { to: "/como-usar", label: "Como usar o sistema", icon: BookOpen },
               { to: "/configuracoes", label: "Meu perfil e acesso", icon: Settings },
             ],
           },

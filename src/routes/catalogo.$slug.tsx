@@ -56,10 +56,14 @@ import {
 } from "@/components/ui/select";
 
 export const Route = createFileRoute("/catalogo/$slug")({
-  validateSearch: (search: Record<string,unknown>) => ({publico:catalogAudience(search["publico"])}),
-  loaderDeps: ({search}) => ({audience:search.publico}),
+  validateSearch: (search: Record<string, unknown>) => ({
+    publico: catalogAudience(search["publico"]),
+  }),
+  loaderDeps: ({ search }) => ({ audience: search.publico }),
   loader: async ({ params, deps }) => {
-    const catalog = await getPublicCatalog({ data: { slug: params.slug, audience:deps.audience } });
+    const catalog = await getPublicCatalog({
+      data: { slug: params.slug, audience: deps.audience },
+    });
     if (!catalog) throw notFound();
     return catalog;
   },
@@ -297,7 +301,8 @@ function PublicCatalogPage() {
     .filter((x): x is { line: CartLine; item: PublicCatalogItem } => !!x.item);
   const cartCount = lines.reduce((s, l) => s + l.line.quantity, 0);
   const subtotal = lines.reduce((s, l) => s + (l.item.price ?? 0) * l.line.quantity, 0);
-  const minimumMet = lines.length > 0 && lines.every(({ line, item }) => line.quantity >= item.minQuantity);
+  const minimumMet =
+    lines.length > 0 && lines.every(({ line, item }) => line.quantity >= item.minQuantity);
 
   useEffect(() => {
     setFreightQuote(null);
@@ -394,203 +399,287 @@ function PublicCatalogPage() {
   return (
     <main className="bg-background flex h-dvh flex-col overflow-hidden" style={style}>
       <div ref={headerWheelRef} className="z-40 shrink-0 bg-background shadow-xl shadow-black/20">
-      <header className="relative border-b bg-card">
-        {catalog.banner ? (
-          <div className="relative w-full">
-            <img
-              src={catalog.banner}
-              alt={`Banner do catálogo ${catalog.title}`}
-              className={`block w-full object-cover object-center transition-[height] duration-300 ${headerCompact ? "h-[130px] sm:h-[155px]" : "h-[clamp(320px,42vh,520px)]"}`}
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/10 to-black/20" aria-hidden="true" />
-            <div className="absolute inset-0 z-10 mx-auto flex max-w-6xl items-end px-5 pb-5 sm:items-center sm:pb-0">
-              <div className="flex w-full flex-wrap items-center gap-4">
-                {catalog.logo && (
-                  <img
-                    src={catalog.logo}
-                    alt={`Logo de ${catalog.title}`}
-                    className="hidden size-14 rounded-lg bg-black/20 object-contain sm:block"
-                  />
-                )}
-                <div className="min-w-0 flex-1 text-white drop-shadow-md">
-                  <p className="text-xs tracking-[0.3em] uppercase text-white/80">OS</p>
-                  <h1 className={`font-display mt-1 font-black tracking-tight transition-all duration-300 ${headerCompact ? "text-2xl sm:text-3xl" : "text-3xl sm:text-5xl lg:text-6xl"}`}>
-                    {catalog.title}
-                  </h1>
-                  {catalog.description && (
-                    <p className="mt-2 hidden max-w-2xl text-sm text-white/85 md:block">{catalog.description}</p>
+        <header className="relative border-b bg-card">
+          {catalog.banner ? (
+            <div className="relative w-full">
+              <img
+                src={catalog.banner}
+                alt={`Banner do catálogo ${catalog.title}`}
+                className={`block w-full object-cover object-center transition-[height] duration-300 ${headerCompact ? "h-[130px] sm:h-[155px]" : "h-[clamp(320px,42vh,520px)]"}`}
+              />
+              <div
+                className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/10 to-black/20"
+                aria-hidden="true"
+              />
+              <div className="absolute inset-0 z-10 mx-auto flex max-w-6xl items-end px-5 pb-5 sm:items-center sm:pb-0">
+                <div className="flex w-full flex-wrap items-center gap-4">
+                  {catalog.logo && (
+                    <img
+                      src={catalog.logo}
+                      alt={`Logo de ${catalog.title}`}
+                      className="hidden size-14 rounded-lg bg-black/20 object-contain sm:block"
+                    />
                   )}
+                  <div className="min-w-0 flex-1 text-white drop-shadow-md">
+                    <p className="text-xs tracking-[0.3em] uppercase text-white/80">OS</p>
+                    <h1
+                      className={`font-display mt-1 font-black tracking-tight transition-all duration-300 ${headerCompact ? "text-2xl sm:text-3xl" : "text-3xl sm:text-5xl lg:text-6xl"}`}
+                    >
+                      {catalog.title}
+                    </h1>
+                    {catalog.description && (
+                      <p className="mt-2 hidden max-w-2xl text-sm text-white/85 md:block">
+                        {catalog.description}
+                      </p>
+                    )}
+                  </div>
                 </div>
-       </div>
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="mx-auto flex min-h-[180px] max-w-6xl flex-wrap items-center gap-4 px-5 py-8">
-            <div className="min-w-0 flex-1">
-              <p className="text-muted-foreground text-xs tracking-[0.3em] uppercase">OS</p>
-              <h1 className="font-display mt-1 text-3xl font-semibold sm:text-4xl">{catalog.title}</h1>
+          ) : (
+            <div className="mx-auto flex min-h-[180px] max-w-6xl flex-wrap items-center gap-4 px-5 py-8">
+              <div className="min-w-0 flex-1">
+                <p className="text-muted-foreground text-xs tracking-[0.3em] uppercase">OS</p>
+                <h1 className="font-display mt-1 text-3xl font-semibold sm:text-4xl">
+                  {catalog.title}
+                </h1>
+              </div>
             </div>
-          </div>
-        )}
-      </header>
-
-      <div className={`mx-auto max-w-6xl px-5 transition-all duration-300 ${headerCompact ? "py-2" : "py-5"}`}>
-        <div className="grid gap-2 lg:grid-cols-[minmax(260px,2fr)_minmax(190px,1fr)]">
-          <div className="relative">
-            <Search className="text-muted-foreground absolute top-2.5 left-2 size-4" />
-            <Input
-              className="pl-8"
-              placeholder="Buscar produto, marca ou código"
-              aria-label="Buscar no catálogo"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <Select value={group} onValueChange={setGroup}>
-            <SelectTrigger aria-label="Categoria">
-              <SelectValue placeholder="Categoria" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todas as categorias</SelectItem>
-              {groups.map((g) => (
-                <SelectItem key={g} value={g}>
-                  {g}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="mt-2 grid grid-cols-2 gap-2 sm:flex sm:flex-nowrap sm:items-center">
-          <Select value={brand} onValueChange={setBrand}>
-            <SelectTrigger className="col-span-2 w-full sm:col-span-1 sm:w-[240px] sm:shrink-0" aria-label="Marca">
-              <SelectValue placeholder="Marca" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todas">Todas as marcas</SelectItem>
-              {catalog.brands.map((b) => (
-                <SelectItem key={b} value={b}>{b}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button className="shrink-0" variant={onlyOffers ? "default" : "outline"} onClick={() => setOnlyOffers((v) => !v)}>
-            Ofertas
-          </Button>
-          {catalog.ordersEnabled && (
-            <Button className="shrink-0" variant="outline" onClick={() => setCartOpen(true)}>
-              <ShoppingCart className="mr-2 size-4" />
-              Carrinho {cartCount > 0 && `(${cartCount})`}
-            </Button>
           )}
-          <Button variant="outline" className="catalog-site-button catalog-site-tirzena h-11 shrink-0 px-6 font-semibold" asChild>
-            <a href="https://www.tirzena.com" target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="mr-2 size-4" /> Site Tirzena
-            </a>
-          </Button>
-          <Button variant="outline" className="catalog-site-button catalog-site-retrazin h-11 shrink-0 px-6 font-semibold" asChild>
-            <a href="https://www.retrazin.com" target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="mr-2 size-4" /> Site Retrazin
-            </a>
-          </Button>
-        </div>
+        </header>
 
+        <div
+          className={`mx-auto max-w-6xl px-5 transition-all duration-300 ${headerCompact ? "py-2" : "py-5"}`}
+        >
+          <div className="grid gap-2 lg:grid-cols-[minmax(260px,2fr)_minmax(190px,1fr)]">
+            <div className="relative">
+              <Search className="text-muted-foreground absolute top-2.5 left-2 size-4" />
+              <Input
+                className="pl-8"
+                placeholder="Buscar produto, marca ou código"
+                aria-label="Buscar no catálogo"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <Select value={group} onValueChange={setGroup}>
+              <SelectTrigger aria-label="Categoria">
+                <SelectValue placeholder="Categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todas as categorias</SelectItem>
+                {groups.map((g) => (
+                  <SelectItem key={g} value={g}>
+                    {g}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:flex sm:flex-nowrap sm:items-center">
+            <Select value={brand} onValueChange={setBrand}>
+              <SelectTrigger
+                className="col-span-2 w-full sm:col-span-1 sm:w-[240px] sm:shrink-0"
+                aria-label="Marca"
+              >
+                <SelectValue placeholder="Marca" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas as marcas</SelectItem>
+                {catalog.brands.map((b) => (
+                  <SelectItem key={b} value={b}>
+                    {b}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              className="shrink-0"
+              variant={onlyOffers ? "default" : "outline"}
+              onClick={() => setOnlyOffers((v) => !v)}
+            >
+              Ofertas
+            </Button>
+            {catalog.ordersEnabled && (
+              <Button className="shrink-0" variant="outline" onClick={() => setCartOpen(true)}>
+                <ShoppingCart className="mr-2 size-4" />
+                Carrinho {cartCount > 0 && `(${cartCount})`}
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              className="catalog-site-button catalog-site-tirzena h-11 shrink-0 px-6 font-semibold"
+              asChild
+            >
+              <a href="https://www.tirzena.com" target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="mr-2 size-4" /> Site Tirzena
+              </a>
+            </Button>
+            <Button
+              variant="outline"
+              className="catalog-site-button catalog-site-retrazin h-11 shrink-0 px-6 font-semibold"
+              asChild
+            >
+              <a href="https://www.retrazin.com" target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="mr-2 size-4" /> Site Retrazin
+              </a>
+            </Button>
+          </div>
         </div>
       </div>
 
       <div ref={productsScrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto max-w-6xl px-5 pb-8 pt-4">
-
-        {filtered.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
-            Nenhum produto encontrado com esses filtros.
-          </p>
-        ) : (
-          catalog.layout==="lista" ? <div className="overflow-x-auto rounded-xl border"><table className="w-full min-w-[620px] text-left text-sm"><thead className="bg-muted/50"><tr><th className="p-3">Produto</th><th className="p-3">Unidade</th><th className="p-3">Disponível</th>{catalog.showPrices&&<th className="p-3">Valor de venda</th>}<th className="p-3">Pedido</th></tr></thead><tbody>{filtered.map(item=><tr key={item.id} className="border-t"><td className="p-3"><button type="button" className="flex items-center gap-3 text-left" onClick={()=>setDetail(item)}>{item.image&&<img src={item.image} alt="" loading="lazy" className="size-12 rounded-lg object-cover"/>}<span><strong className="block">{item.name}</strong><span className="text-xs text-muted-foreground">{item.spec}</span></span></button></td><td className="p-3">{item.unit??"un."}</td><td className="p-3">{catalog.showAvailability?item.stock:"—"}</td>{catalog.showPrices&&<td className="p-3">{priceInAllCurrencies(item)??price(item)}</td>}<td className="p-3">{!!item.sellers.length&&<Button size="sm" variant="outline" onClick={()=>setSellerItem(item)}>Fazer pedido</Button>}</td></tr>)}</tbody></table></div> : (<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {filtered.map((item) => (
-              <article key={item.id} className="surface-card flex flex-col overflow-hidden p-0">
-                <button
-                  type="button"
-                  className="bg-muted aspect-square w-full overflow-hidden text-left"
-                  onClick={() => setDetail(item)}
-                  aria-label={`Ver detalhes de ${item.name}`}
-                >
-                  {item.image ? (
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      loading="lazy"
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="text-muted-foreground flex h-full items-center justify-center text-xs">
-                      sem foto
+          {filtered.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              Nenhum produto encontrado com esses filtros.
+            </p>
+          ) : catalog.layout === "lista" ? (
+            <div className="overflow-x-auto rounded-xl border">
+              <table className="w-full min-w-[620px] text-left text-sm">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="p-3">Produto</th>
+                    <th className="p-3">Disponível</th>
+                    {catalog.showPrices && <th className="p-3">Valor de venda</th>}
+                    <th className="p-3">Pedido</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((item) => (
+                    <tr key={item.id} className="border-t">
+                      <td className="p-3">
+                        <button
+                          type="button"
+                          className="flex items-center gap-3 text-left"
+                          onClick={() => setDetail(item)}
+                        >
+                          {item.image && (
+                            <img
+                              src={item.image}
+                              alt=""
+                              loading="lazy"
+                              className="size-12 rounded-lg object-cover"
+                            />
+                          )}
+                          <span>
+                            <strong className="block">{item.name}</strong>
+                            <span className="text-xs text-muted-foreground">{item.spec}</span>
+                          </span>
+                        </button>
+                      </td>
+                      <td className="p-3">{catalog.showAvailability ? item.stock : "—"}</td>
+                      {catalog.showPrices && (
+                        <td className="p-3">{priceInAllCurrencies(item) ?? price(item)}</td>
+                      )}
+                      <td className="p-3">
+                        {!!item.sellers.length && (
+                          <Button size="sm" variant="outline" onClick={() => setSellerItem(item)}>
+                            Fazer pedido
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {filtered.map((item) => (
+                <article key={item.id} className="surface-card flex flex-col overflow-hidden p-0">
+                  <button
+                    type="button"
+                    className="bg-muted aspect-square w-full overflow-hidden text-left"
+                    onClick={() => setDetail(item)}
+                    aria-label={`Ver detalhes de ${item.name}`}
+                  >
+                    {item.image ? (
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        loading="lazy"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="text-muted-foreground flex h-full items-center justify-center text-xs">
+                        sem foto
+                      </div>
+                    )}
+                  </button>
+                  <div className="flex flex-1 flex-col gap-1 p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-medium">{item.name}</p>
+                      {item.offer && <Badge>oferta</Badge>}
                     </div>
-                  )}
-                </button>
-                <div className="flex flex-1 flex-col gap-1 p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="font-medium">{item.name}</p>
-                    {item.offer && <Badge>oferta</Badge>}
-                  </div>
-                  {item.spec && <p className="text-muted-foreground text-xs">{item.spec}</p>}
-                  {item.description && (
-                    <p className="text-muted-foreground line-clamp-2 text-xs">{item.description}</p>
-                  )}
-                  {item.media.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => setDetail(item)}
-                      className="mt-1 inline-flex items-center gap-1 text-left text-xs font-medium text-primary"
-                    >
-                      <Images className="size-3.5" /> Ver {item.media.length} fotos e vídeos
-                    </button>
-                  )}
-                  {catalog.showPrices && (
-                    <p className="mt-2 text-xs font-medium text-muted-foreground">
-                      Preço de atacado · pedido mínimo de {item.minQuantity} {item.minQuantity === 1 ? "unidade" : "unidades"}
-                    </p>
-                  )}
-                  <div className="mt-auto flex items-center justify-between pt-3">
-                    {priceInAllCurrencies(item) ?? (
-                      <span className="font-display text-lg font-semibold">{price(item)}</span>
+                    {item.spec && <p className="text-muted-foreground text-xs">{item.spec}</p>}
+                    {item.description && (
+                      <p className="text-muted-foreground line-clamp-2 text-xs">
+                        {item.description}
+                      </p>
                     )}
-                    {catalog.showAvailability && (
-                      <Badge
-                        variant="outline"
-                        className={item.available
-                          ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-400"
-                          : "border-red-500/40 bg-red-500/15 text-red-400"}
+                    {item.media.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setDetail(item)}
+                        className="mt-1 inline-flex items-center gap-1 text-left text-xs font-medium text-primary"
                       >
-                        {item.available ? "disponível" : "indisponível"}
-                      </Badge>
+                        <Images className="size-3.5" /> Ver {item.media.length} fotos e vídeos
+                      </button>
+                    )}
+                    {catalog.showPrices && (
+                      <p className="mt-2 text-xs font-medium text-muted-foreground">
+                        Preço de atacado · pedido mínimo de {item.minQuantity}{" "}
+                        {item.minQuantity === 1 ? "unidade" : "unidades"}
+                      </p>
+                    )}
+                    <div className="mt-auto flex items-center justify-between pt-3">
+                      {priceInAllCurrencies(item) ?? (
+                        <span className="font-display text-lg font-semibold">{price(item)}</span>
+                      )}
+                      {catalog.showAvailability && (
+                        <Badge
+                          variant="outline"
+                          className={
+                            item.available
+                              ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-400"
+                              : "border-red-500/40 bg-red-500/15 text-red-400"
+                          }
+                        >
+                          {item.available ? "disponível" : "indisponível"}
+                        </Badge>
+                      )}
+                    </div>
+                    {item.infoGroupUrl && (
+                      <Button className="mt-2" variant="outline" asChild>
+                        <a href={item.infoGroupUrl} target="_blank" rel="noreferrer">
+                          <MessageCircle className="mr-2 size-4" /> Grupo de informações
+                        </a>
+                      </Button>
+                    )}
+                    {!!item.sellers.length && (
+                      <Button
+                        className="mt-2"
+                        variant="outline"
+                        onClick={() => setSellerItem(item)}
+                      >
+                        Fazer pedido
+                      </Button>
                     )}
                   </div>
-                  {item.infoGroupUrl && (
-                    <Button className="mt-2" variant="outline" asChild>
-                      <a href={item.infoGroupUrl} target="_blank" rel="noreferrer">
-                        <MessageCircle className="mr-2 size-4" /> Grupo de informações
-                      </a>
-                    </Button>
-                  )}
-                  {!!item.sellers.length && (
-                    <Button className="mt-2" variant="outline" onClick={() => setSellerItem(item)}>
-                      Fazer pedido
-                    </Button>
-                  )}
-                </div>
-              </article>
-            ))}
-          </div>)
-        )}
+                </article>
+              ))}
+            </div>
+          )}
 
-        {catalog.about && (
-          <section className="mt-12 rounded-lg border p-5">
-            <h2 className="mb-2 text-lg font-semibold">Sobre</h2>
-            <p className="text-muted-foreground text-sm whitespace-pre-line">{catalog.about}</p>
-          </section>
-        )}
-      </div>
-
+          {catalog.about && (
+            <section className="mt-12 rounded-lg border p-5">
+              <h2 className="mb-2 text-lg font-semibold">Sobre</h2>
+              <p className="text-muted-foreground text-sm whitespace-pre-line">{catalog.about}</p>
+            </section>
+          )}
         </div>
+      </div>
 
       <footer className="text-muted-foreground border-t px-5 py-8 text-center text-xs">
         <div className="mb-2 space-x-3">
@@ -615,7 +704,8 @@ function PublicCatalogPage() {
               {detail.description && <p className="text-sm">{detail.description}</p>}
               {catalog.showPrices && (
                 <p className="text-xs font-medium text-muted-foreground">
-                  Preço de atacado · pedido mínimo de {detail.minQuantity} {detail.minQuantity === 1 ? "unidade" : "unidades"}
+                  Preço de atacado · pedido mínimo de {detail.minQuantity}{" "}
+                  {detail.minQuantity === 1 ? "unidade" : "unidades"}
                 </p>
               )}
               {priceInAllCurrencies(detail) ?? (
@@ -689,7 +779,10 @@ function PublicCatalogPage() {
               const phone = seller.phone?.replace(/\D/g, "") ?? "";
               const message = `Olá, ${seller.name}! Quero comprar o produto ${sellerItem.name} que vi no catálogo ${catalog.title}.`;
               return (
-                <div key={seller.id} className="flex min-w-0 items-center gap-2 rounded-lg border p-2.5 sm:p-3">
+                <div
+                  key={seller.id}
+                  className="flex min-w-0 items-center gap-2 rounded-lg border p-2.5 sm:p-3"
+                >
                   <Button
                     type="button"
                     variant={preferredSellerId === seller.id ? "secondary" : "ghost"}
@@ -702,9 +795,7 @@ function PublicCatalogPage() {
                   >
                     <span className="text-left">
                       <span className="block font-medium">{seller.name}</span>
-                      <span className="block text-xs text-muted-foreground">
-                        {seller.region}
-                      </span>
+                      <span className="block text-xs text-muted-foreground">{seller.region}</span>
                       <span className="mt-1 block text-[11px] text-muted-foreground/75">
                         Selecionar para esta solicitação
                       </span>
@@ -1137,7 +1228,16 @@ function CheckoutDialog({
     doc.text(form.name || "-", 16, 62);
     doc.text("Telefone: " + (form.phone || "-"), 16, 69);
     doc.text("Cidade/UF: " + ([form.city, form.state].filter(Boolean).join(" / ") || "-"), 16, 76);
-    doc.text("Vendedor: " + (form.sellerId === "qualquer" ? "Qualquer vendedor" : form.sellerId === "sem-vendedor" || !form.sellerId ? "Sem vendedor" : selectedSeller?.name || "-"), 16, 83);
+    doc.text(
+      "Vendedor: " +
+        (form.sellerId === "qualquer"
+          ? "Qualquer vendedor"
+          : form.sellerId === "sem-vendedor" || !form.sellerId
+            ? "Sem vendedor"
+            : selectedSeller?.name || "-"),
+      16,
+      83,
+    );
     doc.setFont("helvetica", "bold");
     doc.text("Itens", 16, 96);
     let y = 105;
@@ -1148,7 +1248,10 @@ function CheckoutDialog({
       doc.text(String(line.quantity) + " x " + formatMoney(unit, catalog.currency), 105, y);
       doc.text(formatMoney(unit * line.quantity, catalog.currency), 194, y, { align: "right" });
       y += 8;
-      if (y > 250) { doc.addPage(); y = 20; }
+      if (y > 250) {
+        doc.addPage();
+        y = 20;
+      }
     }
     doc.setDrawColor(210, 215, 218);
     doc.line(16, y + 2, 194, y + 2);
@@ -1212,7 +1315,9 @@ function CheckoutDialog({
                 : "Entrega combinada após a confirmação."}
             </p>
             <DialogFooter className="flex-wrap">
-              <Button variant="outline" onClick={downloadOrderPdf}>Baixar pedido em PDF</Button>
+              <Button variant="outline" onClick={downloadOrderPdf}>
+                Baixar pedido em PDF
+              </Button>
               {whats && (
                 <Button variant="outline" asChild>
                   <a

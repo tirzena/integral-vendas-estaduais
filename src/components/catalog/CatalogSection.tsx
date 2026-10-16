@@ -3461,10 +3461,8 @@ function SalesTables({
           <TableHeader>
             <TableRow>
               <TableHead>Nome / produto</TableHead>
-              <TableHead>Quantidade</TableHead>
-              <TableHead>Unidade</TableHead>
+              <TableHead>Quantidade disponível</TableHead>
               <TableHead>Valor de venda</TableHead>
-              <TableHead>Estoque</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -3489,14 +3487,12 @@ function SalesTables({
                   </div>
                 </TableCell>
                 <TableCell>{formatNumber(item.quantity ?? 0, 3)}</TableCell>
-                <TableCell>{item.unit ?? "un."}</TableCell>
                 <TableCell>{money(item)}</TableCell>
-                <TableCell>{item.location ?? "Estoque principal"}</TableCell>
               </TableRow>
             ))}
             {!rows.length && (
               <TableRow>
-                <TableCell colSpan={5}>Nenhum produto nesta seleção.</TableCell>
+                <TableCell colSpan={3}>Nenhum produto nesta seleção.</TableCell>
               </TableRow>
             )}
           </TableBody>
@@ -3511,19 +3507,15 @@ function SalesTables({
             "Categoria",
             "Subcategoria",
             "Nome / produto",
-            "Quantidade",
-            "Unidade",
+            "Quantidade disponível",
             "Valor de venda",
-            "Estoque",
           ],
           rows: rows.map((item: any) => [
             macroName(item.product_id),
             subName(item.category_id),
             item.name,
             item.quantity ?? 0,
-            item.unit ?? "un.",
             money(item),
-            item.location ?? "Estoque principal",
           ]),
         })}
       />

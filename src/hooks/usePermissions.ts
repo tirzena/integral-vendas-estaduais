@@ -55,12 +55,7 @@ const CAPS: Record<AppRole, Capability[]> = {
     "deliveries_view",
     "deliveries_manage",
   ],
-  financeiro: [
-    "company_finance",
-    "company_sales",
-    "manage_suppliers",
-    "inventory_view",
-  ],
+  financeiro: ["company_finance", "company_sales", "manage_suppliers", "inventory_view"],
   vendedor: ["inventory_view", "deliveries_view"],
   estoque: ["manage_suppliers", "inventory_view", "inventory_manage"],
   fornecedor: [],
@@ -80,6 +75,7 @@ export const ROUTE_CAPABILITY: Record<string, Capability> = {
   "/entregas": "deliveries_view",
   "/produtos": "inventory_view",
   "/categorias": "inventory_manage",
+  "/categorias": "inventory_manage",
   "/estoque": "inventory_manage",
 };
 
@@ -95,9 +91,7 @@ export function usePermissions() {
     queryFn: async () => {
       // The generated database types are updated after the migration is linked to Supabase CLI.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any).rpc(
-        "get_my_capabilities",
-      );
+      const { data, error } = await (supabase as any).rpc("get_my_capabilities");
       if (error) throw error;
       return (data ?? []) as Capability[];
     },
@@ -124,8 +118,7 @@ export function usePermissions() {
   };
 
   return {
-    loading:
-      loading || (!!userId && !viewAs && !isSuperAdmin && dynamicCaps.isLoading),
+    loading: loading || (!!userId && !viewAs && !isSuperAdmin && dynamicCaps.isLoading),
     error: dynamicCaps.error,
     retryPermissions: dynamicCaps.refetch,
     userId,

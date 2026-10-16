@@ -68,13 +68,12 @@ import { uploadProductImage, useProductImages } from "@/lib/storage";
 export const Route = createFileRoute("/_authenticated/produtos")({
   head: () => ({
     meta: [
-      { title: "Catálogo e preços — Vendas Estaduais" },
+      { title: "Catálogo — Vendas Estaduais" },
       {
         name: "description",
-        content:
-          "Produtos, catálogos e preços cadastrados.",
+        content: "Produtos, catálogos e preços cadastrados.",
       },
-      { property: "og:title", content: "Catálogo e preços — Vendas Estaduais" },
+      { property: "og:title", content: "Catálogo — Vendas Estaduais" },
       {
         property: "og:description",
         content: "Consulte produtos, catálogos e listas de preços.",
@@ -119,13 +118,34 @@ const ITEM_FIELDS: { name: string; label: string; type?: string; placeholder?: s
   { name: "price", label: "Preço de venda (US$)", type: "number" },
 ];
 
-export function Catalogo({ section = "catalogo" }: { section?: "catalogo" | "categorias" | "estoque" }) {
- if (section === "catalogo") return <SalesCatalogWorkspace />;
- return <CatalogoManagement section={section} />;
+export function Catalogo({
+  section = "catalogo",
+}: {
+  section?: "catalogo" | "categorias" | "estoque";
+}) {
+  const { can, loading, viewAs } = usePermissions();
+  if (section === "catalogo") return <SalesCatalogWorkspace />;
+  if (section === "categorias" && loading)
+    return <p className="p-4 text-muted-foreground">Carregando permissões…</p>;
+  if (section === "categorias" && (!can("inventory_manage") || viewAs))
+    return (
+      <EmptyState
+        title="Área de administração"
+        description="Consulte os produtos na aba Catálogo. A edição exige permissão de gestão de estoque."
+      />
+    );
+  return <CatalogoManagement section={section} />;
 }
 
-function CatalogoManagement({ section = "catalogo" }: { section?: "catalogo" | "categorias" | "estoque" }) {
- const [catalogTab, setCatalogTab] = useState<"products" | "catalogs" | "tables">("products");
+function CatalogoManagement({
+  section = "catalogo",
+}: {
+  section?: "catalogo" | "categorias" | "estoque";
+}) {
+  const [managementTab, setManagementTab] = useState<"categories" | "subcategories" | "products">(
+    "categories",
+  );
+  const [catalogTab, setCatalogTab] = useState<"products" | "catalogs" | "tables">("products");
   const { can } = usePermissions();
   const canManageCatalog = can("inventory_manage");
   const { products, productId } = useProductScope();
@@ -270,7 +290,8 @@ function CatalogoManagement({ section = "catalogo" }: { section?: "catalogo" | "
 
   /** Salva a categoria e sincroniza quais membros têm acesso a ela. */
   async function saveMacroWithMembers() {
-    if (!canManageCatalog) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
+    if (!canManageCatalog)
+      return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
     const form = macroForm;
     if (!form?.name) return;
     const payload: any = { name: form.name, description: form.description ?? null };
@@ -310,7 +331,8 @@ function CatalogoManagement({ section = "catalogo" }: { section?: "catalogo" | "
   const deleteItem = useDeleteRow("inventory_items");
 
   async function uploadFormImage(file: File, target: "sub" | "item") {
-    if (!canManageCatalog) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
+    if (!canManageCatalog)
+      return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
     if (!file.type.startsWith("image/")) return void toast.error("Escolha um arquivo de imagem.");
     if (file.size > 10 * 1024 * 1024) return void toast.error("A foto deve ter no máximo 10 MB.");
     try {
@@ -324,7 +346,8 @@ function CatalogoManagement({ section = "catalogo" }: { section?: "catalogo" | "
   }
 
   async function removeMacro(m: Macro) {
-    if (!canManageCatalog) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
+    if (!canManageCatalog)
+      return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
     const count = allSubs.filter((s) => s.product_id === m.id).length;
     const itemCount = allItemsEverywhere.filter((i: any) => i["product_id"] === m.id).length;
     if (
@@ -359,7 +382,8 @@ function CatalogoManagement({ section = "catalogo" }: { section?: "catalogo" | "
   }
 
   async function moveItem() {
-    if (!canManageCatalog) return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
+    if (!canManageCatalog)
+      return void toast.error("Seu acesso ao Vendas Estaduais é somente leitura.");
     if (!moveForm?.id || !moveForm.product_id) return;
     const { error } = await supabase
       .from("inventory_items")
@@ -389,260 +413,280 @@ function CatalogoManagement({ section = "catalogo" }: { section?: "catalogo" | "
   return (
     <div>
       <PageHeader
-        title={section === "estoque" ? "Estoque" : section === "categorias" ? "Categorias" : "Catálogo de produtos"}
-        description={section === "estoque" ? "Locais, saldos, entradas e saídas de produtos." : section === "categorias" ? "Crie e organize categorias e subcategorias." : "Produtos, catálogos e listas de preços."}
+        title={
+          section === "estoque"
+            ? "Estoque"
+            : section === "categorias"
+              ? "Categorias"
+              : "Catálogo de produtos"
+        }
+        description={
+          section === "estoque"
+            ? "Locais, saldos, entradas e saídas de produtos."
+            : section === "categorias"
+              ? "Administre categorias, subcategorias e produtos. A consulta fica na aba Catálogo."
+              : "Produtos, catálogos e listas de preços."
+        }
         actions={
-          section === "catalogo" ? <>
-            <Select value={currency} onValueChange={(v) => setCurrency(v as Currency | "todas")}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todas">Ver em todas</SelectItem>
-                <SelectItem value="USD">Ver em US$</SelectItem>
-                <SelectItem value="BRL">Ver em R$</SelectItem>
-                <SelectItem value="PYG">Ver em ₲</SelectItem>
-              </SelectContent>
-            </Select>
-          </> : section === "categorias" ? <Button disabled={!canManageCatalog} onClick={() => openMacroForm()}><Plus className="mr-1 size-4" /> Nova categoria</Button> : undefined
+          section === "catalogo" ? (
+            <>
+              <Select value={currency} onValueChange={(v) => setCurrency(v as Currency | "todas")}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Ver em todas</SelectItem>
+                  <SelectItem value="USD">Ver em US$</SelectItem>
+                  <SelectItem value="BRL">Ver em R$</SelectItem>
+                  <SelectItem value="PYG">Ver em ₲</SelectItem>
+                </SelectContent>
+              </Select>
+            </>
+          ) : section === "categorias" && managementTab === "categories" ? (
+            <Button onClick={() => openMacroForm()}>
+              <Plus className="mr-1 size-4" /> Nova categoria
+            </Button>
+          ) : section === "categorias" && managementTab === "subcategories" && activeMacro ? (
+            <Button onClick={() => setSubForm(newSubForm(activeMacro.id))}>
+              <Plus className="mr-1 size-4" /> Nova subcategoria
+            </Button>
+          ) : undefined
         }
       />
 
       {section === "categorias" && (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {macros.map((m) => <section key={m.id} className="rounded-xl border bg-card p-4">
-            <div className="flex items-center justify-between gap-2"><h2 className="font-semibold">{m.name}</h2><div className="flex gap-1"><Button size="sm" variant="ghost" disabled={!canManageCatalog} onClick={() => openMacroForm(m)}>Editar</Button><Button size="sm" variant="ghost" disabled={!canManageCatalog} onClick={() => void removeMacro(m)}>Excluir</Button></div></div>
-            <p className="mt-1 text-xs text-muted-foreground">{subsFor(m.id).length} subcategoria(s) · {allItemsEverywhere.filter((i: any) => i.product_id === m.id).length} produto(s)</p>
-            <div className="mt-3 space-y-2">{subsFor(m.id).map((s) => <div key={s.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"><span>{s.name}</span><div className="flex gap-1"><Button size="sm" variant="ghost" disabled={!canManageCatalog} onClick={() => setSubForm({ ...s })}>Editar</Button><Button size="sm" variant="ghost" onClick={() => { if (canManageCatalog && confirm(`Excluir a subcategoria "${s.name}"?`)) deleteSub.mutate(s.id); }}>Excluir</Button></div></div>)}</div>
-            <Button className="mt-3" size="sm" variant="outline" disabled={!canManageCatalog} onClick={() => setSubForm(newSubForm(m.id))}><Plus className="mr-1 size-4" /> Subcategoria</Button>
-          </section>)}
-          {macros.length === 0 && <EmptyState title="Nenhuma categoria" description="Crie a primeira categoria para organizar seus produtos." />}
+        <div className="space-y-4">
+          <Tabs
+            value={managementTab}
+            onValueChange={(value) => setManagementTab(value as typeof managementTab)}
+          >
+            <TabsList className="h-auto w-full justify-start overflow-x-auto">
+              <TabsTrigger value="categories">Categorias</TabsTrigger>
+              <TabsTrigger value="subcategories">Subcategorias</TabsTrigger>
+              <TabsTrigger value="products">Produtos</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          {managementTab === "categories" && (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {macros.map((m) => (
+                <section key={m.id} className="rounded-xl border bg-card p-4">
+                  <h2 className="font-semibold">{m.name}</h2>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {subsFor(m.id).length} subcategorias ·{" "}
+                    {allItemsEverywhere.filter((i: any) => i.product_id === m.id).length} produtos
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setMacroId(m.id);
+                        setManagementTab("subcategories");
+                      }}
+                    >
+                      Ver subcategorias
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => openMacroForm(m)}>
+                      Editar
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => void removeMacro(m)}>
+                      Excluir
+                    </Button>
+                  </div>
+                </section>
+              ))}
+              {!macros.length && (
+                <EmptyState
+                  title="Nenhuma categoria"
+                  description="Crie a primeira categoria para organizar seus produtos."
+                />
+              )}
+            </div>
+          )}
+          {managementTab === "subcategories" && (
+            <div className="space-y-4">
+              <Select value={activeMacro?.id ?? ""} onValueChange={setMacroId}>
+                <SelectTrigger className="w-full sm:w-80">
+                  <SelectValue placeholder="Escolha a categoria" />
+                </SelectTrigger>
+                <SelectContent>
+                  {macros.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {subs.map((s) => (
+                  <section key={s.id} className="rounded-xl border bg-card p-4">
+                    <h2 className="font-semibold">{s.name}</h2>
+                    {s.description && (
+                      <p className="mt-1 text-sm text-muted-foreground">{s.description}</p>
+                    )}
+                    <div className="mt-3 flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setSubForm({ ...s })}>
+                        Editar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          if (confirm(`Excluir a subcategoria "${s.name}"?`))
+                            deleteSub.mutate(s.id);
+                        }}
+                      >
+                        Excluir
+                      </Button>
+                    </div>
+                  </section>
+                ))}
+              </div>
+              {!subs.length && (
+                <EmptyState
+                  title="Nenhuma subcategoria"
+                  description="Escolha uma categoria e cadastre suas subcategorias."
+                />
+              )}
+            </div>
+          )}
+          {managementTab === "products" && (
+            <CatalogSection macros={macros} subs={allSubs} displaySection="products" />
+          )}
         </div>
       )}
 
-      {section === "catalogo" && <>
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <div className="flex rounded-lg border p-0.5">
-          <Button
-            size="sm"
-            variant={view === "cards" ? "secondary" : "ghost"}
-            onClick={() => setView("cards")}
-          >
-            <LayoutGrid className="mr-1 size-4" /> Cards
-          </Button>
-          <Button
-            size="sm"
-            variant={view === "lista" ? "secondary" : "ghost"}
-            onClick={() => setView("lista")}
-          >
-            <List className="mr-1 size-4" /> Lista
-          </Button>
-        </div>
-        {view === "cards" && macroId && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setMacroId(null);
-              setSubId("todas");
-            }}
-          >
-            <ArrowLeft className="mr-1 size-4" /> Todas as categorias
-          </Button>
-        )}
-      </div>
+      {section === "catalogo" && (
+        <>
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <div className="flex rounded-lg border p-0.5">
+              <Button
+                size="sm"
+                variant={view === "cards" ? "secondary" : "ghost"}
+                onClick={() => setView("cards")}
+              >
+                <LayoutGrid className="mr-1 size-4" /> Cards
+              </Button>
+              <Button
+                size="sm"
+                variant={view === "lista" ? "secondary" : "ghost"}
+                onClick={() => setView("lista")}
+              >
+                <List className="mr-1 size-4" /> Lista
+              </Button>
+            </div>
+            {view === "cards" && macroId && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setMacroId(null);
+                  setSubId("todas");
+                }}
+              >
+                <ArrowLeft className="mr-1 size-4" /> Todas as categorias
+              </Button>
+            )}
+          </div>
 
-      {view === "cards" && !macroId ? (
-        /* ===== Visão em cards das macro categorias ===== */
-        macros.length === 0 ? (
-          <EmptyState
-            title="Nenhuma macro categoria"
-            description="Cadastre uma categoria na aba Categorias para organizar os produtos."
-          />
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {macros.map((m, idx) => {
-              const mSubs = subsFor(m.id);
-              const mItems = allItemsEverywhere.filter((i) => i.product_id === m.id);
-              const dot = CARD_COLORS[idx % CARD_COLORS.length];
-              return (
-                <div
-                  key={m.id}
-                  className="group flex flex-col rounded-2xl border bg-card p-5 transition hover:border-primary/40 hover:shadow-lg"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-2.5">
-                      <span
-                        className="size-3 shrink-0 rounded-full"
-                        style={{ backgroundColor: dot }}
-                      />
-                      <h3 className="truncate text-lg font-semibold">{m.name}</h3>
-                    </div>
-                  </div>
-                  {(m as any).description && (
-                    <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">
-                      {(m as any).description}
-                    </p>
-                  )}
-                  <div className="mt-3 flex items-center gap-2">
-                    <Badge variant="secondary" className="text-emerald-500">
-                      Ativa
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      {mSubs.length} subcategoria(s) · {mItems.length} produto(s)
-                    </span>
-                  </div>
-                  <div className="mt-auto flex gap-2 pt-5">
-                    <Button
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => {
-                        setMacroId(m.id);
-                        setSubId("todas");
-                      }}
+          {view === "cards" && !macroId ? (
+            /* ===== Visão em cards das macro categorias ===== */
+            macros.length === 0 ? (
+              <EmptyState
+                title="Nenhuma macro categoria"
+                description="Cadastre uma categoria na aba Categorias para organizar os produtos."
+              />
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {macros.map((m, idx) => {
+                  const mSubs = subsFor(m.id);
+                  const mItems = allItemsEverywhere.filter((i) => i.product_id === m.id);
+                  const dot = CARD_COLORS[idx % CARD_COLORS.length];
+                  return (
+                    <div
+                      key={m.id}
+                      className="group flex flex-col rounded-2xl border bg-card p-5 transition hover:border-primary/40 hover:shadow-lg"
                     >
-                      Abrir
-                    </Button>
-                    {canManageCatalog && <Button className="flex-1" onClick={() => setItemForm(newItemForm(m.id))}>
-                      <Plus className="mr-1 size-4" /> Novo produto
-                    </Button>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )
-      ) : view === "cards" && activeMacro ? (
-        /* ===== Detalhe da macro categoria: subcategorias e produtos ===== */
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-5">
-            <div className="flex min-w-0 items-center gap-3">
-              <Layers className="size-6 shrink-0 text-primary" />
-              <div className="min-w-0">
-                <h2 className="truncate text-xl font-semibold">{activeMacro.name}</h2>
-                <p className="text-sm text-muted-foreground">
-                  {subs.length} subcategoria(s) · {allItems.length} produto(s)
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {canManageCatalog && <Button size="sm" onClick={() => setItemForm(newItemForm(activeMacro.id))}>
-                <Plus className="mr-1 size-4" /> Novo produto
-              </Button>}
-            </div>
-          </div>
-
-          <div className="relative max-w-sm">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar produto dentro desta categoria"
-              className="pl-9"
-            />
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {subs.map((s) => {
-              const sItems = allItems
-                .filter((i) => i["category_id"] === s.id)
-                .filter((i) => {
-                  if (!search.trim()) return true;
-                  const term = search.toLowerCase();
-                  return ["name", "sku", "variation", "size"].some((k) =>
-                    String(i[k] ?? "")
-                      .toLowerCase()
-                      .includes(term),
-                  );
-                });
-              return (
-                <div key={s.id} className="rounded-2xl border bg-card p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-muted/50">
-                        {imageOf(s.image_url) ? (
-                          <img
-                            src={imageOf(s.image_url)}
-                            alt={s.name}
-                            className="h-full w-full object-cover"
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <span
+                            className="size-3 shrink-0 rounded-full"
+                            style={{ backgroundColor: dot }}
                           />
-                        ) : (
-                          <Layers className="size-5 text-muted-foreground" />
+                          <h3 className="truncate text-lg font-semibold">{m.name}</h3>
+                        </div>
+                      </div>
+                      {(m as any).description && (
+                        <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">
+                          {(m as any).description}
+                        </p>
+                      )}
+                      <div className="mt-3 flex items-center gap-2">
+                        <Badge variant="secondary" className="text-emerald-500">
+                          Ativa
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {mSubs.length} subcategoria(s) · {mItems.length} produto(s)
+                        </span>
+                      </div>
+                      <div className="mt-auto flex gap-2 pt-5">
+                        <Button
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => {
+                            setMacroId(m.id);
+                            setSubId("todas");
+                          }}
+                        >
+                          Abrir
+                        </Button>
+                        {canManageCatalog && (
+                          <Button className="flex-1" onClick={() => setItemForm(newItemForm(m.id))}>
+                            <Plus className="mr-1 size-4" /> Novo produto
+                          </Button>
                         )}
                       </div>
-                      <div className="min-w-0">
-                        <h3 className="truncate font-semibold">{s.name}</h3>
-                        <p className="text-xs text-muted-foreground">{sItems.length} produto(s)</p>
-                      </div>
                     </div>
+                  );
+                })}
+              </div>
+            )
+          ) : view === "cards" && activeMacro ? (
+            /* ===== Detalhe da macro categoria: subcategorias e produtos ===== */
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card p-5">
+                <div className="flex min-w-0 items-center gap-3">
+                  <Layers className="size-6 shrink-0 text-primary" />
+                  <div className="min-w-0">
+                    <h2 className="truncate text-xl font-semibold">{activeMacro.name}</h2>
+                    <p className="text-sm text-muted-foreground">
+                      {subs.length} subcategoria(s) · {allItems.length} produto(s)
+                    </p>
                   </div>
-                  <div className="mt-3 space-y-1.5">
-                    {sItems.length === 0 && (
-                      <p className="py-2 text-sm text-muted-foreground">
-                        {allItems.some((item) => item["category_id"] === s.id)
-                          ? "Nenhum produto encontrado com esta busca."
-                          : "Esta subcategoria ainda não tem produtos. Use o botão + para cadastrar um produto e disponibilizá-lo nos seletores de Pedidos e Compras."}
-                      </p>
-                    )}
-                    {sItems.map((i) => (
-                      <button
-                        key={i["id"]}
-                        className="flex w-full items-center justify-between gap-2 rounded-lg border bg-background/40 px-3 py-2 text-left text-sm transition hover:border-primary/40"
-                        onClick={() => setItemForm({ ...i })}
-                      >
-                        <span className="flex min-w-0 items-center gap-2">
-                          <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted/40">
-                            {imageOf(i["image_url"]) ? (
-                              <img
-                                src={imageOf(i["image_url"])}
-                                alt={i["name"]}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <Package className="size-4 text-muted-foreground" />
-                            )}
-                          </span>
-                          <span className="truncate">{i["name"]}</span>
-                        </span>
-                        <span className="flex shrink-0 items-center gap-2">
-                          <Badge
-                            variant={
-                              Number(i["quantity"] ?? 0) <= Number(i["min_quantity"] ?? 0)
-                                ? "destructive"
-                                : "secondary"
-                            }
-                          >
-                            {formatNumber(i["quantity"], 2)}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {convert(i["price"], i["currency"] ?? "USD")}
-                          </span>
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
                   {canManageCatalog && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="mt-3 w-full justify-start"
-                      onClick={() => setItemForm(newItemForm(activeMacro.id, s.id))}
-                    >
-                      <Plus className="mr-1 size-3.5" /> Produto em {s.name}
+                    <Button size="sm" onClick={() => setItemForm(newItemForm(activeMacro.id))}>
+                      <Plus className="mr-1 size-4" /> Novo produto
                     </Button>
                   )}
                 </div>
-              );
-            })}
+              </div>
 
-            {/* Produtos sem subcategoria */}
-            {noSubCount > 0 && (
-              <div className="rounded-2xl border border-dashed bg-card p-4">
-                <h3 className="font-semibold text-muted-foreground">Sem subcategoria</h3>
-                <p className="text-xs text-muted-foreground">{noSubCount} produto(s)</p>
-                <div className="mt-3 space-y-1.5">
-                  {allItems
-                    .filter((i) => !i["category_id"])
+              <div className="relative max-w-sm">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar produto dentro desta categoria"
+                  className="pl-9"
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {subs.map((s) => {
+                  const sItems = allItems
+                    .filter((i) => i["category_id"] === s.id)
                     .filter((i) => {
                       if (!search.trim()) return true;
                       const term = search.toLowerCase();
@@ -651,283 +695,387 @@ function CatalogoManagement({ section = "catalogo" }: { section?: "catalogo" | "
                           .toLowerCase()
                           .includes(term),
                       );
-                    })
-                    .map((i) => (
-                      <button
-                        key={i["id"]}
-                        className="flex w-full items-center justify-between gap-2 rounded-lg border bg-background/40 px-3 py-2 text-left text-sm transition hover:border-primary/40"
-                        onClick={() => setItemForm({ ...i })}
-                      >
-                        <span className="flex min-w-0 items-center gap-2">
-                          <Package className="size-4 shrink-0 text-muted-foreground" />
-                          <span className="truncate">{i["name"]}</span>
-                        </span>
-                        <Badge variant="secondary">{formatNumber(i["quantity"], 2)}</Badge>
-                      </button>
-                    ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        /* ===== Visão em lista (atual) ===== */
-        <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
-          <aside className="rounded-xl border bg-card p-3">
-            <p className="px-1 pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Macro categorias
-            </p>
-            {macros.length === 0 && (
-              <p className="px-1 py-4 text-sm text-muted-foreground">
-                Cadastre uma categoria na aba Categorias para organizar os produtos.
-              </p>
-            )}
-            <div className="space-y-1">
-              {macros.map((m) => {
-                const active = activeMacro?.id === m.id;
-                return (
-                  <div key={m.id}>
-                    <div
-                      className={cn(
-                        "group flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm",
-                        active ? "bg-primary/10 text-primary" : "hover:bg-muted",
-                      )}
-                    >
-                      <button
-                        className="flex flex-1 items-center gap-2 text-left"
-                        onClick={() => {
-                          setMacroId(m.id);
-                          setSubId("todas");
-                        }}
-                      >
-                        <Layers className="size-4 shrink-0" />
-                        <span className="truncate font-medium">{m.name}</span>
-                      </button>
-                    </div>
-
-                    {active && (
-                      <div className="ml-3 mt-1 space-y-1 border-l pl-2">
-                        <button
-                          className={cn(
-                            "flex w-full items-center justify-between rounded-md px-2 py-1 text-sm",
-                            subId === "todas" ? "bg-muted font-medium" : "hover:bg-muted",
-                          )}
-                          onClick={() => setSubId("todas")}
-                        >
-                          <span>Todos os itens</span>
-                          <Badge variant="secondary">{allItems.length}</Badge>
-                        </button>
-                        {subs.map((s) => (
-                          <div
-                            key={s.id}
-                            className={cn(
-                              "group/sub flex items-center gap-1 rounded-md px-2 py-1 text-sm",
-                              subId === s.id ? "bg-muted font-medium" : "hover:bg-muted",
+                    });
+                  return (
+                    <div key={s.id} className="rounded-2xl border bg-card p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-muted/50">
+                            {imageOf(s.image_url) ? (
+                              <img
+                                src={imageOf(s.image_url)}
+                                alt={s.name}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <Layers className="size-5 text-muted-foreground" />
                             )}
-                          >
-                            <button
-                              className="flex flex-1 items-center gap-1 text-left"
-                              onClick={() => setSubId(s.id)}
-                            >
-                              <ChevronRight className="size-3.5 shrink-0 opacity-60" />
-                              <span className="truncate">{s.name}</span>
-                            </button>
-                            <Badge variant="secondary">{countBySub(s.id)}</Badge>
                           </div>
-                        ))}
-                        {noSubCount > 0 && (
-                          <p className="px-2 py-1 text-xs text-muted-foreground">
-                            {noSubCount} item(ns) sem subcategoria
+                          <div className="min-w-0">
+                            <h3 className="truncate font-semibold">{s.name}</h3>
+                            <p className="text-xs text-muted-foreground">
+                              {sItems.length} produto(s)
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-3 space-y-1.5">
+                        {sItems.length === 0 && (
+                          <p className="py-2 text-sm text-muted-foreground">
+                            {allItems.some((item) => item["category_id"] === s.id)
+                              ? "Nenhum produto encontrado com esta busca."
+                              : "Esta subcategoria ainda não tem produtos. Use o botão + para cadastrar um produto e disponibilizá-lo nos seletores de Pedidos e Compras."}
                           </p>
                         )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </aside>
-
-          <section className="rounded-xl border bg-card">
-            <div className="flex flex-wrap items-center gap-2 border-b p-3">
-              <div className="relative min-w-[200px] flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Buscar produto, código ou tamanho"
-                  className="pl-9"
-                />
-              </div>
-              {canManageCatalog && (
-                <Button
-                  disabled={!activeMacro}
-                  onClick={() =>
-                    setItemForm(newItemForm(activeMacro?.id, subId === "todas" ? null : subId))
-                  }
-                >
-                  <Plus className="mr-1 size-4" /> Novo produto
-                </Button>
-              )}
-            </div>
-
-            {visibleItems.length === 0 ? (
-              <div className="p-4">
-                <EmptyState
-                  title="Nenhum produto nesta categoria"
-                  description="Cadastre os produtos com tamanho, peso, preço em dólar e quantidade."
-                />
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Produto</TableHead>
-                      <TableHead>Especificações</TableHead>
-                      <TableHead>Qtd.</TableHead>
-                      <TableHead>Preço</TableHead>
-                      <TableHead>Total em estoque</TableHead>
-                      <TableHead className="w-20" />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {visibleItems.map((i) => (
-                      <TableRow key={i["id"]}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted/40">
-                              {imageOf(i["image_url"]) ? (
-                                <img
-                                  src={imageOf(i["image_url"])}
-                                  alt={i["name"]}
-                                  className="h-full w-full object-cover"
-                                />
-                              ) : (
-                                <Package className="size-4 text-muted-foreground" />
-                              )}
-                            </span>
-                            <div className="min-w-0">
-                              <p className="truncate font-medium">{i["name"]}</p>
-                              <p className="truncate text-xs text-muted-foreground">
-                                {[i["variation"], i["sku"]].filter(Boolean).join(" · ") || "—"}
-                              </p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {[i["size"], i["weight"], i["volume"], i["unit"]]
-                            .filter(Boolean)
-                            .join(" · ") || "—"}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              Number(i["quantity"] ?? 0) <= Number(i["min_quantity"] ?? 0)
-                                ? "destructive"
-                                : "secondary"
-                            }
+                        {sItems.map((i) => (
+                          <button
+                            key={i["id"]}
+                            className="flex w-full items-center justify-between gap-2 rounded-lg border bg-background/40 px-3 py-2 text-left text-sm transition hover:border-primary/40"
+                            onClick={() => setItemForm({ ...i })}
                           >
-                            {formatNumber(i["quantity"], 2)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p>{convert(i["price"], i["currency"] ?? "USD")}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {convert(
-                            Number(i["price"] ?? 0) * Number(i["quantity"] ?? 0),
-                            i["currency"] ?? "USD",
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex justify-end gap-1">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              title="Mover para outra categoria"
-                              onClick={() =>
-                                setMoveForm({
-                                  id: i["id"],
-                                  name: i["name"],
-                                  product_id: i["product_id"],
-                                  category_id: i["category_id"] ?? null,
-                                })
-                              }
-                            >
-                              <ArrowRightLeft className="size-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              disabled={!canManageCatalog} onClick={() => setItemForm({ ...i })}
-                            >
-                              <Pencil className="size-4" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => {
-                                if (canManageCatalog && confirm(`Excluir "${i["name"]}"?`)) {
-                                  void logAudit("inventory_items", "delete", i["id"], {
-                                    nome: i["name"],
-                                  });
-                                  deleteItem.mutate(i["id"]);
+                            <span className="flex min-w-0 items-center gap-2">
+                              <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted/40">
+                                {imageOf(i["image_url"]) ? (
+                                  <img
+                                    src={imageOf(i["image_url"])}
+                                    alt={i["name"]}
+                                    className="h-full w-full object-cover"
+                                  />
+                                ) : (
+                                  <Package className="size-4 text-muted-foreground" />
+                                )}
+                              </span>
+                              <span className="truncate">{i["name"]}</span>
+                            </span>
+                            <span className="flex shrink-0 items-center gap-2">
+                              <Badge
+                                variant={
+                                  Number(i["quantity"] ?? 0) <= Number(i["min_quantity"] ?? 0)
+                                    ? "destructive"
+                                    : "secondary"
                                 }
-                              }}
-                            >
-                              <Trash2 className="size-4 text-destructive" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                              >
+                                {formatNumber(i["quantity"], 2)}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                {convert(i["price"], i["currency"] ?? "USD")}
+                              </span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                      {canManageCatalog && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="mt-3 w-full justify-start"
+                          onClick={() => setItemForm(newItemForm(activeMacro.id, s.id))}
+                        >
+                          <Plus className="mr-1 size-3.5" /> Produto em {s.name}
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Produtos sem subcategoria */}
+                {noSubCount > 0 && (
+                  <div className="rounded-2xl border border-dashed bg-card p-4">
+                    <h3 className="font-semibold text-muted-foreground">Sem subcategoria</h3>
+                    <p className="text-xs text-muted-foreground">{noSubCount} produto(s)</p>
+                    <div className="mt-3 space-y-1.5">
+                      {allItems
+                        .filter((i) => !i["category_id"])
+                        .filter((i) => {
+                          if (!search.trim()) return true;
+                          const term = search.toLowerCase();
+                          return ["name", "sku", "variation", "size"].some((k) =>
+                            String(i[k] ?? "")
+                              .toLowerCase()
+                              .includes(term),
+                          );
+                        })
+                        .map((i) => (
+                          <button
+                            key={i["id"]}
+                            className="flex w-full items-center justify-between gap-2 rounded-lg border bg-background/40 px-3 py-2 text-left text-sm transition hover:border-primary/40"
+                            onClick={() => setItemForm({ ...i })}
+                          >
+                            <span className="flex min-w-0 items-center gap-2">
+                              <Package className="size-4 shrink-0 text-muted-foreground" />
+                              <span className="truncate">{i["name"]}</span>
+                            </span>
+                            <Badge variant="secondary">{formatNumber(i["quantity"], 2)}</Badge>
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </section>
-        </div>
-      )}
+            </div>
+          ) : (
+            /* ===== Visão em lista (atual) ===== */
+            <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+              <aside className="rounded-xl border bg-card p-3">
+                <p className="px-1 pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Macro categorias
+                </p>
+                {macros.length === 0 && (
+                  <p className="px-1 py-4 text-sm text-muted-foreground">
+                    Cadastre uma categoria na aba Categorias para organizar os produtos.
+                  </p>
+                )}
+                <div className="space-y-1">
+                  {macros.map((m) => {
+                    const active = activeMacro?.id === m.id;
+                    return (
+                      <div key={m.id}>
+                        <div
+                          className={cn(
+                            "group flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm",
+                            active ? "bg-primary/10 text-primary" : "hover:bg-muted",
+                          )}
+                        >
+                          <button
+                            className="flex flex-1 items-center gap-2 text-left"
+                            onClick={() => {
+                              setMacroId(m.id);
+                              setSubId("todas");
+                            }}
+                          >
+                            <Layers className="size-4 shrink-0" />
+                            <span className="truncate font-medium">{m.name}</span>
+                          </button>
+                        </div>
 
-      <CatalogSection macros={macros} subs={allSubs} />
-      </>}
+                        {active && (
+                          <div className="ml-3 mt-1 space-y-1 border-l pl-2">
+                            <button
+                              className={cn(
+                                "flex w-full items-center justify-between rounded-md px-2 py-1 text-sm",
+                                subId === "todas" ? "bg-muted font-medium" : "hover:bg-muted",
+                              )}
+                              onClick={() => setSubId("todas")}
+                            >
+                              <span>Todos os itens</span>
+                              <Badge variant="secondary">{allItems.length}</Badge>
+                            </button>
+                            {subs.map((s) => (
+                              <div
+                                key={s.id}
+                                className={cn(
+                                  "group/sub flex items-center gap-1 rounded-md px-2 py-1 text-sm",
+                                  subId === s.id ? "bg-muted font-medium" : "hover:bg-muted",
+                                )}
+                              >
+                                <button
+                                  className="flex flex-1 items-center gap-1 text-left"
+                                  onClick={() => setSubId(s.id)}
+                                >
+                                  <ChevronRight className="size-3.5 shrink-0 opacity-60" />
+                                  <span className="truncate">{s.name}</span>
+                                </button>
+                                <Badge variant="secondary">{countBySub(s.id)}</Badge>
+                              </div>
+                            ))}
+                            {noSubCount > 0 && (
+                              <p className="px-2 py-1 text-xs text-muted-foreground">
+                                {noSubCount} item(ns) sem subcategoria
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </aside>
 
-      {section === "estoque" && <>
-      <WarehousesSection
-        selectedId={selectedWarehouse?.id ?? null}
-        onSelect={(warehouse) =>
-          setSelectedWarehouse((current: any) => (current?.id === warehouse.id ? null : warehouse))
-        }
-      />
-      {selectedWarehouse && (
-        <section className="mt-5 rounded-xl border bg-card p-4">
-          <div className="mb-4">
-            <h2 className="font-semibold">Controle — {selectedWarehouse.name}</h2>
-            <p className="text-sm text-muted-foreground">
-              {selectedWarehouse.city} · {selectedWarehouse.state} ·{" "}
-              {selectedWarehouse.country || "País a definir"}
-            </p>
-          </div>
-          <StockSalesOrders warehouseId={selectedWarehouse.id} />
-          {selectedWarehouse.level === "principal" && (
-            <>
-              <StockPurchaseHistory warehouseId={selectedWarehouse.id} />
-              <SupplierStockLots warehouseId={selectedWarehouse.id} />
-            </>
+              <section className="rounded-xl border bg-card">
+                <div className="flex flex-wrap items-center gap-2 border-b p-3">
+                  <div className="relative min-w-[200px] flex-1">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Buscar produto, código ou tamanho"
+                      className="pl-9"
+                    />
+                  </div>
+                  {canManageCatalog && (
+                    <Button
+                      disabled={!activeMacro}
+                      onClick={() =>
+                        setItemForm(newItemForm(activeMacro?.id, subId === "todas" ? null : subId))
+                      }
+                    >
+                      <Plus className="mr-1 size-4" /> Novo produto
+                    </Button>
+                  )}
+                </div>
+
+                {visibleItems.length === 0 ? (
+                  <div className="p-4">
+                    <EmptyState
+                      title="Nenhum produto nesta categoria"
+                      description="Cadastre os produtos com tamanho, peso, preço em dólar e quantidade."
+                    />
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Produto</TableHead>
+                          <TableHead>Especificações</TableHead>
+                          <TableHead>Qtd.</TableHead>
+                          <TableHead>Preço</TableHead>
+                          <TableHead>Total em estoque</TableHead>
+                          <TableHead className="w-20" />
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {visibleItems.map((i) => (
+                          <TableRow key={i["id"]}>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted/40">
+                                  {imageOf(i["image_url"]) ? (
+                                    <img
+                                      src={imageOf(i["image_url"])}
+                                      alt={i["name"]}
+                                      className="h-full w-full object-cover"
+                                    />
+                                  ) : (
+                                    <Package className="size-4 text-muted-foreground" />
+                                  )}
+                                </span>
+                                <div className="min-w-0">
+                                  <p className="truncate font-medium">{i["name"]}</p>
+                                  <p className="truncate text-xs text-muted-foreground">
+                                    {[i["variation"], i["sku"]].filter(Boolean).join(" · ") || "—"}
+                                  </p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {[i["size"], i["weight"], i["volume"], i["unit"]]
+                                .filter(Boolean)
+                                .join(" · ") || "—"}
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  Number(i["quantity"] ?? 0) <= Number(i["min_quantity"] ?? 0)
+                                    ? "destructive"
+                                    : "secondary"
+                                }
+                              >
+                                {formatNumber(i["quantity"], 2)}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p>{convert(i["price"], i["currency"] ?? "USD")}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {convert(
+                                Number(i["price"] ?? 0) * Number(i["quantity"] ?? 0),
+                                i["currency"] ?? "USD",
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex justify-end gap-1">
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  title="Mover para outra categoria"
+                                  onClick={() =>
+                                    setMoveForm({
+                                      id: i["id"],
+                                      name: i["name"],
+                                      product_id: i["product_id"],
+                                      category_id: i["category_id"] ?? null,
+                                    })
+                                  }
+                                >
+                                  <ArrowRightLeft className="size-4" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  disabled={!canManageCatalog}
+                                  onClick={() => setItemForm({ ...i })}
+                                >
+                                  <Pencil className="size-4" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    if (canManageCatalog && confirm(`Excluir "${i["name"]}"?`)) {
+                                      void logAudit("inventory_items", "delete", i["id"], {
+                                        nome: i["name"],
+                                      });
+                                      deleteItem.mutate(i["id"]);
+                                    }
+                                  }}
+                                >
+                                  <Trash2 className="size-4 text-destructive" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </section>
+            </div>
           )}
-          <StockControl
-            macros={macros}
-            subs={allSubs}
-            convert={convert}
-            warehouseId={selectedWarehouse.id}
-          />
-        </section>
+
+          <CatalogSection macros={macros} subs={allSubs} />
+        </>
       )}
 
-      </>}
+      {section === "estoque" && (
+        <>
+          <WarehousesSection
+            selectedId={selectedWarehouse?.id ?? null}
+            onSelect={(warehouse) =>
+              setSelectedWarehouse((current: any) =>
+                current?.id === warehouse.id ? null : warehouse,
+              )
+            }
+          />
+          {selectedWarehouse && (
+            <section className="mt-5 rounded-xl border bg-card p-4">
+              <div className="mb-4">
+                <h2 className="font-semibold">Controle — {selectedWarehouse.name}</h2>
+                <p className="text-sm text-muted-foreground">
+                  {selectedWarehouse.city} · {selectedWarehouse.state} ·{" "}
+                  {selectedWarehouse.country || "País a definir"}
+                </p>
+              </div>
+              <StockSalesOrders warehouseId={selectedWarehouse.id} />
+              {selectedWarehouse.level === "principal" && (
+                <>
+                  <StockPurchaseHistory warehouseId={selectedWarehouse.id} />
+                  <SupplierStockLots warehouseId={selectedWarehouse.id} />
+                </>
+              )}
+              <StockControl
+                macros={macros}
+                subs={allSubs}
+                convert={convert}
+                warehouseId={selectedWarehouse.id}
+              />
+            </section>
+          )}
+        </>
+      )}
 
       {/* Macro categoria */}
       <Dialog open={!!macroForm} onOpenChange={(o) => !o && setMacroForm(null)}>
@@ -1046,7 +1194,8 @@ function CatalogoManagement({ section = "catalogo" }: { section?: "catalogo" | "
                       type="button"
                       size="sm"
                       variant="ghost"
-                      disabled={!canManageCatalog} onClick={() => setSubForm({ ...subForm, image_url: null })}
+                      disabled={!canManageCatalog}
+                      onClick={() => setSubForm({ ...subForm, image_url: null })}
                     >
                       Remover foto
                     </Button>
@@ -1128,7 +1277,8 @@ function CatalogoManagement({ section = "catalogo" }: { section?: "catalogo" | "
                       type="button"
                       size="sm"
                       variant="ghost"
-                      disabled={!canManageCatalog} onClick={() => setItemForm({ ...itemForm, image_url: null })}
+                      disabled={!canManageCatalog}
+                      onClick={() => setItemForm({ ...itemForm, image_url: null })}
                     >
                       Remover foto
                     </Button>
@@ -1280,11 +1430,13 @@ function CatalogoManagement({ section = "catalogo" }: { section?: "catalogo" | "
                     }
                   />
                 </div>
-                {([
-                  ["freight_sp_percent", "Frete para São Paulo (%)"],
-                  ["freight_py_percent", "Frete para o Paraguai (%)"],
-                  ["freight_other_brazil_percent", "Frete para outros estados do Brasil (%)"],
-                ] as const).map(([field, label]) => {
+                {(
+                  [
+                    ["freight_sp_percent", "Frete para São Paulo (%)"],
+                    ["freight_py_percent", "Frete para o Paraguai (%)"],
+                    ["freight_other_brazil_percent", "Frete para outros estados do Brasil (%)"],
+                  ] as const
+                ).map(([field, label]) => {
                   const preview = freightValue(
                     itemForm?.cost,
                     itemForm?.[field] ?? 0,
@@ -1318,7 +1470,11 @@ function CatalogoManagement({ section = "catalogo" }: { section?: "catalogo" | "
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" disabled={!canManageCatalog} onClick={() => setItemForm(null)}>
+            <Button
+              variant="outline"
+              disabled={!canManageCatalog}
+              onClick={() => setItemForm(null)}
+            >
               Cancelar
             </Button>
             <Button
@@ -1426,7 +1582,11 @@ function CatalogoManagement({ section = "catalogo" }: { section?: "catalogo" | "
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" disabled={!canManageCatalog} onClick={() => setMoveForm(null)}>
+            <Button
+              variant="outline"
+              disabled={!canManageCatalog}
+              onClick={() => setMoveForm(null)}
+            >
               Cancelar
             </Button>
             <Button onClick={() => void moveItem()}>Mover</Button>
