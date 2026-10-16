@@ -109,12 +109,12 @@ export function usePermissions() {
           : (dynamicCaps.data ?? []),
   );
 
-  const can = (c: Capability) => isSuperAdmin || caps.has(c);
+  const can = (c: Capability) => isSuperAdmin || (c === "inventory_manage" ? isAdmin : caps.has(c));
   const canOpen = (route: string) => {
     if (isSuperAdmin) return true;
     const needed = ROUTE_CAPABILITY[route];
     if (!needed) return list.length > 0;
-    return caps.has(needed);
+    return can(needed);
   };
 
   return {

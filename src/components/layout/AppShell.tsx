@@ -81,6 +81,7 @@ export const NAV_GROUPS = [
     label: "Comercial",
     items: [
       { to: "/produtos", label: "Catálogo", icon: Package },
+      { to: "/estoque", label: "Estoques disponíveis", icon: Package },
       { to: "/categorias", label: "Categorias", icon: Layers },
       { to: "/pedidos", label: "Pedidos", icon: FileText },
       { to: "/promocoes", label: "Promoções", icon: Sparkles },

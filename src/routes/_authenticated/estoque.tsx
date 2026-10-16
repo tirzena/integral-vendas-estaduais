@@ -4,7 +4,7 @@ import { Catalogo } from "./produtos";
 
 export const Route = createFileRoute("/_authenticated/estoque")({
   component: () => (
-    <RouteGuard capability="inventory_manage">
+    <RouteGuard capability="inventory_view">
       <Catalogo section="estoque" />
     </RouteGuard>
   ),

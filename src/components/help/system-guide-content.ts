@@ -194,7 +194,7 @@ export const guideChapters: GuideChapter[] = [
       },
       {
         title: "Confira o resultado",
-        text: "Consulte o saldo no Catálogo e no estoque de destino. Para vendedores, confira também as concessões de categoria/produto e do estoque.",
+        text: "Consulte o saldo no Catálogo e em Estoques disponíveis. Vendedores consultam os produtos liberados em todos os estoques ativos criados pela administração, identificados apenas pelo estado; novos estoques aparecem automaticamente. Compras e alterações manuais de saldo são exclusivas de admin e superadmin.",
       },
     ],
     checks: [

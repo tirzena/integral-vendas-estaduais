@@ -342,7 +342,7 @@ export function Pdv({
       if (restrictedSeller) {
         const [portal, stock, clients] = await Promise.all([
           (supabase as any).rpc("seller_portal_data"),
-          (supabase as any).rpc("estadual_seller_warehouse_stock"),
+          (supabase as any).rpc("integral_seller_stock_availability"),
           (supabase as any).rpc("estadual_seller_customers"),
         ]);
         for (const result of [portal, stock, clients]) if (result.error) throw result.error;
@@ -354,11 +354,11 @@ export function Pdv({
           customerContacts: [],
           company: null,
           sellerOptions: [{ id: userId, full_name: profile?.full_name ?? "Você" }],
-          warehouses: portal.data?.warehouses ?? [],
-          warehouseInventory: (stock.data ?? []).map((row: any) => ({
+          warehouses: stock.data?.warehouses ?? [],
+          warehouseInventory: (stock.data?.balances ?? []).map((row: any) => ({
             warehouse_id: row.warehouse_id,
             item_id: row.item_id,
-            quantity: Number(row.available),
+            quantity: Number(row.quantity),
             reserved: 0,
             min_quantity: 0,
           })),
@@ -2221,6 +2221,7 @@ export function Pdv({
               <div className="grid gap-3 rounded-lg border p-3 sm:grid-cols-2">
                 <div className="sm:col-span-2">
                   <Label>Estoque de origem</Label>
+                  <p className="mb-2 text-xs text-muted-foreground">Selecione o estoque. O endereço de entrega informado no pedido é o do cliente.</p>
                   <div className="flex gap-2">
                     <Select value={warehouseId} onValueChange={setWarehouseId}>
                       <SelectTrigger className="flex-1">
@@ -2229,21 +2230,31 @@ export function Pdv({
                       <SelectContent>
                         {warehouses.map((w: any) => (
                           <SelectItem key={w.id} value={w.id}>
-                            {w.name} · {w.city}/{w.state}
+                            {restrictedSeller ? (
+                              w.name
+                            ) : (
+                              <>
+                                {w.name} · {w.city}/{w.state}
+                              </>
+                            )}
                             {warehouseHasStock(w.id) ? "" : " · saldo insuficiente"}
-                            {distanceKm(w) == null ? "" : ` · ${distanceKm(w)!.toFixed(0)} km`}
+                            {restrictedSeller || distanceKm(w) == null
+                              ? ""
+                              : ` · ${distanceKm(w)!.toFixed(0)} km`}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={suggestWarehouse}
-                      title="Escolher o estoque com saldo mais próximo"
-                    >
-                      <Navigation className="mr-1 size-4" /> Sugerir
-                    </Button>
+                    {!restrictedSeller && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={suggestWarehouse}
+                        title="Escolher o estoque com saldo mais próximo"
+                      >
+                        <Navigation className="mr-1 size-4" /> Sugerir
+                      </Button>
+                    )}
                   </div>
                 </div>
                 {principalLowStock.length > 0 && (

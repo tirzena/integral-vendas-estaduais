@@ -1,3 +1,4 @@
+import { SellerStockWorkspace } from "@/components/inventory/SellerStockWorkspace";
 import { SalesCatalogWorkspace } from "@/components/catalog/SalesCatalogWorkspace";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -123,8 +124,9 @@ export function Catalogo({
 }: {
   section?: "catalogo" | "categorias" | "estoque";
 }) {
-  const { can, loading, viewAs } = usePermissions();
+  const { can, loading, viewAs, roles, isAdmin } = usePermissions();
   if (section === "catalogo") return <SalesCatalogWorkspace />;
+  if (section === "estoque" && !isAdmin) return <SellerStockWorkspace />;
   if (section === "categorias" && loading)
     return <p className="p-4 text-muted-foreground">Carregando permissões…</p>;
   if (section === "categorias" && (!can("inventory_manage") || viewAs))
