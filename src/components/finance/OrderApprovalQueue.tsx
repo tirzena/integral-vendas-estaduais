@@ -1,5 +1,9 @@
 import { ReviewDecisionHistory } from "./ReviewDecisionHistory";
-import { useCanReviewOrders, useCanViewOrderApprovals, useCanViewFinancialApprovals } from "@/lib/order-review-flow";
+import {
+  useCanReviewOrders,
+  useCanViewOrderApprovals,
+  useCanViewFinancialApprovals,
+} from "@/lib/order-review-flow";
 import { usePendingReceiptCount } from "./PendingPaymentReceipts";
 import { CommissionBreakdown } from "@/components/orders/CommissionBreakdown";
 import { OrderApprovals } from "@/components/admin/OrderApprovals";
@@ -58,37 +62,51 @@ export function DashboardApprovalNotice() {
   if (!queue.allowed) return null;
   return (
     <div className="grid gap-3 lg:grid-cols-2">
-    <a
-      href="https://login.qrcodevalidacao.com/aprovacoes?aba=pedidos"
-      className="surface-card my-4 flex items-center justify-between gap-3 border-l-4 border-l-primary p-4"
-    >
-      <div>
-        <p className="font-semibold">Pedidos em análise</p>
-        <p className="text-sm text-muted-foreground">
-          {queue.error
-            ? "Abra a fila para conferir os pedidos."
-            : queue.isLoading
-              ? "Conferindo pendências…"
-              : `${queue.data?.pending_count ?? 0} pedido(s) aguardando revisão`}
-        </p>
-        {!!closures.data?.length && (
+      <a
+        href="https://login.qrcodevalidacao.com/aprovacoes?aba=pedidos"
+        className="surface-card my-4 flex items-center justify-between gap-3 border-l-4 border-l-primary p-4"
+      >
+        <div>
+          <p className="font-semibold">Pedidos em análise</p>
           <p className="text-sm text-muted-foreground">
-            {closures.data.length} quitação(ões) para baixa financeira
+            {queue.error
+              ? "Abra a fila para conferir os pedidos."
+              : queue.isLoading
+                ? "Conferindo pendências…"
+                : `${queue.data?.pending_count ?? 0} pedido(s) aguardando revisão`}
           </p>
+          {!!closures.data?.length && (
+            <p className="text-sm text-muted-foreground">
+              {closures.data.length} quitação(ões) para baixa financeira
+            </p>
+          )}
+        </div>
+        {!!revisions.data && (
+          <span className="text-sm">{revisions.data} alteração(ões) para revisão</span>
         )}
-      </div>
-      {!!revisions.data && (
-        <span className="text-sm">{revisions.data} alteração(ões) para revisão</span>
+        {!!cancellations.data?.length && (
+          <span className="text-sm">{cancellations.data.length} cancelamento(s) para revisão</span>
+        )}
+        <span className="text-sm font-medium text-primary">Abrir fila →</span>
+      </a>
+      {financialAccess.data === true && (
+        <a
+          href="https://login.qrcodevalidacao.com/aprovacoes?aba=pagamentos"
+          className="surface-card my-4 flex items-center justify-between gap-3 border-l-4 border-l-amber-500 p-4"
+        >
+          <div>
+            <p className="font-semibold">Aprovar pagamentos</p>
+            <p className="text-sm text-muted-foreground">
+              {payments.isError
+                ? "Abra a fila para conferir as pendências."
+                : payments.isLoading
+                  ? "Conferindo pagamentos…"
+                  : `${payments.data ?? 0} pagamento(s) aguardando conferência`}
+            </p>
+          </div>
+          <span className="text-sm font-medium text-primary">Revisar pagamentos →</span>
+        </a>
       )}
-      {!!cancellations.data?.length && (
-        <span className="text-sm">{cancellations.data.length} cancelamento(s) para revisão</span>
-      )}
-      <span className="text-sm font-medium text-primary">Abrir fila →</span>
-    </a>
-    {financialAccess.data === true && <a href="https://login.qrcodevalidacao.com/aprovacoes?aba=pagamentos" className="surface-card my-4 flex items-center justify-between gap-3 border-l-4 border-l-amber-500 p-4">
-      <div><p className="font-semibold">Aprovar pagamentos</p><p className="text-sm text-muted-foreground">{payments.isError ? "Abra a fila para conferir as pendências." : payments.isLoading ? "Conferindo pagamentos…" : `${payments.data ?? 0} pagamento(s) aguardando conferência`}</p></div>
-      <span className="text-sm font-medium text-primary">Revisar pagamentos →</span>
-    </a>}
     </div>
   );
 }
@@ -206,7 +224,10 @@ export function OrderApprovalQueue() {
         if (updated.error) throw updated.error;
         if (!updated.data.orders?.[0]) throw new Error("O pedido saiu da fila. Atualize a lista.");
         open(updated.data.orders[0]);
-      } else setSelected(null);
+      } else {
+        setDraft(null);
+        setSelected(null);
+      }
       toast.success(
         savedAdjustments
           ? "Ajustes salvos. Confira os valores atualizados antes de aprovar. Vendedor notificado."
@@ -257,7 +278,9 @@ export function OrderApprovalQueue() {
                   {formatMoney(Number(o.total), o.currency)}
                 </p>
               </div>
-              <Button onClick={() => open(o)}>{queue.canReview ? "Revisar pedido" : "Ver pedido"}</Button>
+              <Button onClick={() => open(o)}>
+                {queue.canReview ? "Revisar pedido" : "Ver pedido"}
+              </Button>
             </article>
           ))}
         </>
@@ -268,16 +291,23 @@ export function OrderApprovalQueue() {
       <Dialog
         open={!!selected}
         onOpenChange={(v) => {
-          if (!v && !busy) setSelected(null);
+          if (!v && !busy) {
+            setDraft(null);
+            setSelected(null);
+          }
         }}
       >
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Revisar pedido #{selected?.number}</DialogTitle>
           </DialogHeader>
-          {draft && (
+          {selected && draft && (
             <fieldset disabled={!queue.canReview} className="space-y-4">
-              {!queue.canReview && <p className="text-sm text-muted-foreground">Acesso de consulta. Somente admin e superadmin podem decidir.</p>}
+              {!queue.canReview && (
+                <p className="text-sm text-muted-foreground">
+                  Acesso de consulta. Somente admin e superadmin podem decidir.
+                </p>
+              )}
               <p className="text-sm">
                 {selected.customer_name} · Vendedor: {selected.seller_name}
               </p>
@@ -423,7 +453,13 @@ export function OrderApprovalQueue() {
                   Reprovar pedido
                 </Button>
               </div>
-              <Button variant="outline" disabled={busy || selected.seller_id === queue.userId} onClick={() => act("request_changes")}>Solicitar ajuste ao vendedor</Button>
+              <Button
+                variant="outline"
+                disabled={busy || selected.seller_id === queue.userId}
+                onClick={() => act("request_changes")}
+              >
+                Solicitar ajuste ao vendedor
+              </Button>
               <details>
                 <summary className="cursor-pointer text-sm font-medium">
                   Histórico de movimentações
