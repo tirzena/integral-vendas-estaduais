@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { CompanySettingsCard } from "@/components/settings/CompanySettingsCard";
 
 export const Route = createFileRoute("/_authenticated/configuracoes")({
@@ -34,6 +35,20 @@ function Configuracoes() {
   const [whatsapp, setWhatsapp] = useState("");
   const [savingWhatsapp, setSavingWhatsapp] = useState(false);
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  useEffect(() => {
+    if (!avatarFile) {
+      setAvatarPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(avatarFile);
+    setAvatarPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [avatarFile]);
   const [newEmail, setNewEmail] = useState("");
   const [savingEmail, setSavingEmail] = useState(false);
   useEffect(() => {
@@ -61,26 +76,64 @@ function Configuracoes() {
   }, [whatsappQuery.data]);
 
   async function save() {
-    if (!form.full_name?.trim()) {
-      toast.error("Informe seu nome completo.");
-      return;
-    }
+    if (viewAs || !userId) return void toast.error("Saia do modo espelho para alterar seu perfil.");
+    if (!form.full_name?.trim()) return void toast.error("Informe seu nome completo.");
     setSaving(true);
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        full_name: form.full_name,
-        phone: form.phone,
-        cargo: form.cargo,
-        setor: form.setor,
-        avatar_url: form.avatar_url,
-      })
-      .eq("id", userId!);
-    setSaving(false);
-    if (error) toast.error("Não foi possível salvar seus dados.");
-    else {
+    let uploadedPath: string | null = null;
+    try {
+      let avatar = form.avatar_url ?? null;
+      if (avatarFile) {
+        const bitmap = await createImageBitmap(avatarFile);
+        const canvas = document.createElement("canvas");
+        canvas.width = 512;
+        canvas.height = 512;
+        const edge = Math.min(bitmap.width, bitmap.height);
+        canvas
+          .getContext("2d")!
+          .drawImage(
+            bitmap,
+            (bitmap.width - edge) / 2,
+            (bitmap.height - edge) / 2,
+            edge,
+            edge,
+            0,
+            0,
+            512,
+            512,
+          );
+        bitmap.close();
+        const blob = await new Promise<Blob>((resolve, reject) =>
+          canvas.toBlob(
+            (value) =>
+              value ? resolve(value) : reject(new Error("Não foi possível preparar a foto.")),
+            "image/jpeg",
+            0.85,
+          ),
+        );
+        uploadedPath = userId + "/" + crypto.randomUUID() + ".jpg";
+        const upload = await supabase.storage
+          .from("profile-avatars")
+          .upload(uploadedPath, blob, { contentType: "image/jpeg", upsert: false });
+        if (upload.error) throw upload.error;
+        avatar = "storage://profile-avatars/" + uploadedPath;
+      }
+      const { error } = await (supabase as any).rpc("integral_update_my_profile", {
+        p_profile: {
+          full_name: form.full_name.trim(),
+          phone: form.phone || null,
+          avatar_url: avatar,
+        },
+      });
+      if (error) throw error;
+      setAvatarFile(null);
       toast.success("Perfil atualizado.");
-      queryClient.invalidateQueries({ queryKey: ["me", userId] });
+      await queryClient.invalidateQueries({ queryKey: ["me", userId] });
+      await queryClient.invalidateQueries({ queryKey: ["members"] });
+    } catch (error) {
+      if (uploadedPath) await supabase.storage.from("profile-avatars").remove([uploadedPath]);
+      toast.error((error as Error).message || "Não foi possível salvar seus dados.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -90,11 +143,19 @@ function Configuracoes() {
       toast.error("A nova senha precisa ter ao menos 6 caracteres.");
       return;
     }
-    const { error } = await supabase.auth.updateUser({ password });
-    if (error) toast.error("Não foi possível alterar a senha.");
-    else {
+    if (password !== confirmPassword)
+      return void toast.error("A confirmação da senha não confere.");
+    setSavingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
       setPassword("");
+      setConfirmPassword("");
       toast.success("Senha alterada.");
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setSavingPassword(false);
     }
   }
 
@@ -114,6 +175,7 @@ function Configuracoes() {
   }
 
   async function saveWhatsapp() {
+    if (viewAs) return void toast.error("Saia do modo espelho para alterar seu WhatsApp.");
     const normalized = whatsapp.replace(/\D/g, "");
     if (normalized.length < 10 || normalized.length > 15) {
       toast.error("Informe um WhatsApp válido, com DDI e DDD.");
@@ -141,8 +203,6 @@ function Configuracoes() {
   return (
     <div className="max-w-2xl">
       <PageHeader title="Configurações" description="Ajuste seus dados de perfil e sua senha." />
-
-      {isAdmin && <CompanySettingsCard />}
 
       <Card>
         <CardHeader>
@@ -174,6 +234,52 @@ function Configuracoes() {
           <CardTitle>Meu perfil</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2 flex flex-wrap items-center gap-4">
+            <Avatar className="size-20">
+              <AvatarImage src={avatarPreview ?? form.avatar_url ?? undefined} />
+              <AvatarFallback>
+                {String(form.full_name ?? "?")
+                  .slice(0, 2)
+                  .toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="space-y-2">
+              <Label htmlFor="profile-photo">Foto do perfil</Label>
+              <Input
+                id="profile-photo"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                disabled={saving || !!viewAs}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (!file) return;
+                  if (
+                    !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
+                    file.size > 5 * 1024 * 1024
+                  )
+                    return void toast.error("Escolha uma imagem JPG, PNG ou WebP de até 5 MB.");
+                  setAvatarFile(file);
+                }}
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={saving || !!viewAs || (!form.avatar_url && !avatarFile)}
+                onClick={() => {
+                  setAvatarFile(null);
+                  setForm((current: any) => ({ ...current, avatar_url: null }));
+                }}
+              >
+                Remover foto
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                A foto será salva junto com as alterações do perfil.
+              </p>
+            </div>
+          </div>
+
           <div className="sm:col-span-2">
             <Label htmlFor="full_name">Nome completo *</Label>
             <Input
@@ -201,21 +307,11 @@ function Configuracoes() {
           </div>
           <div>
             <Label htmlFor="cargo">Cargo</Label>
-            <Input
-              id="cargo"
-              className="mt-1.5"
-              value={form.cargo ?? ""}
-              onChange={(e) => setForm((f: any) => ({ ...f, cargo: e.target.value }))}
-            />
+            <Input id="cargo" className="mt-1.5" value={form.cargo ?? ""} readOnly />
           </div>
           <div>
             <Label htmlFor="setor">Setor</Label>
-            <Input
-              id="setor"
-              className="mt-1.5"
-              value={form.setor ?? ""}
-              onChange={(e) => setForm((f: any) => ({ ...f, setor: e.target.value }))}
-            />
+            <Input id="setor" className="mt-1.5" value={form.setor ?? ""} readOnly />
           </div>
           <div className="sm:col-span-2">
             <Label>Perfis de acesso</Label>
@@ -234,7 +330,7 @@ function Configuracoes() {
             </p>
           </div>
           <div className="sm:col-span-2">
-            <Button onClick={save} disabled={saving}>
+            <Button onClick={save} disabled={saving || !!viewAs}>
               {saving && <Loader2 className="mr-2 size-4 animate-spin" />} Salvar alterações
             </Button>
           </div>
@@ -262,7 +358,10 @@ function Configuracoes() {
               onChange={(event) => setWhatsapp(event.target.value)}
             />
           </div>
-          <Button onClick={saveWhatsapp} disabled={savingWhatsapp || whatsappQuery.isLoading}>
+          <Button
+            onClick={saveWhatsapp}
+            disabled={savingWhatsapp || whatsappQuery.isLoading || !!viewAs}
+          >
             {savingWhatsapp && <Loader2 className="mr-2 size-4 animate-spin" />} Salvar meu WhatsApp
           </Button>
         </CardContent>
@@ -277,17 +376,39 @@ function Configuracoes() {
             <Label htmlFor="nova-senha">Nova senha</Label>
             <Input
               id="nova-senha"
-              type="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="new-password"
+              disabled={savingPassword || !!viewAs}
               className="mt-1.5"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
-          <Button variant="outline" onClick={changePassword}>
+          <div>
+            <Label htmlFor="confirm-password">Confirmar nova senha</Label>
+            <Input
+              id="confirm-password"
+              type={showPassword ? "text" : "password"}
+              autoComplete="new-password"
+              disabled={savingPassword || !!viewAs}
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={showPassword}
+              onChange={(event) => setShowPassword(event.target.checked)}
+            />
+            Mostrar senha
+          </label>
+          <Button variant="outline" onClick={changePassword} disabled={savingPassword || !!viewAs}>
             Alterar senha
           </Button>
         </CardContent>
       </Card>
+      {isAdmin && <CompanySettingsCard />}
     </div>
   );
 }
