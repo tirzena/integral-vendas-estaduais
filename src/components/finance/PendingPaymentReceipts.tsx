@@ -1,3 +1,5 @@
+import { ReviewDecisionHistory } from "./ReviewDecisionHistory";
+import { useCanReviewFinancial, useCanViewFinancialApprovals } from "@/lib/order-review-flow";
 import { PaymentProofLink } from "@/components/orders/PaymentProofFile";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
@@ -6,6 +8,7 @@ import { toast } from "sonner";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDate, formatMoney } from "@/lib/format";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -38,11 +41,41 @@ type Receipt = {
     name: string | null;
   }>;
 };
+export function usePendingReceiptCount(productId = "todos") {
+  const { userId, isAdmin, roles, viewAs } = useCurrentUser();
+  const access = useCanViewFinancialApprovals();
+  return useQuery({
+    queryKey: ["finance-pending-receipt-count", userId, productId],
+    enabled: !!userId && !viewAs && access.data === true,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const result = await (supabase as any).rpc("integral_pending_payment_receipts", {
+        p_product_id: productId === "todos" ? null : productId, p_offset: 0, p_limit: 1,
+      });
+      if (result.error) throw result.error;
+      return Number(result.data.total);
+    },
+  });
+}
 export function PendingPaymentReceipts({ productId }: { productId: string }) {
   const { userId, isAdmin, roles, viewAs } = useCurrentUser();
-  const allowed = isAdmin || roles.includes("financeiro");
-  const [page, setPage] = useState(0);
+  const access = useCanViewFinancialApprovals();
+  const editAccess = useCanReviewFinancial();
+  const canDecide = editAccess.data === true;
+  const allowed = access.data === true;
   const [selected, setSelected] = useState<Receipt | null>(null);
+  const [reason, setReason] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [editMethod, setEditMethod] = useState("");
+  const [reviewBusy, setReviewBusy] = useState(false);
+  useEffect(() => {
+    setReason("");
+    setEditAmount(String(selected?.amount ?? ""));
+    setEditDate(selected?.paid_at?.slice(0, 10) ?? "");
+    setEditMethod(selected?.method ?? "");
+  }, [selected]);
+  const [page, setPage] = useState(0);
   const client = useQueryClient();
   useEffect(() => {
     setPage(0);
@@ -61,9 +94,11 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
       return result.data as { total: number; rows: Receipt[] };
     },
     staleTime: 30_000,
+    refetchInterval: 60_000,
   });
   const confirm = useMutation({
     mutationFn: async (receipt: Receipt) => {
+      if (!canDecide) throw new Error("Acesso de consulta. Apenas Zé e Bia podem confirmar.");
       const result = await (supabase as any).rpc("finance_confirm_seller_payment", {
         p_payment_id: receipt.payment_id,
       });
@@ -77,6 +112,9 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
         predicate: (q) =>
           [
             "finance-pending-receipts",
+            "finance-pending-receipt-count",
+            "pending-payment-orders",
+            "order-review-status",
             "finance-summary",
             "financial-closure-queue",
             "order-approval-queue",
@@ -95,6 +133,28 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+  async function review(decision: "reject" | "request_changes" | "adjust") {
+    if (!selected || reviewBusy || confirm.isPending || !canDecide) return;
+    if (reason.trim().length < 5) return void toast.error("Informe a justificativa (mínimo 5 caracteres).");
+    setReviewBusy(true);
+    try {
+      const result = await (supabase as any).rpc("integral_review_payment", {
+        p_payment: selected.payment_id, p_decision: decision, p_reason: reason.trim(),
+        p_expected_amount: Number(selected.amount),
+        p_amount: decision === "adjust" ? Number(editAmount) : null,
+        p_paid_at: decision === "adjust" ? editDate || null : null,
+        p_method: decision === "adjust" ? editMethod : null,
+      });
+      if (result.error) throw result.error;
+      setSelected(null);
+      await client.invalidateQueries();
+      toast.success(decision === "adjust"
+        ? "Ajuste salvo. Revise o comprovante antes de confirmar. Vendedor notificado."
+        : decision === "reject" ? "Pagamento reprovado. Vendedor notificado."
+        : "Correção solicitada. Vendedor notificado para registrar novamente com comprovante.");
+    } catch (error) { toast.error((error as Error).message); }
+    finally { setReviewBusy(false); }
+  }
   if (!allowed) return null;
   if (viewAs)
     return (
@@ -128,7 +188,7 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="font-semibold">Pagamentos para conferir</h2>
+          <h2 className="font-semibold">Aprovar pagamentos ({query.data?.total ?? 0})</h2>
           <p className="text-sm text-muted-foreground">
             Recebimentos informados pelos vendedores. Confira o comprovante antes de confirmar. Esta
             fila mostra todas as pendências da categoria selecionada.
@@ -167,8 +227,8 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
                   {formatDate(receipt.paid_at || receipt.created_at)}
                 </p>
               </div>
-              <Button disabled={confirm.isPending} onClick={() => setSelected(receipt)}>
-                Conferir pagamento
+              <Button disabled={confirm.isPending || reviewBusy} onClick={() => setSelected(receipt)}>
+                {canDecide ? "Conferir pagamento" : "Ver pagamento"}
               </Button>
             </div>
             <dl className="grid gap-3 text-sm sm:grid-cols-3">
@@ -219,22 +279,24 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
           </div>
         </div>
       )}
+      <ReviewDecisionHistory kind="payment" />
       <Dialog
         open={!!selected}
         onOpenChange={(open) => {
-          if (!open && !confirm.isPending) setSelected(null);
+          if (!open && !confirm.isPending && !reviewBusy) setSelected(null);
         }}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Confirmar recebimento</DialogTitle>
+            <DialogTitle>Revisar pagamento</DialogTitle>
             <DialogDescription>
               A confirmação atualiza o saldo do pedido e a baixa proporcional de estoque, quando
               aplicável.
             </DialogDescription>
           </DialogHeader>
           {selected && (
-            <div className="space-y-3 text-sm">
+            <fieldset disabled={!canDecide} className="space-y-3 text-sm">
+              {!canDecide && <p>Acesso de consulta. Somente Zé e Bia podem decidir sobre pagamentos.</p>}
               <p>
                 Pedido #{selected.order_number} ·{" "}
                 {selected.customer_name || "Cliente não informado"}
@@ -251,18 +313,35 @@ export function PendingPaymentReceipts({ productId }: { productId: string }) {
               </p>
               <p>Crédito no pedido: {formatMoney(Number(selected.amount), selected.currency)}</p>
               <div className="flex flex-wrap gap-3">{proofLinks(selected)}</div>
-            </div>
+              <details className="rounded-lg border p-3">
+                <summary className="cursor-pointer font-medium">Ajustar os dados antes da confirmação</summary>
+                <div className="mt-3 grid gap-3">
+                  <label>Valor creditado no pedido ({selected.currency})<Input type="number" min="0.01" step="0.01" value={editAmount} onChange={e => setEditAmount(e.target.value)} /></label>
+                  <label>Data do pagamento<Input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} /></label>
+                  <label>Forma de pagamento<Input value={editMethod} onChange={e => setEditMethod(e.target.value)} /></label>
+                  <p className="text-xs text-muted-foreground">O câmbio do pedido é preservado. Salvar ajustes mantém o pagamento pendente para nova conferência do comprovante.</p>
+                  <Button variant="outline" disabled={reviewBusy || confirm.isPending} onClick={() => review("adjust")}>Salvar ajuste e conferir novamente</Button>
+                </div>
+              </details>
+              <label className="grid gap-1">Justificativa para ajuste, recusa ou devolução
+                <Input value={reason} onChange={e => setReason(e.target.value)} placeholder="Descreva o que precisa ser corrigido" />
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" disabled={reviewBusy || confirm.isPending} onClick={() => review("request_changes")}>Solicitar correção</Button>
+                <Button variant="destructive" disabled={reviewBusy || confirm.isPending} onClick={() => review("reject")}>Reprovar pagamento</Button>
+              </div>
+            </fieldset>
           )}
           <DialogFooter>
             <Button
               variant="outline"
-              disabled={confirm.isPending}
+              disabled={confirm.isPending || reviewBusy}
               onClick={() => setSelected(null)}
             >
               Voltar
             </Button>
             <Button
-              disabled={!selected || confirm.isPending}
+              disabled={!canDecide || !selected || confirm.isPending || reviewBusy}
               onClick={() => selected && confirm.mutate(selected)}
             >
               {confirm.isPending ? "Confirmando…" : "Conferi e confirmo o recebimento"}

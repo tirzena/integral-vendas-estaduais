@@ -1,3 +1,4 @@
+import { usePendingPaymentOrders } from "@/lib/order-review-flow";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,6 +11,7 @@ import { Button } from "@/components/ui/button";
 export function OrderReviewStatus({ order }: { order: any }) {
   const { userId, isAdmin, roles } = useCurrentUser();
   const client = useQueryClient();
+  const pendingPayments = usePendingPaymentOrders();
   const [busy, setBusy] = useState(false);
   const [creditReason, setCreditReason] = useState("");
   const query = useQuery({
@@ -18,7 +20,7 @@ export function OrderReviewStatus({ order }: { order: any }) {
       const { data, error } = await supabase
         .from("orders")
         .select(
-          "approval_status,approved_at,seller_id,replacement_for_order_id,workflow_stage,fulfillment_status,customer_resolution,financial_closed_at",
+          "review_outcome,approval_status,approved_at,seller_id,replacement_for_order_id,workflow_stage,fulfillment_status,customer_resolution,financial_closed_at",
         )
         .eq("id", order.id)
         .single();
@@ -75,7 +77,7 @@ export function OrderReviewStatus({ order }: { order: any }) {
               ? "Aguardando aprovação"
               : data.approval_status === "approved"
                 ? "Pedido aprovado"
-                : "Pedido reprovado / devolvido"}
+                : data.review_outcome === "changes_requested" ? "Ajuste solicitado ao vendedor" : "Pedido reprovado"}
           </p>
           <p>
             {data.approval_status === "pending"
@@ -85,12 +87,13 @@ export function OrderReviewStatus({ order }: { order: any }) {
                 : "Confira o histórico e a justificativa da revisão."}
           </p>
           {(isAdmin || roles.includes("financeiro")) && data.approval_status === "pending" && (
-            <a className="mt-2 inline-block text-primary underline" href="/financeiro#aprovacoes">
+            <a className="mt-2 inline-block text-primary underline" href="https://login.qrcodevalidacao.com/aprovacoes?aba=pedidos">
               Abrir fila de aprovações
             </a>
           )}
         </div>
       )}
+      {pendingPayments.data?.has(order.id) && <p className="rounded-lg border border-amber-500/40 p-3 text-sm">Pagamento registrado. Aguardando confirmação do financeiro; o valor ainda não foi contabilizado como pago.</p>}
       {data.replacement_for_order_id && (
         <p className="rounded-lg border p-3 text-sm">
           Reposição de mercadoria perdida. A cobrança e os pagamentos permanecem no pedido original;

@@ -1,3 +1,4 @@
+import { useCanReviewFinancial, useCanViewFinancialApprovals } from "@/lib/order-review-flow";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,7 +11,8 @@ import { Input } from "@/components/ui/input";
 
 export function usePendingFinancialClosures() {
   const { userId, isAdmin, roles, viewAs } = useCurrentUser();
-  const allowed = !viewAs && (isAdmin || roles.includes("financeiro"));
+  const access = useCanViewFinancialApprovals();
+  const allowed = !viewAs && access.data === true;
   return useQuery({
     queryKey: ["financial-closure-queue", userId],
     enabled: allowed,
@@ -25,12 +27,15 @@ export function usePendingFinancialClosures() {
 
 export function FinancialClosureQueue() {
   const { userId, isAdmin, roles, viewAs } = useCurrentUser();
+  const access = useCanReviewFinancial();
+  const editAccess = useCanReviewFinancial();
   const queue = usePendingFinancialClosures();
   const client = useQueryClient();
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
-  if (viewAs || (!isAdmin && !roles.includes("financeiro"))) return null;
+  if (viewAs || access.data !== true) return null;
   async function close(order: any) {
+    if (!editAccess.data) return;
     const reason = reasons[order.id]?.trim() ?? "";
     if (reason.length < 5) return void toast.error("Descreva a conferência realizada.");
     setBusy(order.id);
@@ -69,9 +74,9 @@ export function FinancialClosureQueue() {
               {formatMoney(Number(order.total), order.currency)}
             </p>
             <p className="text-sm text-muted-foreground">Vendedor: {order.seller_name}</p>
-            {order.seller_id === userId ? (
+            {!editAccess.data || order.seller_id === userId ? (
               <p className="text-sm text-muted-foreground">
-                Outro responsável deve conferir seu pedido.
+                A conclusão da baixa fica restrita a Zé e Bia e deve ser feita por outra pessoa que não seja o vendedor do pedido.
               </p>
             ) : (
               <>

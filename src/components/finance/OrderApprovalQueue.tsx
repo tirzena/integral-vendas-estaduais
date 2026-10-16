@@ -1,3 +1,7 @@
+import { ReviewDecisionHistory } from "./ReviewDecisionHistory";
+import { useCanReviewOrders, useCanViewOrderApprovals, useCanViewFinancialApprovals } from "@/lib/order-review-flow";
+import { usePendingReceiptCount } from "./PendingPaymentReceipts";
+import { CommissionBreakdown } from "@/components/orders/CommissionBreakdown";
 import { OrderApprovals } from "@/components/admin/OrderApprovals";
 import { CancellationReviewQueue, usePendingCancellations } from "./CancellationReviewQueue";
 import { FinancialClosureQueue, usePendingFinancialClosures } from "./FinancialClosureQueue";
@@ -16,7 +20,9 @@ import { formatMoney } from "@/lib/format";
 const db = supabase as any;
 export function useOrderApprovalQueue() {
   const { userId, isAdmin, roles, viewAs } = useCurrentUser();
-  const allowed = !viewAs && (isAdmin || roles.includes("financeiro"));
+  const access = useCanViewOrderApprovals();
+  const editAccess = useCanReviewOrders();
+  const allowed = !viewAs && access.data === true;
   const query = useQuery({
     queryKey: ["order-approval-queue", userId],
     enabled: allowed,
@@ -27,11 +33,13 @@ export function useOrderApprovalQueue() {
       return data as { pending_count: number; orders: any[]; can_review: boolean };
     },
   });
-  return { ...query, allowed, userId };
+  return { ...query, allowed, userId, canReview: editAccess.data === true };
 }
 
 export function DashboardApprovalNotice() {
   const queue = useOrderApprovalQueue();
+  const financialAccess = useCanViewFinancialApprovals();
+  const payments = usePendingReceiptCount();
   const closures = usePendingFinancialClosures();
   const cancellations = usePendingCancellations();
   const revisions = useQuery({
@@ -49,12 +57,13 @@ export function DashboardApprovalNotice() {
   });
   if (!queue.allowed) return null;
   return (
+    <div className="grid gap-3 lg:grid-cols-2">
     <a
-      href="/financeiro#aprovacoes"
+      href="https://login.qrcodevalidacao.com/aprovacoes?aba=pedidos"
       className="surface-card my-4 flex items-center justify-between gap-3 border-l-4 border-l-primary p-4"
     >
       <div>
-        <p className="font-semibold">Pedidos para aprovação</p>
+        <p className="font-semibold">Pedidos em análise</p>
         <p className="text-sm text-muted-foreground">
           {queue.error
             ? "Abra a fila para conferir os pedidos."
@@ -76,6 +85,11 @@ export function DashboardApprovalNotice() {
       )}
       <span className="text-sm font-medium text-primary">Abrir fila →</span>
     </a>
+    {financialAccess.data === true && <a href="https://login.qrcodevalidacao.com/aprovacoes?aba=pagamentos" className="surface-card my-4 flex items-center justify-between gap-3 border-l-4 border-l-amber-500 p-4">
+      <div><p className="font-semibold">Aprovar pagamentos</p><p className="text-sm text-muted-foreground">{payments.isError ? "Abra a fila para conferir as pendências." : payments.isLoading ? "Conferindo pagamentos…" : `${payments.data ?? 0} pagamento(s) aguardando conferência`}</p></div>
+      <span className="text-sm font-medium text-primary">Revisar pagamentos →</span>
+    </a>}
+    </div>
   );
 }
 
@@ -126,8 +140,8 @@ export function OrderApprovalQueue() {
       })),
     };
   }
-  async function act(action: "adjust" | "approve" | "reject") {
-    if (!selected || busy) return;
+  async function act(action: "adjust" | "approve" | "reject" | "request_changes") {
+    if (!selected || busy || !queue.canReview) return;
     if (reason.trim().length < 5)
       return void toast.error("Descreva a decisão ou o ajuste (mínimo 5 caracteres).");
     if (selected.seller_id === queue.userId)
@@ -176,10 +190,10 @@ export function OrderApprovalQueue() {
         }
       }
       if (action !== "adjust" && !savedAdjustments) {
-        const result = await db.rpc("remuneration_review_order", {
+        const result = await db.rpc("integral_decide_order", {
           p_order: selected.id,
           p_expected_updated_at: selected.updated_at,
-          p_approve: action === "approve",
+          p_decision: action,
           p_reason: reason,
           p_commission_mode: mode,
           p_commission_amount: mode === "exception" ? Number(amount) : null,
@@ -200,7 +214,7 @@ export function OrderApprovalQueue() {
             ? "Pedido aprovado. Vendedor notificado."
             : action === "reject"
               ? "Pedido reprovado. Vendedor notificado."
-              : "Ajustes registrados. Vendedor notificado.",
+              : "Ajuste solicitado. Vendedor notificado para corrigir e reenviar.",
       );
     } catch (error) {
       toast.error((error as Error).message);
@@ -212,7 +226,7 @@ export function OrderApprovalQueue() {
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold">Aprovações de pedidos</h2>
+        <h2 className="text-lg font-semibold">Pedidos em análise</h2>
         <p className="text-sm text-muted-foreground">
           Confira os dados e a comissão antes de liberar estoque e transporte. Cada decisão fica
           registrada e é comunicada ao vendedor.
@@ -243,14 +257,14 @@ export function OrderApprovalQueue() {
                   {formatMoney(Number(o.total), o.currency)}
                 </p>
               </div>
-              <Button onClick={() => open(o)}>Revisar pedido</Button>
+              <Button onClick={() => open(o)}>{queue.canReview ? "Revisar pedido" : "Ver pedido"}</Button>
             </article>
           ))}
         </>
       )}
-      <CancellationReviewQueue />
-      <OrderApprovals />
-      <FinancialClosureQueue />
+      <ReviewDecisionHistory kind="order" />
+      {queue.canReview && <CancellationReviewQueue />}
+      {queue.canReview && <OrderApprovals />}
       <Dialog
         open={!!selected}
         onOpenChange={(v) => {
@@ -262,7 +276,8 @@ export function OrderApprovalQueue() {
             <DialogTitle>Revisar pedido #{selected?.number}</DialogTitle>
           </DialogHeader>
           {draft && (
-            <div className="space-y-4">
+            <fieldset disabled={!queue.canReview} className="space-y-4">
+              {!queue.canReview && <p className="text-sm text-muted-foreground">Acesso de consulta. Somente admin e superadmin podem decidir.</p>}
               <p className="text-sm">
                 {selected.customer_name} · Vendedor: {selected.seller_name}
               </p>
@@ -372,6 +387,7 @@ export function OrderApprovalQueue() {
                   </label>
                 )}
               </div>
+              <CommissionBreakdown orderId={selected.id} />
               <label className="grid gap-1 text-sm">
                 Justificativa da decisão ou dos ajustes
                 <Input
@@ -404,9 +420,10 @@ export function OrderApprovalQueue() {
                   variant="destructive"
                   onClick={() => act("reject")}
                 >
-                  Reprovar / devolver
+                  Reprovar pedido
                 </Button>
               </div>
+              <Button variant="outline" disabled={busy || selected.seller_id === queue.userId} onClick={() => act("request_changes")}>Solicitar ajuste ao vendedor</Button>
               <details>
                 <summary className="cursor-pointer text-sm font-medium">
                   Histórico de movimentações
@@ -424,7 +441,7 @@ export function OrderApprovalQueue() {
                   ))}
                 </div>
               </details>
-            </div>
+            </fieldset>
           )}
         </DialogContent>
       </Dialog>
