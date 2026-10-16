@@ -74,6 +74,12 @@ BEGIN
  ASSERT (SELECT status='pago' FROM public.payments WHERE id=payid2),'Payment confirmation failed';
  ASSERT (SELECT amount_paid=200 AND amount_receivable=0 FROM public.orders WHERE id=oid2),'Confirmed payment did not update order';
  ASSERT EXISTS(SELECT 1 FROM private.integral_payment_reviews WHERE payment_id=payid2 AND decision='confirmed'),'Confirmation history missing';
+ PERFORM set_config('request.jwt.claim.sub',super_id::text,true);
+ PERFORM public.remuneration_close_order(oid2,'Conferência completa controlada pelo superadmin');
+ ASSERT (SELECT financial_closed_at IS NOT NULL AND financial_closed_by=super_id FROM public.orders WHERE id=oid2),'Superadmin could not close paid fixture';
+ ASSERT EXISTS(SELECT 1 FROM private.integral_payment_reviews WHERE order_id=oid2 AND decision='closed' AND reviewed_by=super_id),'Closure decision missing from audit';
+ ASSERT (public.remuneration_close_order(oid2,'Repetição controlada da mesma conferência')->>'replayed')::boolean,'Closure replay not idempotent';
+ PERFORM set_config('request.jwt.claim.sub',admin_id::text,true);
  ASSERT private.integral_can_review_financial(admin_id),'Ze must review financial';
  ASSERT private.integral_can_review_financial((SELECT id FROM public.profiles WHERE email='bia.pharmalabz@gmail.com')),'Bia must review financial';
  ASSERT NOT EXISTS(SELECT 1 FROM public.user_roles ur WHERE ur.role='admin' AND ur.user_id<>admin_id AND ur.user_id<>(SELECT id FROM public.profiles WHERE email='bia.pharmalabz@gmail.com') AND private.integral_can_review_financial(ur.user_id)),'Other administrators must not review financial';
