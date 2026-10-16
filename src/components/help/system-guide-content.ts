@@ -221,7 +221,7 @@ export const guideChapters: GuideChapter[] = [
       },
       {
         title: "Crie seu material",
-        text: "Na Direção Geral, use Novo catálogo e suas configurações administrativas. No Estadual, clique em Novo catálogo online, informe título, descrição, moeda e WhatsApp opcional; selecione os produtos liberados e escolha se deseja publicar.",
+        text: "Na Direção Geral, use Novo catálogo e suas configurações administrativas. No Estadual, clique em Novo catálogo online, informe título, descrição, moeda e WhatsApp opcional; selecione categorias inteiras, subcategorias ou produtos individuais entre os liberados e escolha se deseja publicar.",
       },
       {
         title: "Confira as duas versões",
@@ -267,7 +267,7 @@ export const guideChapters: GuideChapter[] = [
       },
       {
         title: "Crie uma tabela online",
-        text: "Clique em Nova tabela de vendas no Estadual ou Nova tabela de venda na Direção Geral. Informe título, moeda, descrição e os produtos selecionados. Salve e confira os links Vendedor e Cliente do cartão. O vendedor monta o material sem alterar preços dos produtos.",
+        text: "Clique em Nova tabela de vendas no Estadual ou Nova tabela de venda na Direção Geral. Informe título, moeda, descrição e as categorias, subcategorias ou produtos desejados. Salve e confira os links Vendedor e Cliente do cartão. O vendedor monta o material sem alterar preços dos produtos.",
       },
       {
         title: "Defina a visibilidade interna",

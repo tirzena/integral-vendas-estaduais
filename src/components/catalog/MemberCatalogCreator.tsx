@@ -1,8 +1,9 @@
+import { CatalogProductPicker, type MaterialSelectionItem } from "./CatalogProductPicker";
+import type { CatalogCategory, CatalogSubcategory } from "@/lib/catalog-selection";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { formatMoney } from "@/lib/format";
 import {
   Dialog,
   DialogContent,
@@ -15,22 +16,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-type Item = {
-  id: string;
-  name: string;
-  price: number;
-  price_currency?: "BRL" | "USD" | "PYG";
-  currency?: "BRL" | "USD" | "PYG";
-  quantity: number;
-};
+type Item = MaterialSelectionItem;
 export function MemberCatalogCreator({
   layout,
   items,
+  categories = [],
+  subcategories = [],
   onClose,
   onCreated,
 }: {
   layout: "cards" | "lista";
   items: Item[];
+  categories?: CatalogCategory[];
+  subcategories?: CatalogSubcategory[];
   onClose: () => void;
   onCreated?: () => void;
 }) {
@@ -43,10 +41,6 @@ export function MemberCatalogCreator({
   const [shared, setShared] = useState(true);
   const [saving, setSaving] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
-  const [search, setSearch] = useState("");
-  const filtered = items.filter((i) =>
-    i.name.toLocaleLowerCase("pt-BR").includes(search.trim().toLocaleLowerCase("pt-BR")),
-  );
   async function save(e: React.FormEvent) {
     e.preventDefault();
     if (saving) return;
@@ -156,65 +150,13 @@ export function MemberCatalogCreator({
               convertidos para a moeda de apresentação; um preço em reais continua igual quando
               apresentado em reais. Este material não altera produtos ou estoque.
             </p>
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Label>Produtos ({selected.length} selecionados)</Label>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSelected(items.slice(0, 500).map((i) => i.id))}
-                  >
-                    Selecionar todos
-                  </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setSelected([])}>
-                    Limpar
-                  </Button>
-                </div>
-              </div>
-              <Input
-                aria-label="Buscar produto para o material"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar produto…"
-              />
-              <div className="max-h-64 space-y-1 overflow-y-auto rounded-lg border p-2">
-                {filtered.map((item) => (
-                  <label
-                    key={item.id}
-                    className="flex cursor-pointer items-center gap-3 rounded-lg p-2 hover:bg-muted"
-                  >
-                    <Checkbox
-                      checked={selected.includes(item.id)}
-                      onCheckedChange={(checked) =>
-                        setSelected((prev) =>
-                          checked
-                            ? [...new Set([...prev, item.id])]
-                            : prev.filter((id) => id !== item.id),
-                        )
-                      }
-                    />
-                    <span className="min-w-0 flex-1 text-sm">
-                      <span className="block font-medium">{item.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {Number(item.price) > 0
-                          ? formatMoney(
-                              Number(item.price),
-                              item.price_currency ?? item.currency ?? "USD",
-                            )
-                          : "Sob consulta"}{" "}
-                        · {item.quantity} disponíveis
-                      </span>
-                    </span>
-                  </label>
-                ))}
-                {!filtered.length && (
-                  <p className="p-3 text-sm text-muted-foreground">Nenhum produto encontrado.</p>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">Selecione de 1 a 500 produtos.</p>
-            </div>
+            <CatalogProductPicker
+              items={items}
+              categories={categories}
+              subcategories={subcategories}
+              selected={selected}
+              onChange={setSelected}
+            />
             <p className="text-xs text-muted-foreground">
               Ao criar, o material fica publicado para compartilhar por link. Os pedidos continuam
               sujeitos à aprovação.

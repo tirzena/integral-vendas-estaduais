@@ -45,6 +45,8 @@ export function SalesCatalogWorkspace() {
         <MemberCatalogCreator
           layout={createLayout}
           items={query.data.items}
+          categories={query.data.products}
+          subcategories={query.data.categories}
           onCreated={() => setMaterialVersion((v) => v + 1)}
           onClose={() => setCreateLayout(null)}
         />

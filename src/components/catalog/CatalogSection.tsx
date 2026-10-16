@@ -1,3 +1,4 @@
+import { CatalogProductPicker } from "./CatalogProductPicker";
 import { useSalesCatalog } from "@/hooks/useSalesCatalog";
 import { informationSourceUrl } from "@/lib/product-information";
 import { StockEntryDialog } from "@/components/inventory/StockEntryDialog";
@@ -1222,6 +1223,8 @@ export function CatalogSection({
   async function saveCatalog() {
     const f = catalogForm;
     if (!f?.title) return void toast.error("Dê um nome ao catálogo.");
+    if (f.explicit_selection && !f.item_ids?.length)
+      return void toast.error("Selecione pelo menos um produto para o material.");
     const invalid =
       f.catalog_kind === "general"
         ? null
@@ -2761,97 +2764,42 @@ export function CatalogSection({
                     </label>
                   </div>
                   <div className="sm:col-span-2">
-                    <Label>Categorias incluídas</Label>
-                    <p className="text-muted-foreground mb-2 text-xs">
-                      Sem marcar nada, o catálogo mostra todos os produtos ativos.
-                    </p>
-                    <div className="grid max-h-40 gap-1 overflow-y-auto rounded-md border p-2 sm:grid-cols-2">
-                      {macros.map((m) => {
-                        const list: string[] = catalogForm.product_ids ?? [];
-                        return (
-                          <label key={m.id} className="flex items-center gap-2 text-sm">
-                            <Checkbox
-                              checked={list.includes(m.id)}
-                              onCheckedChange={(v) =>
-                                setCatalogForm({
-                                  ...catalogForm,
-                                  product_ids: v ? [...list, m.id] : list.filter((x) => x !== m.id),
-                                  category_ids: [],
-                                  item_ids: [],
-                                  offer_item_ids: [],
-                                })
-                              }
-                            />
-                            {m.name}
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <Label>Subcategorias incluídas</Label>
-                    <div className="grid max-h-40 gap-1 overflow-y-auto rounded-md border p-2 sm:grid-cols-2">
-                      {subs
-                        .filter(
-                          (s) =>
-                            !(catalogForm.product_ids ?? []).length ||
-                            (catalogForm.product_ids ?? []).includes(s.product_id),
-                        )
-                        .map((s) => {
-                          const list: string[] = catalogForm.category_ids ?? [];
-                          return (
-                            <label key={s.id} className="flex items-center gap-2 text-sm">
-                              <Checkbox
-                                checked={list.includes(s.id)}
-                                onCheckedChange={(v) =>
-                                  setCatalogForm({
-                                    ...catalogForm,
-                                    category_ids: v
-                                      ? [...list, s.id]
-                                      : list.filter((x) => x !== s.id),
-                                    item_ids: [],
-                                    offer_item_ids: [],
-                                  })
-                                }
-                              />
-                              {s.name}
-                            </label>
-                          );
-                        })}
-                    </div>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <Label>Produtos incluídos</Label>
-                    <p className="text-muted-foreground mb-2 text-xs">
-                      A lista abaixo respeita as categorias e subcategorias selecionadas.
-                    </p>
-                    <div className="grid max-h-48 gap-1 overflow-y-auto rounded-md border p-2 sm:grid-cols-2">
-                      {items
-                        .filter(
-                          (i: any) =>
-                            (!(catalogForm.product_ids ?? []).length ||
-                              (catalogForm.product_ids ?? []).includes(i.product_id)) &&
-                            (!(catalogForm.category_ids ?? []).length ||
-                              (catalogForm.category_ids ?? []).includes(i.category_id)),
-                        )
-                        .map((i: any) => {
-                          const list: string[] = catalogForm.item_ids ?? [];
-                          return (
-                            <label key={i.id} className="flex items-center gap-2 text-sm">
-                              <Checkbox
-                                checked={list.includes(i.id)}
-                                onCheckedChange={(v) =>
-                                  setCatalogForm({
-                                    ...catalogForm,
-                                    item_ids: v ? [...list, i.id] : list.filter((x) => x !== i.id),
-                                  })
-                                }
-                              />
-                              <span className="truncate">{i.name}</span>
-                            </label>
-                          );
-                        })}
-                    </div>
+                    <CatalogProductPicker
+                      items={items}
+                      categories={macros}
+                      subcategories={subs}
+                      selectionLimit={Math.max(500, items.length)}
+                      selected={
+                        catalogForm.explicit_selection
+                          ? (catalogForm.item_ids ?? [])
+                          : items
+                              .filter((i: any) =>
+                                catalogForm.catalog_kind === "general"
+                                  ? true
+                                  : catalogForm.item_ids?.length
+                                    ? catalogForm.item_ids.includes(i.id)
+                                    : catalogForm.category_ids?.length
+                                      ? catalogForm.category_ids.includes(i.category_id)
+                                      : catalogForm.product_ids?.length
+                                        ? catalogForm.product_ids.includes(i.product_id)
+                                        : true,
+                              )
+                              .map((i: any) => i.id)
+                      }
+                      onChange={(ids) =>
+                        setCatalogForm({
+                          ...catalogForm,
+                          explicit_selection: true,
+                          catalog_kind: "selection",
+                          item_ids: ids,
+                          product_ids: [],
+                          category_ids: [],
+                          offer_item_ids: (catalogForm.offer_item_ids ?? []).filter((id: string) =>
+                            ids.includes(id),
+                          ),
+                        })
+                      }
+                    />
                   </div>
                   <div className="sm:col-span-2 rounded-lg border p-3">
                     <Label>Quem pode visualizar no painel</Label>
