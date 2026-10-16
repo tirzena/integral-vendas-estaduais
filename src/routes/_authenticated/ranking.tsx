@@ -57,7 +57,7 @@ function RankingPage() {
   const { isAdmin } = useCurrentUser();
   const { seesCompanySales, userId } = usePermissions();
   // Sem permissão, valores em dinheiro só aparecem na própria linha.
-  const canSeeMoney = (row: any) => seesCompanySales || row.userId === userId;
+  const canSeeMoney = (row: any) => row.canSeeMoney === true;
   const [period, setPeriod] = useState<RankingPeriod>("30d");
   const display = "USD" as const;
   const { rows, loading, error } = useRanking(period, productId, display);

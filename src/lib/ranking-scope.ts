@@ -2,6 +2,9 @@
 export const NON_COMPETING_MEMBER_IDS = new Set([
   "cf25abd8-ed9d-438d-8b09-85e27a71e808", // Zé
   "90a39e4e-4529-4929-b682-33377cf34080", // Junior
+  "2046cc11-d5f8-4e23-b813-222b3e56a662", // Patrick
+  "28d111b5-1d7d-4555-8c9d-4b5d04fea4b8", // Bia
+  "60f8d872-1e03-4fa3-bd85-f50dd17140cd", // Formiga
 ]);
 
 type Order = { product_id?: string | null; total?: number | null };

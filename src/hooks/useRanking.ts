@@ -1,7 +1,7 @@
-import { activeRankingSellerIds, rankingOrderScope } from "@/lib/ranking-scope";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useCurrentUser } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useRates, type Currency } from "@/hooks/useRates";
 
@@ -51,6 +51,7 @@ export type RankingRow = {
   orders: number;
   sales: number;
   conversion: number;
+  canSeeMoney: boolean;
   revenue: number;
   bonus: number;
   units: number;
@@ -63,146 +64,47 @@ export function useRanking(
   display: Currency = "USD",
 ) {
   const { convert, ready } = useRates();
-
+  const { userId } = useCurrentUser();
+  const from = periodStart(period)?.toISOString() ?? null;
   const query = useQuery({
-    queryKey: ["ranking-data", productId],
+    queryKey: ["ranking-summary", userId, period, productId],
+    enabled: !!userId,
     queryFn: async () => {
-      const pid = productId === "todos" ? null : productId;
-      const ordersQuery = supabase
-        .from("orders")
-        .select("id,seller_id,status,total,currency,created_at,product_id,workflow_stage,order_date")
-        .is("deleted_at", null)
-        .is("superseded_at", null)
-        .or("approval_status.is.null,approval_status.eq.approved")
-        .is("replacement_for_order_id", null)
-        .or("customer_resolution.is.null,customer_resolution.neq.credit")
-        .limit(3000);
-      // Category filtering uses the lines of mixed orders, not just the header.
-      const [ordersResult, profilesResult, awardsResult, rolesResult] = await Promise.all([
-        ordersQuery,
-        supabase.from("profiles").select("id,full_name,email,is_active"),
-        supabase.from("bonus_awards").select("user_id,amount,currency,created_at,status"),
-        supabase.from("user_roles").select("user_id").eq("role", "vendedor"),
-      ]);
-      for (const result of [ordersResult, profilesResult, awardsResult, rolesResult]) if (result.error) throw result.error;
-      const orders = ordersResult.data; const profiles = profilesResult.data; const awards = awardsResult.data; const sellers = rolesResult.data;
-      const ids = (orders ?? []).map((o: any) => o.id);
-      const items: any[] = [];
-      for (let offset = 0; offset < ids.length; offset += 200) {
-        const { data, error } = await supabase
-          .from("order_items")
-          .select("id,order_id,item_id,description,quantity,total")
-          .in("order_id", ids.slice(offset, offset + 200));
-        if (error) throw error;
-        items.push(...(data ?? []));
-      }
-      const itemIds = [...new Set(items.map((item: any) => item.item_id).filter(Boolean))] as string[];
-      const inventory: { id: string; product_id: string | null }[] = [];
-      if (pid) for (let offset = 0; offset < itemIds.length; offset += 200) {
-        const { data, error } = await supabase.from("inventory_items").select("id,product_id").in("id", itemIds.slice(offset, offset + 200));
-        if (error) throw error;
-        inventory.push(...(data ?? []));
-      }
-      return {
-        inventory,
-        orders: orders ?? [],
-        profiles: profiles ?? [],
-        awards: awards ?? [],
-        sellers: sellers ?? [],
-        items,
-      };
+      const { data, error } = await (supabase.rpc as any)("integral_ranking_summary", {
+        p_from: from,
+        p_product_id: productId === "todos" ? null : productId,
+      });
+      if (error) throw error;
+      return (data ?? []) as Array<{
+        userId: string;
+        name: string;
+        orders: number;
+        sales: number;
+        units: number;
+        canSeeMoney: boolean;
+        revenue: { currency: Currency; amount: number }[] | null;
+        bonus: { currency: Currency; amount: number }[] | null;
+        products: ProductSales[];
+      }>;
     },
+    staleTime: 30_000,
+    refetchInterval: 60_000,
   });
-
   const rows = useMemo<RankingRow[]>(() => {
-    const data = query.data;
-    if (!data) return [];
-    const from = periodStart(period);
-    const now = new Date();
-    const inPeriod = (d: string | null) => {
-      if (!d) return !from;
-      const date = new Date(d.length === 10 ? `${d}T00:00:00` : d);
-      return date <= now && (!from || date >= from);
-    };
-    const nameOf = (id: string) => {
-      const p = data.profiles.find((x: any) => x.id === id);
-      return p?.full_name || p?.email || "Sem responsável";
-    };
-
-    const itemsByOrder = new Map<string, any[]>();
-    for (const it of data.items as any[]) {
-      const current = itemsByOrder.get(it.order_id) ?? [];
-      current.push(it);
-      itemsByOrder.set(it.order_id, current);
-    }
-
-    const map = new Map<string, RankingRow>();
-    const ensure = (id: string) => {
-      if (!map.has(id))
-        map.set(id, {
-          userId: id,
-          name: nameOf(id),
-          orders: 0,
-          sales: 0,
-          conversion: 0,
-          revenue: 0,
-          bonus: 0,
-          units: 0,
-          products: [],
-        });
-      return map.get(id)!;
-    };
-
-    const sellerIds = activeRankingSellerIds(data.sellers, data.profiles);
-    const categories = new Map<string, string | null>(data.inventory.map(item => [item.id, item.product_id]));
-    for (const id of sellerIds) ensure(id as string);
-
-    for (const o of data.orders as any[]) {
-      if (!o.seller_id || !sellerIds.has(o.seller_id) || !inPeriod(o.order_date ?? o.created_at) || o.status === "cancelado" || o.workflow_stage === "cancelado") continue;
-      const scoped = rankingOrderScope(o, itemsByOrder.get(o.id) ?? [], productId, categories);
-      if (!scoped.matches) continue;
-      const row = ensure(o.seller_id);
-      row.orders += 1;
-      if (SOLD_STATUSES.includes(String(o.status))) {
-        row.sales += 1;
-        const value = convert(scoped.total, (o.currency ?? "USD") as Currency, display);
-        row.revenue += value ?? 0;
-        const orderItems = scoped.lines;
-        const units = orderItems.reduce((sum, item) => sum + Number(item.quantity ?? 0), 0);
-        row.units += units;
-        for (const item of orderItems) {
-          const productKey = item.item_id ?? `${item.description}:${item.id}`;
-          const product = row.products.find((entry) => entry.id === productKey);
-          if (product) {
-            product.sales += 1;
-            product.units += Number(item.quantity ?? 0);
-          } else {
-            row.products.push({
-              id: productKey,
-              name: item.description || "Produto sem nome",
-              sales: 1,
-              units: Number(item.quantity ?? 0),
-            });
-          }
-        }
-      }
-    }
-
-    for (const a of data.awards as any[]) {
-      if (!a.user_id || !sellerIds.has(a.user_id) || !inPeriod(a.created_at)) continue;
-      const row = ensure(a.user_id);
-      const value = convert(Number(a.amount ?? 0), (a.currency ?? "USD") as Currency, display);
-      row.bonus += value ?? 0;
-    }
-
-    return [...map.values()]
-      .map((r) => ({
-        ...r,
-        conversion: r.orders ? (r.sales / r.orders) * 100 : 0,
-        products: [...r.products].sort((a, b) => b.units - a.units || b.sales - a.sales),
-      }))
-      .sort((a, b) => b.units - a.units || b.sales - a.sales || b.revenue - a.revenue);
-  }, [query.data, period, productId, display, convert]);
-
+    const sum = (amounts: { currency: Currency; amount: number }[] | null) =>
+      (amounts ?? []).reduce(
+        (total, value) => total + (convert(Number(value.amount), value.currency, display) ?? 0),
+        0,
+      );
+    return (query.data ?? []).map((row) => ({
+      ...row,
+      orders: Number(row.orders),
+      sales: Number(row.sales),
+      units: Number(row.units),
+      conversion: Number(row.orders) ? (Number(row.sales) / Number(row.orders)) * 100 : 0,
+      revenue: sum(row.revenue),
+      bonus: sum(row.bonus),
+    }));
+  }, [query.data, display, convert]);
   return { rows, loading: query.isLoading, error: query.error, ratesReady: ready };
 }

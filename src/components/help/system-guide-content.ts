@@ -172,7 +172,7 @@ export const guideChapters: GuideChapter[] = [
     id: "cadastro-produto",
     title: "Criar produto e vincular o estoque",
     group: "Comercial",
-    route: "/produtos",
+    route: "/categorias",
     scope: "general",
     summary: "Organize o cadastro do produto antes de registrar sua entrada de estoque.",
     steps: [
@@ -182,7 +182,7 @@ export const guideChapters: GuideChapter[] = [
       },
       {
         title: "Cadastre o produto",
-        text: "Na Direção Geral, use a ação de novo produto. Informe nome, apresentação, marca, unidade, categoria, subcategoria, imagem e fornecedor conforme os campos disponíveis.",
+        text: "Em Categorias → Produtos, use Novo produto. Informe nome, apresentação, marca, unidade, categoria, subcategoria, imagem e fornecedor conforme os campos disponíveis.",
       },
       {
         title: "Defina os preços",
