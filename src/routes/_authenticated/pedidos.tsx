@@ -1,3 +1,4 @@
+import { collectionWorkflow } from "@/lib/payment-delay";
 import { SellerApprovalSummary } from "@/components/dashboard/SellerApprovalSummary";
 import { scopeOrdersByProduct } from "@/lib/order-product-scope";
 import { useEstadualAccess } from "@/hooks/useEstadualAccess";
@@ -114,7 +115,7 @@ function Pedidos() {
     queryFn: async () => {
       const ordersQuery = (supabase as any)
         .from("orders")
-        .select("id,workflow_stage,status,product_id,origin,kind,stock_state,approval_status,review_outcome")
+        .select("id,workflow_stage,status,product_id,origin,kind,stock_state,approval_status,review_outcome,delivered_at,amount_paid,total,fulfillment_status")
         .is("deleted_at", null)
         .is("superseded_at", null);
       const { data: orders, error: ordersError } = await scopeOrdersByProduct(supabase, ordersQuery, productId);
@@ -144,7 +145,7 @@ function Pedidos() {
         }
         next["pedidos"] += 1;
         if (pendingPayments.data?.has(order.id)) next.aguardando_financeiro += 1;
-        const stage = order.status === "cancelado" ? "cancelado" : order.workflow_stage;
+        const stage = order.status === "cancelado" ? "cancelado" : (collectionWorkflow(order, pendingPayments.data?.has(order.id)) ?? "pedido_feito");
         if (Object.hasOwn(next, stage)) next[stage as keyof typeof next] += 1;
       }
       return next;

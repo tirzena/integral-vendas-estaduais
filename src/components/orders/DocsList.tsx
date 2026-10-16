@@ -1,3 +1,4 @@
+import { paymentDelayDays, collectionWorkflow } from "@/lib/payment-delay";
 import { matchesOrderReview, orderReviewStage, orderReviewLabels, usePendingPaymentOrders, type OrderReviewFilter } from "@/lib/order-review-flow";
 import { CommissionBreakdown } from "@/components/orders/CommissionBreakdown";
 import { OrderReviewStatus } from "@/components/orders/OrderReviewStatus";
@@ -551,7 +552,7 @@ export function DocsList({
       if (
         stage &&
         stage !== "cancelado" &&
-        (d.status === "cancelado" || d.workflow_stage !== stage)
+        (d.status === "cancelado" || (collectionWorkflow(d, pendingPaymentOrders.data?.has(d.id)) ?? "pedido_feito") !== stage)
       )
         return false;
       if (!t) return true;
@@ -632,7 +633,7 @@ export function DocsList({
       pagamento_parcial: "Pagamento parcial",
       esperando_pagamento: "Pagamento atrasado",
     };
-    return labels[doc.workflow_stage] ?? STATUS_LABEL[doc.status] ?? doc.status;
+    return labels[collectionWorkflow(doc, pendingPaymentOrders.data?.has(doc.id)) ?? ""] ?? STATUS_LABEL[doc.status] ?? doc.status;
   };
 
   function buildOrdersReport(): ReportData {
@@ -645,7 +646,7 @@ export function DocsList({
             if (excludeRequests && orderReviewStage(doc) !== "approved") return false;
             if (stage === "cancelado") return doc.status === "cancelado";
             if (stage)
-              return doc.status !== "cancelado" && doc.workflow_stage === stage;
+              return doc.status !== "cancelado" && collectionWorkflow(doc, pendingPaymentOrders.data?.has(doc.id)) === stage;
             return true;
           });
     const selected = source.filter((doc: any) => {
@@ -656,7 +657,7 @@ export function DocsList({
         return false;
       if (
         reportStatus !== "todos" &&
-        doc.workflow_stage !== reportStatus &&
+        collectionWorkflow(doc, pendingPaymentOrders.data?.has(doc.id)) !== reportStatus &&
         doc.status !== reportStatus
       )
         return false;
@@ -2404,7 +2405,7 @@ export function DocsList({
                         <Badge variant={orderReviewStage(d) === "rejected" ? "destructive" : "secondary"}>{orderReviewLabels[orderReviewStage(d)]}</Badge>
                       ) : !isQuote && !cancelled ? (
                         <Select
-                          value={pendingPaymentOrders.data?.has(d.id) ? "payment_pending" : d.workflow_stage ?? "pedido_feito"}
+                          value={pendingPaymentOrders.data?.has(d.id) ? "payment_pending" : (collectionWorkflow(d, pendingPaymentOrders.data?.has(d.id)) ?? "pedido_feito") ?? "pedido_feito"}
                           onValueChange={(next) => {
                             if (next === "cancelado") {
                               setCancelReason("");
@@ -2412,7 +2413,7 @@ export function DocsList({
                               setCancelDoc(d);
                             } else if (["vendido", "pagamento_parcial", "esperando_pagamento", "payment_pending"].includes(next)) {
                               toast.info("Use Lançar pagamento. A situação financeira é atualizada após a confirmação do financeiro.");
-                            } else if (next !== d.workflow_stage) {
+                            } else if (next !== (collectionWorkflow(d, pendingPaymentOrders.data?.has(d.id)) ?? "pedido_feito")) {
                               void changeStage(d, next);
                             }
                           }}
@@ -2422,7 +2423,7 @@ export function DocsList({
                             aria-label={`Alterar situação do pedido ${d.number}`}
                             className={cn(
                               "h-8 w-auto min-w-44 rounded-full border px-3 font-medium shadow-none",
-                              workflowTone(d.workflow_stage),
+                              workflowTone((collectionWorkflow(d, pendingPaymentOrders.data?.has(d.id)) ?? "pedido_feito")),
                             )}
                           >
                             <SelectValue />
@@ -2525,10 +2526,15 @@ export function DocsList({
                     </div>
                   )}
                   {!isQuote && !stockOnly && !cancelled && (
-                    <PaymentMeter
+                    <><PaymentMeter
                       pending={pendingPaymentAmounts.data?.[d.id] ?? 0} paid={Number(d.amount_paid || 0)}
                       total={Number(d.total || 0)}
                     />
+                    {paymentDelayDays(d, pendingPaymentOrders.data?.has(d.id)) > 0 && (
+                      <p className="text-sm font-medium text-destructive">
+                        Pagamento atrasado · {paymentDelayDays(d, pendingPaymentOrders.data?.has(d.id))} dias desde a entrega
+                      </p>
+                    )}</>
                   )}
                   <div className="flex min-h-10 flex-wrap items-center gap-2 border-t pt-3">
                     {!isQuote && (
@@ -2811,6 +2817,11 @@ export function DocsList({
                     </p>
                   </div>
                 </div>
+                {paymentDelayDays(detailDoc, pendingPaymentOrders.data?.has(detailDoc.id)) > 0 && (
+                  <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm font-medium text-destructive">
+                    Pagamento atrasado · {paymentDelayDays(detailDoc, pendingPaymentOrders.data?.has(detailDoc.id))} dias desde a entrega
+                  </p>
+                )}
                 {detailDoc.delivery_token && (
                   <DeliveryQr
                     token={detailDoc.delivery_token}
