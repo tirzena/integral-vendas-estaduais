@@ -29,12 +29,14 @@ export function SellerApprovalSummary() {
     Não foi possível consultar suas aprovações. <button type="button" className="text-primary underline" onClick={() => query.refetch()}>Tentar novamente</button>
   </div>;
   const summary = query.data;
-  return <section aria-label="Acompanhamento dos meus pedidos e pagamentos" className="mb-5 grid gap-3 lg:grid-cols-2">
-    <div className="surface-card border-l-4 border-l-primary p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="font-semibold">Meus pedidos · aprovações</h2>
-        <a href="/pedidos?aba=solicitacoes" className="text-sm font-medium text-primary">Acompanhar →</a>
-      </div>
+  return <section aria-label="Acompanhamento dos meus pedidos e pagamentos" className="mb-5 grid items-start gap-3 lg:grid-cols-2">
+    <details className="surface-card border-l-4 border-l-primary p-4">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold [&::-webkit-details-marker]:hidden">
+        <span>Meus pedidos · aprovações</span>
+        <span aria-label="Total dos meus pedidos">{query.isLoading ? "…" : Object.values(summary?.orders ?? {}).reduce((total, count) => total + count, 0)}</span>
+      </summary>
+      <div className="mt-3">
+      <a href="/pedidos?aba=solicitacoes" className="mb-3 block text-sm font-medium text-primary">Acompanhar pedidos →</a>
       {query.isLoading ? <p className="text-sm text-muted-foreground">Conferindo seus pedidos…</p> : <div className="grid grid-cols-2 gap-2 text-sm">
         {([
           ["Em análise", "solicitacoes", summary?.orders.pending],
@@ -44,12 +46,15 @@ export function SellerApprovalSummary() {
         ] as const).map(([label, tab, count]) => <a key={tab} href={`/pedidos?aba=${tab}`} className="flex items-center justify-between gap-2 rounded-lg bg-muted/50 p-3 hover:bg-muted"><span>{label}</span><strong>{count ?? 0}</strong></a>)}
       </div>}
       <p className="mt-3 text-xs text-muted-foreground">Somente seus pedidos. Abra uma situação para consultar o histórico e os ajustes solicitados.</p>
-    </div>
-    <div className="surface-card border-l-4 border-l-amber-500 p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="font-semibold">Meus pagamentos · conferência</h2>
-        <a href="/pedidos?aba=aguardando_financeiro" className="text-sm font-medium text-primary">Acompanhar →</a>
       </div>
+    </details>
+    <details className="surface-card border-l-4 border-l-amber-500 p-4">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold [&::-webkit-details-marker]:hidden">
+        <span>Meus pagamentos · conferência</span>
+        <span aria-label="Total dos meus lançamentos">{query.isLoading ? "…" : Object.values(summary?.payments ?? {}).reduce((total, count) => total + count, 0)}</span>
+      </summary>
+      <div className="mt-3">
+      <a href="/pedidos?aba=aguardando_financeiro" className="mb-3 block text-sm font-medium text-primary">Acompanhar pagamentos →</a>
       {query.isLoading ? <p className="text-sm text-muted-foreground">Conferindo seus pagamentos…</p> : <>
         <div className="grid grid-cols-3 gap-2 text-sm">
           <a href="/pedidos?aba=aguardando_financeiro" className="rounded-lg bg-muted/50 p-3 hover:bg-muted"><span className="block text-xs">Em análise</span><strong>{summary?.payments.pending ?? 0}</strong></a>
@@ -67,6 +72,7 @@ export function SellerApprovalSummary() {
           {summary?.balances.map(balance => <a key={balance.currency} href="/pedidos?aba=pedidos" className="rounded-lg bg-muted/50 px-3 py-2">A receber: <strong>{formatMoney(Number(balance.amount), balance.currency)}</strong></a>)}
         </div>
       </>}
-    </div>
+      </div>
+    </details>
   </section>;
 }
