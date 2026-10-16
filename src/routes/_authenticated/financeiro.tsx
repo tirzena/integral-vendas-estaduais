@@ -3,9 +3,7 @@ import { useCurrentUser } from "@/hooks/useAuth";
 import { useOperationalAccess } from "@/hooks/useOperationalAccess";
 import { CompanyReadOnlyView } from "@/components/finance/CompanyReadOnlyView";
 import { LogisticsConsole } from "@/components/orders/LogisticsConsole";
-import { OrderApprovalQueue } from "@/components/finance/OrderApprovalQueue";
 import { RemunerationPolicies } from "@/components/finance/RemunerationPolicies";
-import { PendingPaymentReceipts } from "@/components/finance/PendingPaymentReceipts";
 import { FinanceStock } from "@/components/finance/FinanceStock";
 import { CustomerCreditsSection } from "@/components/finance/CustomerCreditsSection";
 import { financeDashboard } from "@/lib/finance-dashboard";
@@ -76,9 +74,18 @@ function statusBadge(r: any) {
 
 function FinanceiroBase() {
   const { seesCompanyFinance, userId, roles, isAdmin } = usePermissions();
-  const canReviewPayments = isAdmin || roles.includes("financeiro");
   const { productId, products } = useProductScope();
   const [displayCurrency, setDisplayCurrency] = useState<Currency>("BRL");
+  useEffect(() => {
+    const redirect = () => {
+      const hash = window.location.hash.slice(1);
+      if (hash === "aprovacoes" || hash === "conferencias")
+        window.location.replace("https://login.qrcodevalidacao.com/aprovacoes?aba=" + (hash === "conferencias" ? "pagamentos" : "pedidos"));
+    };
+    redirect();
+    window.addEventListener("hashchange", redirect);
+    return () => window.removeEventListener("hashchange", redirect);
+  }, []);
   const [financeTab, setFinanceTab] = useState("resumo");
   useEffect(() => { const sync = () => { const value=window.location.hash.slice(1); if (["aprovacoes","politicas","conferencias"].includes(value)) setFinanceTab(value); }; sync(); window.addEventListener("hashchange",sync); return () => window.removeEventListener("hashchange",sync); }, []);
   const [dateFrom, setDateFrom] = useState("");
@@ -562,8 +569,6 @@ function FinanceiroBase() {
           <TabsList className="flex-wrap">
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="receber">A receber</TabsTrigger>
-            {canReviewPayments && <TabsTrigger value="conferencias">Conferir pagamentos</TabsTrigger>}
-            {canReviewPayments && <TabsTrigger value="aprovacoes">Aprovações</TabsTrigger>}
             <TabsTrigger value="politicas">Políticas de remuneração</TabsTrigger>
             <TabsTrigger value="creditos">Créditos de clientes</TabsTrigger>
             <TabsTrigger value="pagar">A pagar</TabsTrigger>
@@ -571,8 +576,6 @@ function FinanceiroBase() {
             <TabsTrigger value="folha">Remuneração e folha</TabsTrigger>
             <TabsTrigger value="lucros">Participação nos lucros</TabsTrigger>
           </TabsList>
-          {canReviewPayments && <TabsContent value="conferencias" className="pt-4"><PendingPaymentReceipts productId={effectiveProductId} /></TabsContent>}
-          {canReviewPayments && <TabsContent value="aprovacoes" className="pt-4"><OrderApprovalQueue /></TabsContent>}
           <TabsContent value="politicas" className="pt-4"><RemunerationPolicies /><PeriodPolicyAccruals /></TabsContent>
           <TabsContent value="resumo" className="pt-4">
             <Tabs defaultValue="visao">

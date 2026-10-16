@@ -1,3 +1,4 @@
+import { matchesOrderReview, orderReviewStage, orderReviewLabels, usePendingPaymentOrders, type OrderReviewFilter } from "@/lib/order-review-flow";
 import { CommissionBreakdown } from "@/components/orders/CommissionBreakdown";
 import { OrderReviewStatus } from "@/components/orders/OrderReviewStatus";
 import { readAllRows } from "@/lib/read-all-rows";
@@ -125,6 +126,7 @@ type Props = {
     | "perdido"
     | "cancelado";
   allOrders?: boolean;
+  reviewFilter?: OrderReviewFilter;
   requestsOnly?: boolean;
   excludeRequests?: boolean;
   onEdit?: (draft: PdvDraft) => void;
@@ -181,10 +183,12 @@ export function DocsList({
   productId,
   stage,
   allOrders = false,
+  reviewFilter,
   requestsOnly = false,
   excludeRequests = false,
   onEdit,
 }: Props) {
+  const pendingPaymentOrders = usePendingPaymentOrders();
   const { seesCompanySales, seesCompanyFinance, isAdmin, roles, can, userId } =
     usePermissions();
   const canIssueCredit = isAdmin || roles.includes("financeiro");
@@ -488,8 +492,10 @@ export function DocsList({
       );
     };
     const filtered = (data?.docs ?? []).filter((d: any) => {
-      if (requestsOnly && !isCatalogRequest(d)) return false;
-      if (excludeRequests && isCatalogRequest(d)) return false;
+      if (requestsOnly && orderReviewStage(d) !== "pending") return false;
+      if (reviewFilter && !matchesOrderReview(d, reviewFilter, pendingPaymentOrders.data ?? new Set())) return false;
+      if (stage && orderReviewStage(d) !== "approved" && d.status !== "cancelado") return false;
+      if (excludeRequests && orderReviewStage(d) !== "approved") return false;
       if (!matchesPeriod(d.order_date ?? d.created_at)) return false;
       if (status !== "todos" && d.status !== status) return false;
       if (seller !== "todos" && d.seller_id !== seller) return false;
@@ -565,6 +571,8 @@ export function DocsList({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     data,
+    reviewFilter,
+    pendingPaymentOrders.data,
     term,
     status,
     seller,
@@ -608,8 +616,9 @@ export function DocsList({
       reportScope === "tela"
         ? docs
         : (data?.docs ?? []).filter((doc: any) => {
-            if (requestsOnly && !isCatalogRequest(doc)) return false;
-            if (excludeRequests && isCatalogRequest(doc)) return false;
+            if (requestsOnly && orderReviewStage(doc) !== "pending") return false;
+            if (reviewFilter && !matchesOrderReview(doc, reviewFilter, pendingPaymentOrders.data ?? new Set())) return false;
+            if (excludeRequests && orderReviewStage(doc) !== "approved") return false;
             if (stage === "cancelado") return doc.status === "cancelado";
             if (stage)
               return doc.status !== "cancelado" && doc.workflow_stage === stage;
@@ -2240,6 +2249,12 @@ export function DocsList({
                           ? ` · validade ${formatDate(d.valid_until)}`
                           : ""}
                       </p>
+                      {!isQuote && (
+                        <Badge className="mt-2" variant={orderReviewStage(d) === "rejected" ? "destructive" : "secondary"}>
+                          {pendingPaymentOrders.data?.has(d.id) && orderReviewStage(d) === "approved"
+                            ? orderReviewLabels.payment_pending : orderReviewLabels[orderReviewStage(d)]}
+                        </Badge>
+                      )}
                       {d.converted_order_id && (
                         <p className="text-xs text-primary">
                           Convertido em pedido (mantido no histórico)
@@ -3052,7 +3067,13 @@ export function DocsList({
                                       layout="inline"
                                     />
                                   </p>
-                                  {payment.status === "cancelado" && (
+                                  {payment.review_note && (
+                                  <p className="mt-1 text-sm text-muted-foreground">
+                                    {payment.review_decision === "rejected" ? "Pagamento reprovado" : payment.review_decision === "changes_requested" ? "Correção solicitada" : "Pagamento ajustado"}: {payment.review_note}
+                                  </p>
+                                )}
+                                {payment.status === "pendente" && <Badge className="mt-1" variant="secondary">Aguardando confirmação financeira</Badge>}
+                                {payment.status === "cancelado" && (
                                     <Badge
                                       variant="destructive"
                                       className="mt-1"
