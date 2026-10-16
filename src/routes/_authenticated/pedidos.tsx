@@ -1,3 +1,4 @@
+import { SellerApprovalSummary } from "@/components/dashboard/SellerApprovalSummary";
 import { scopeOrdersByProduct } from "@/lib/order-product-scope";
 import { useEstadualAccess } from "@/hooks/useEstadualAccess";
 import { orderReviewStage, usePendingPaymentOrders } from "@/lib/order-review-flow";
@@ -172,6 +173,7 @@ function Pedidos() {
           </Button>
         }
       />
+      <SellerApprovalSummary />
       {cashOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-background">
           <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b bg-card/95 px-4 py-3 backdrop-blur md:px-6">
