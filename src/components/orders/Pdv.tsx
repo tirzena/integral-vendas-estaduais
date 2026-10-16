@@ -107,6 +107,8 @@ type CartLine = {
   discount: number;
   available: number;
   base_price: number;
+  catalog_price?: number;
+  uses_catalog_price?: boolean;
   base_currency: Currency;
   commission_enabled: boolean;
   commission_percent: number;
@@ -192,7 +194,7 @@ export function Pdv({
   const scoped = productId !== "todos";
 
   const [step, setStep] = useState("itens");
-  const [currency, setCurrency] = useState<Currency>("USD");
+  const [currency, setCurrency] = useState<Currency>("BRL");
   const [sellerExchange, setSellerExchange] = useState<OrderExchange | null>(null);
   const selectedExchange = useMemo(
     () =>
@@ -504,7 +506,7 @@ export function Pdv({
     setCustomerId(draft.customerId ?? "");
     setUseCustomerCredit(Boolean(draft.useCustomerCredit) && !draft.sourceOrderId);
     setCustomerCreditAmount(draft.customerCreditAmount ?? "");
-    setCurrency(draft.currency ?? "USD");
+    setCurrency(draft.currency ?? "BRL");
     setExchangeMode(draft.exchangeMode ?? "automatic");
     setManualBrl(draft.manualBrl ?? "");
     setManualPyg(draft.manualPyg ?? "");
@@ -581,7 +583,18 @@ export function Pdv({
     setLines((current) =>
       current.map((line) => ({
         ...line,
-        unit_price: convert(line.unit_price),
+        // Always convert from the catalogue source, never from an already rounded equivalent.
+        unit_price:
+          line.uses_catalog_price ||
+          (restrictedSeller && line.max_discount_percent === 0 && !line.promotion_id)
+            ? round2(
+                rates.convert(
+                  line.catalog_price ?? line.base_price,
+                  line.base_currency,
+                  nextCurrency,
+                ) ?? line.unit_price,
+              )
+            : convert(line.unit_price),
         unit_cost: line.unit_cost == null ? null : convert(line.unit_cost),
         discount: convert(line.discount),
       })),
@@ -1006,6 +1019,8 @@ export function Pdv({
         discount: 0,
         available: available(item),
         base_price: Number(item.price ?? 0),
+        catalog_price: Number(item.promotional_price ?? item.price ?? 0),
+        uses_catalog_price: true,
         base_currency: (item.currency ?? "BRL") as Currency,
         commission_enabled: commissionEnabled,
         commission_percent: Number(item.commission_percent ?? 5),
@@ -1062,7 +1077,7 @@ export function Pdv({
 
   function clearSale() {
     creationRequestId.current = crypto.randomUUID();
-    setCurrency("USD");
+    setCurrency("BRL");
     setExchangeMode("automatic");
     setManualBrl("");
     setManualPyg("");
@@ -2699,7 +2714,10 @@ export function Pdv({
                           value={String(l.unit_price)}
                           disabled={Boolean(l.is_bonus)}
                           onChange={(e) =>
-                            updateLine(l.key, { unit_price: toNumber(e.target.value) })
+                            updateLine(l.key, {
+                              unit_price: toNumber(e.target.value),
+                              uses_catalog_price: false,
+                            })
                           }
                           inputMode="decimal"
                           className="h-8"
