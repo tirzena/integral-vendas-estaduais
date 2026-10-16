@@ -23,7 +23,7 @@ import { useCurrentUser } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useRates } from "@/hooks/useRates";
 import { useCommissionPreview } from "@/hooks/useCommissionPreview";
-import { manualExchange, exchangeConvert, isPix } from "@/lib/order-exchange";
+import { manualExchange, exchangeConvert, isPix, type OrderExchange } from "@/lib/order-exchange";
 import { formatMoney, formatNumber } from "@/lib/format";
 import type { Currency } from "@/lib/format";
 import { formatCep, lookupCep } from "@/lib/cep";
@@ -193,6 +193,7 @@ export function Pdv({
 
   const [step, setStep] = useState("itens");
   const [currency, setCurrency] = useState<Currency>("USD");
+  const [sellerExchange, setSellerExchange] = useState<OrderExchange | null>(null);
   const selectedExchange = useMemo(
     () =>
       exchangeMode === "manual"
@@ -201,20 +202,21 @@ export function Pdv({
             Number(manualBrl.replace(",", ".")),
             Number(manualPyg.replace(",", ".")),
           )
-        : null,
-    [exchangeMode, currency, manualBrl, manualPyg],
+        : restrictedSeller
+          ? sellerExchange
+          : null,
+    [exchangeMode, currency, manualBrl, manualPyg, restrictedSeller, sellerExchange],
   );
   const rates = {
     ...systemRates,
     convert: (value: number | null | undefined, from: Currency, to: Currency) =>
-      exchangeMode === "manual"
+      selectedExchange
         ? exchangeConvert(Number(value ?? 0), from, to, selectedExchange)
         : systemRates.convert(value, from, to),
     money: (value: number, from: Currency, to: Currency) => {
-      const converted =
-        exchangeMode === "manual"
-          ? exchangeConvert(value, from, to, selectedExchange)
-          : systemRates.convert(value, from, to);
+      const converted = selectedExchange
+        ? exchangeConvert(value, from, to, selectedExchange)
+        : systemRates.convert(value, from, to);
       return converted === null ? "—" : formatMoney(converted, to);
     },
   };
@@ -1405,6 +1407,27 @@ export function Pdv({
             },
           );
           if (error) throw error;
+          if (created?.requires_price_confirmation) {
+            const quote = created.quote;
+            setSellerExchange(quote.exchange);
+            setLines((current) =>
+              current.map((line) => {
+                const priced = quote.items.find((item: any) => item.item_id === line.item_id);
+                return priced
+                  ? {
+                      ...line,
+                      unit_price: Number(priced.unit_price),
+                      discount: Number(priced.discount),
+                    }
+                  : line;
+              }),
+            );
+            setStep("finalizacao");
+            toast.info(
+              "Cotação atualizada. Confira os valores do pedido e clique novamente para enviar.",
+            );
+            return;
+          }
           toast.success(
             created?.pending_approval
               ? "Alteração enviada para aprovação. O pedido permanece inalterado até a revisão."
