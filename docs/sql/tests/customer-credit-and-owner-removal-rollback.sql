@@ -40,6 +40,9 @@ BEGIN
  BEGIN PERFORM public.integral_order_credit_context(oid); RAISE EXCEPTION 'Other seller viewed credit'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
  PERFORM set_config('request.jwt.claim.sub',admin_id::text,true);
  PERFORM public.integral_decide_order(oid,'approve','Aprovação controlada para testar pagamentos com frete','policy',NULL,NULL);
+ BEGIN PERFORM public.sales_payment_received(jsonb_build_object('order_id',oid,'amount',1,'method','pix'),false); RAISE EXCEPTION 'Legacy receipt entry bypassed review'; EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Use o botão Lançar pagamento%' THEN RAISE; END IF; END;
+ BEGIN PERFORM public.sales_payment_received_manual(jsonb_build_object('order_id',oid,'amount',1,'method','pix'),'{"base":"BRL","mode":"manual","BRL":1,"USD":0.2,"PYG":1400}'); RAISE EXCEPTION 'Legacy manual entry bypassed review'; EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Use o botão Lançar pagamento%' THEN RAISE; END IF; END;
+ BEGIN PERFORM public.sales_register_payment(oid,1,'pix',NULL); RAISE EXCEPTION 'Legacy payment bypassed review'; EXCEPTION WHEN raise_exception THEN IF SQLERRM NOT LIKE 'Use o botão Lançar pagamento%' THEN RAISE; END IF; END;
  PERFORM public.customer_credit_post(cid,'BRL',100,'deposit','Crédito de teste controlado');
  PERFORM set_config('request.jwt.claim.sub',seller::text,true);
  ASSERT (public.integral_order_credit_context(oid)->>'available')::numeric=100,'Credit balance unavailable';
