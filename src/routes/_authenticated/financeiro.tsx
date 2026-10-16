@@ -1,3 +1,4 @@
+import { OrderApprovalQueue } from "@/components/finance/OrderApprovalQueue";
 import { PendingPaymentReceipts } from "@/components/finance/PendingPaymentReceipts";
 import { FinanceStock } from "@/components/finance/FinanceStock";
 import { CustomerCreditsSection } from "@/components/finance/CustomerCreditsSection";
@@ -17,7 +18,7 @@ import { FinanceSummary } from "@/components/finance/FinanceSummary";
 import { useFinanceTotals } from "@/hooks/useFinanceTotals";
 import { PayrollSection } from "@/components/finance/PayrollSection";
 import { InvestmentsSection } from "@/components/finance/InvestmentsSection";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Filter, MapPin, RotateCcw } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -72,6 +73,13 @@ function Financeiro() {
   const canReviewPayments = isAdmin || roles.includes("financeiro");
   const { productId, products } = useProductScope();
   const [displayCurrency, setDisplayCurrency] = useState<Currency>("BRL");
+  const [financeTab, setFinanceTab] = useState("resumo");
+  useEffect(() => {
+    const selectHash = () => { if (window.location.hash === "#aprovacoes") setFinanceTab("aprovacoes"); };
+    selectHash();
+    window.addEventListener("hashchange", selectHash);
+    return () => window.removeEventListener("hashchange", selectHash);
+  }, []);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [sellerFilter, setSellerFilter] = useState("all");
@@ -549,10 +557,11 @@ function Financeiro() {
         {scopeBanner}
         {filters}
 
-        <Tabs defaultValue="resumo">
+        <Tabs value={financeTab} onValueChange={setFinanceTab}>
           <TabsList className="flex-wrap">
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="receber">A receber</TabsTrigger>
+            {canReviewPayments && <TabsTrigger value="aprovacoes">Aprovações</TabsTrigger>}
             {canReviewPayments && <TabsTrigger value="conferencias">Conferir pagamentos</TabsTrigger>}
             <TabsTrigger value="creditos">Créditos de clientes</TabsTrigger>
             <TabsTrigger value="pagar">A pagar</TabsTrigger>
@@ -560,6 +569,7 @@ function Financeiro() {
             <TabsTrigger value="folha">Remuneração e folha</TabsTrigger>
             <TabsTrigger value="lucros">Participação nos lucros</TabsTrigger>
           </TabsList>
+          {canReviewPayments && <TabsContent value="aprovacoes" className="pt-4"><OrderApprovalQueue /></TabsContent>}
           {canReviewPayments && <TabsContent value="conferencias" className="pt-4"><PendingPaymentReceipts productId={effectiveProductId} /></TabsContent>}
           <TabsContent value="resumo" className="pt-4">
             <Tabs defaultValue="visao">

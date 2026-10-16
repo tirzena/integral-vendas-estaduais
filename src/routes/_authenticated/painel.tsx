@@ -1,3 +1,4 @@
+import { DashboardApprovalNotice } from "@/components/finance/OrderApprovalQueue";
 import { getPurchasePositions } from "@/lib/purchase-position.functions";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState } from "react";
@@ -248,6 +249,7 @@ function Painel() {
 
   if (isLoading) return (
     <div className="space-y-4">
+      <DashboardApprovalNotice />
       <PageHeader title="Controle estadual" description="Consultando os dados da operação." />
       <Card><CardContent className="pt-6">
         <p role="status" aria-live="polite">Carregando pedidos, clientes e estoque…</p>
