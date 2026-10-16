@@ -42,6 +42,9 @@ export function ReviewDecisionHistory({ kind }: { kind: "order" | "payment" }) {
       {query.data?.rows.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma decisão registrada.</p>}
       {query.data?.rows.map(entry => <article key={entry.id} className="surface-card space-y-2 p-4 text-sm">
         <p className="font-semibold">{labels[entry.decision] ?? entry.decision} · Pedido #{entry.number}{Number(entry.revision_no) > 1 ? "." + (Number(entry.revision_no)-1) : ""}</p>
+        {(entry.history_origin === "legacy_regularization" || entry.new_snapshot?.history_origin === "legacy_regularization") && (
+          <p className="text-xs font-medium text-muted-foreground">Regularização retroativa · Responsável de referência</p>
+        )}
         <p>{entry.customer_name || "Cliente não informado"}</p>
         <p className="text-muted-foreground">{entry.actor_name || "Responsável não informado"} · {new Date(entry.created_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</p>
         <p>{entry.note}</p>

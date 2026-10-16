@@ -87,9 +87,10 @@ export function usePermissions() {
   const { roles, loading, userId, isAdmin } = useCurrentUser();
   const viewAs = useViewAs();
   const list: AppRole[] = roles;
+  const isSuperAdmin = roles.includes("superadmin");
   const dynamicCaps = useQuery({
     queryKey: ["my-capabilities", userId],
-    enabled: !!userId && !viewAs && !loading && !isAdmin,
+    enabled: !!userId && !viewAs && !loading && !isSuperAdmin,
     retry: false,
     queryFn: async () => {
       // The generated database types are updated after the migration is linked to Supabase CLI.
@@ -105,8 +106,8 @@ export function usePermissions() {
   // O modo espelho só simula a apresentação. Sessões reais usam a resposta do servidor.
   const previewCaps = list.flatMap((r) => CAPS[r] ?? []);
   const caps = new Set<Capability>(
-    isAdmin
-      ? ADMIN_CAPS
+    isSuperAdmin
+      ? [...ADMIN_CAPS, "tracking_share_own"]
       : viewAs
         ? previewCaps
         : dynamicCaps.isError
@@ -114,8 +115,9 @@ export function usePermissions() {
           : (dynamicCaps.data ?? []),
   );
 
-  const can = (c: Capability) => caps.has(c);
+  const can = (c: Capability) => isSuperAdmin || caps.has(c);
   const canOpen = (route: string) => {
+    if (isSuperAdmin) return true;
     const needed = ROUTE_CAPABILITY[route];
     if (!needed) return list.length > 0;
     return caps.has(needed);
@@ -123,7 +125,7 @@ export function usePermissions() {
 
   return {
     loading:
-      loading || (!!userId && !viewAs && !isAdmin && dynamicCaps.isLoading),
+      loading || (!!userId && !viewAs && !isSuperAdmin && dynamicCaps.isLoading),
     error: dynamicCaps.error,
     retryPermissions: dynamicCaps.refetch,
     userId,
