@@ -145,3 +145,15 @@ Criado observador compartilhado com uma assinatura, processamento dos eventos fo
 Seis testes de regressão passaram: callback sem consultas, foco repetido/refresh, troca de conta, desmontagem, corrida de inicialização e logout. Suítes: 24 testes na Direção Geral; 28 no Estadual. Sem alteração de dados, credenciais ou concessões. Validação com troca real de aba em sessão autenticada na hospedagem continua pendente.
 
 Conferidos também os repositórios integral-estoques, integral-fornecedores, integral-transportes, integral-lideranca-regional, integral-distribuidores-municipais e integral-captacao: são portais PHP com links nativos/formulários, não a mesma camada React/Auth. Não aplicado patch de autenticação React nesses projetos sem evidência. Falha autenticada nesses portais ainda requer reprodução própria.
+
+## Auditoria complementar de código, segurança e build
+
+Revisados os projetos React Direção Geral e Vendas Estaduais. Atualizados os tipos para o esquema central vigente, corrigidas falhas de TypeScript em CRM, painel, estoque, hierarquia, compras, contatos, relatórios, integrações e navegação. Removida a implementação estadual duplicada e inativa do catálogo, mantendo redirecionamento para o catálogo central. Corrigido atributo disabled duplicado nas promoções. Consultas de painel passaram a paginar pedidos e itens, evitando totais incompletos por limites da API.
+
+Corrigidos carregamento do ESLint em projeto CommonJS e importação antiga de teste do guia. A CI agora executa suíte completa, typecheck e lint funcional. O lint funcional mantém verificações de lógica; formatação Prettier e dívida preexistente de any não são critérios de bloqueio. O lint completo de estilo ainda exige trabalho específico; não foi feita reformatação indiscriminada de milhares de linhas.
+
+Atualizado @tanstack/react-start para 1.169.3, alinhados react-router 1.170.45 e router-plugin 1.168.47 e regenerado lockfile para eliminar vulnerabilidades reportadas pelo npm, incluindo GHSA-qx66-fv34-fjm8. Instalações limpas e validações executadas com as dependências atualizadas. npm audit de produção: zero vulnerabilidades nos dois projetos. Suítes completas: 147 testes gerais e 133 estaduais. Builds de produção e preset Node da Hostinger compilados. TypeScript integral e lint funcional validados; há avisos de tamanho de chunks, sem falha de compilação.
+
+Migração 20261020194810 aplicada ao Supabase: removida execução direta de funções internas de trigger e execução anônima de RPCs sensíveis de compras, cofre e administração. Mantidos os endpoints públicos de compartilhamento. Verificados grants e quatro cenários SQL de pedidos/notificações com rollback, sem alteração permanente de registros reais. Aviso de proteção contra senhas vazadas depende da configuração do Auth e continua pendente.
+
+Limites: validação autenticada de todos os perfis e botões na Hostinger não foi concluída por indisponibilidade de acesso operacional à hospedagem/sessão. Os seis outros portais PHP não receberam patch React; testes de execução próprios continuam pendentes. Publicar no GitHub não comprova implantação na Hostinger.

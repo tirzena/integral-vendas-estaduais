@@ -769,7 +769,7 @@ export function StockControl({
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {warehouseOf(i["id"])
-                        ? `${warehouseOf(i["id"])["city"]}/${warehouseOf(i["id"])["state"]}`
+                        ? `${warehouseOf(i["id"])?.["city"]}/${warehouseOf(i["id"])?.["state"]}`
                         : "—"}
                     </p>
                   </TableCell>

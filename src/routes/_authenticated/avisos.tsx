@@ -44,7 +44,7 @@ function inputDateToday() {
 function safeDateTime(value: unknown, endOfDay = false) {
   const raw = String(value ?? "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
-  const [year, month, day] = raw.split("-").map(Number);
+  const [year = 0, month = 0, day = 0] = raw.split("-").map(Number);
   const date = new Date(
     year,
     month - 1,

@@ -132,7 +132,7 @@ type Props = {
   reviewFilter?: OrderReviewFilter;
   requestsOnly?: boolean;
   excludeRequests?: boolean;
-  onEdit?: (draft: PdvDraft) => void;
+  onEdit?: ((draft: PdvDraft) => void) | undefined;
 };
 
 const isCatalogRequest = (doc: any) =>
@@ -2408,7 +2408,7 @@ export function DocsList({
                         <Badge variant={orderReviewStage(d) === "rejected" ? "destructive" : "secondary"}>{orderReviewLabels[orderReviewStage(d)]}</Badge>
                       ) : !isQuote && !cancelled ? (
                         <Select
-                          value={pendingPaymentOrders.data?.has(d.id) ? "payment_pending" : (collectionWorkflow(d, pendingPaymentOrders.data?.has(d.id)) ?? "pedido_feito") ?? "pedido_feito"}
+                          value={pendingPaymentOrders.data?.has(d.id) ? "payment_pending" : (collectionWorkflow(d, pendingPaymentOrders.data?.has(d.id)) ?? "pedido_feito")}
                           onValueChange={(next) => {
                             if (next === "cancelado") {
                               setCancelReason("");

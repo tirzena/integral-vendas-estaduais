@@ -151,9 +151,9 @@ function AccessVaultPage() {
   }
 
   async function save() {
-    if (!form.title.trim()) return toast.error("Informe o nome do acesso.");
+    if (!form.title.trim()) return void toast.error("Informe o nome do acesso.");
     if (form.visibility_scope === "equipe" && !form.team_id)
-      return toast.error("Escolha a equipe.");
+      return void toast.error("Escolha a equipe.");
     setSaving(true);
     const { error } = await (supabase as any).rpc("save_company_access", {
       p_id: form.id,
@@ -169,7 +169,7 @@ function AccessVaultPage() {
       p_viewers_can_edit: form.viewers_can_edit,
     });
     setSaving(false);
-    if (error) return toast.error(error.message ?? "Não foi possível salvar o acesso.");
+    if (error) return void toast.error(error.message ?? "Não foi possível salvar o acesso.");
     toast.success(form.id ? "Acesso atualizado." : "Acesso guardado com segurança.");
     setDialogOpen(false);
     setForm(emptyForm);
@@ -191,7 +191,7 @@ function AccessVaultPage() {
     });
     setLoadingSecret(null);
     if (error)
-      return toast.error(error.message ?? "Você não tem permissão para revelar esta senha.");
+      return void toast.error(error.message ?? "Você não tem permissão para revelar esta senha.");
     setRevealed((v) => ({ ...v, [row.id]: data ?? "" }));
   }
 
@@ -202,7 +202,7 @@ function AccessVaultPage() {
   async function remove(row: any) {
     if (!window.confirm(`Excluir o acesso “${row.title}”?`)) return;
     const { error } = await (supabase as any).rpc("delete_company_access", { p_access_id: row.id });
-    if (error) return toast.error(error.message ?? "Não foi possível excluir.");
+    if (error) return void toast.error(error.message ?? "Não foi possível excluir.");
     toast.success("Acesso excluído.");
     qc.invalidateQueries({ queryKey: ["company-access-vault"] });
   }
@@ -212,7 +212,7 @@ function AccessVaultPage() {
       <PageHeader
         title="Acessos"
         description="Guarde logins, senhas e links importantes da empresa com controle de visualização e edição."
-        action={
+        actions={
           <Button onClick={openNew}>
             <Plus className="mr-2 size-4" />
             Novo acesso

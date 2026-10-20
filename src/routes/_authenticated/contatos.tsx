@@ -49,8 +49,8 @@ import {
 } from "@/components/ui/table";
 
 export const Route = createFileRoute("/_authenticated/contatos")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    lista: typeof search.lista === "string" ? search.lista : undefined,
+  validateSearch: (search: Record<string, unknown>): { lista?: string | undefined } => ({
+    lista: typeof search['lista'] === "string" ? search['lista'] : undefined,
   }),
   head: () => ({
     meta: [
@@ -152,7 +152,7 @@ const CONTACT_COLUMNS = [
 function rowsToRecords(table: unknown[][]) {
   const candidates = table.slice(0, 50).map((row, index) => ({
     index,
-    score: row.reduce((score, value) => {
+    score: row.reduce<number>((score, value) => {
       const key = normalizeColumn(value);
       return (
         score + (CONTACT_COLUMNS.some((known) => key === known || key.includes(known)) ? 1 : 0)
@@ -430,7 +430,7 @@ function ContactListsPage() {
     if (!confirm("Apagar esta lista e todos os contatos dela?")) return;
     const { error } = await supabase.from("contact_lists").delete().eq("id", id);
     if (error) return void toast.error("Não foi possível apagar a lista.");
-    if (selectedListId === id) await navigate({ search: {} });
+    if (selectedListId === id) await navigate({ search: { lista: undefined } });
     toast.success("Lista apagada.");
     refresh();
   }

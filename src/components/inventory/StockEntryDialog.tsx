@@ -30,7 +30,7 @@ export function StockEntryDialog({ item, onClose }: { item: { id: string; name: 
  }
  return <Dialog open onOpenChange={(open)=>{if(!open&&!saving)onClose();}}><DialogContent><DialogHeader><DialogTitle>Abastecer produto</DialogTitle><DialogDescription>{item.name} — destino: Estoque principal.</DialogDescription></DialogHeader>
  <form onSubmit={(e)=>{e.preventDefault();void save();}} className="space-y-4">
- <p>Saldo atual: <strong>{formatNumber(item.quantity ?? 0)} unidades</strong></p>
+ <p>Saldo atual: <strong>{formatNumber(Number(item.quantity ?? 0))} unidades</strong></p>
  <div className="space-y-2"><Label htmlFor="stock-entry-quantity">Quantidade recebida para adicionar</Label><Input id="stock-entry-quantity" inputMode="decimal" autoFocus value={quantity} onChange={e=>setQuantity(e.target.value)} disabled={saving} required /></div>
  {Number.isFinite(amount)&&amount>0&&<p>Novo saldo: <strong>{formatNumber(Number(item.quantity ?? 0)+amount)} unidades</strong></p>}
  <div className="space-y-2"><Label htmlFor="stock-entry-reason">Motivo</Label><Input id="stock-entry-reason" value={reason} onChange={e=>setReason(e.target.value)} disabled={saving} required /></div>

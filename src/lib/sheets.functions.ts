@@ -270,7 +270,7 @@ export const syncContactSheet = createServerFn({ method: "POST" })
       );
     const headers = values[headerIndex]!.map(normalizeHeader);
     const at = (row: string[], name: keyof typeof aliases) => {
-      const index = headers.findIndex((header) => aliases[name].includes(header));
+      const index = headers.findIndex((header) => aliases[name]?.includes(header));
       return index >= 0 ? row[index] || null : null;
     };
     for (const row of values.slice(headerIndex + 1)) {

@@ -26,8 +26,8 @@ jobs:
           npm audit --omit=dev --audit-level=high
       - name: Verify lint, tests and Node build
         run: |
-          npx eslint src --quiet --rule '@typescript-eslint/no-explicit-any: off'
-          npx vitest run
+          npm run lint:functional
+          npm test
           npm run build:hostinger
           test -f .output/server/index.mjs
       - name: Commit verified dependency fixes

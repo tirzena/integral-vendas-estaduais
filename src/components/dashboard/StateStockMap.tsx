@@ -19,7 +19,7 @@ export function StateStockMap({ locations, canOpenStock, selection, committedSel
   orders: { seller_id?: string | null; shipping_state?: string | null; customer_id?: string | null }[];
   leaders: Record<string, string>;
   summary: { orders: number; units: string; created: number; inTransit: number; delivered: number; paid: number; partial: number; awaiting: number; cancelled: number; lost: number; gross: string; cost: string; shipping: string; profit: string; paidAmount: string; remainingAmount: string; inTransitValue: string; deliveredUnpaid: string; currency: string };
-  onLeaderChange?: (region: string, userId: string | null) => void;
+  onLeaderChange?: ((region: string, userId: string | null) => void) | undefined;
 }) {
   const [regionMode, setRegionMode] = useState(false);
   const byState = useMemo(() => {
@@ -43,7 +43,7 @@ export function StateStockMap({ locations, canOpenStock, selection, committedSel
   const selectedSellers = sellers.filter((seller) => sellerIds.has(seller.id));
   const leader = people.find((person) => person.id === leaders[region ?? ""]);
   const territoryFor = (code: string): TerritorySelection => regionMode
-    ? { mode: "region", code: regionForState(code) ?? undefined } : { mode: "state", code };
+    ? { mode: "region", code: regionForState(code) ?? "" } : { mode: "state", code };
   const select = (code: string) => onSelectionChange(territoryFor(code));
 
   return (

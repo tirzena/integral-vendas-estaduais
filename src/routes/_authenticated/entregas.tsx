@@ -708,7 +708,7 @@ function EntregasBase() {
           <div className="space-y-3">
             <div>
               <Label>Situação</Label>
-              <Select value={evStatus} onValueChange={setEvStatus}>
+              <Select value={evStatus} onValueChange={(value) => setEvStatus(value as LogisticsStage)}>
                 <SelectTrigger className="mt-1.5">
                   <SelectValue />
                 </SelectTrigger>

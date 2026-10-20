@@ -22,11 +22,13 @@ jobs:
         run: npm audit --audit-level=high || true
       - name: "Lint source - functional errors only"
         if: ${{ !cancelled() }}
-        run: >-
-          npx eslint src --quiet --rule '@typescript-eslint/no-explicit-any: off'
+        run: npm run lint:functional
       - name: Unit tests
         if: ${{ !cancelled() }}
-        run: npx vitest run
+        run: npm test
+      - name: Type check
+        if: ${{ !cancelled() }}
+        run: npm run typecheck
       - name: Build Hostinger Node
         if: ${{ !cancelled() }}
         run: npm run build:hostinger

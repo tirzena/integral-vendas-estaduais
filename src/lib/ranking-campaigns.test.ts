@@ -10,10 +10,10 @@ import {
 describe("Travel campaign deadlines", () => {
   it("uses the approved start date and keeps all individual trips independent of team rewards", () => {
     const schedule = campaignSchedule();
-    expect(schedule[0].startsAt).toBe("2026-09-16T03:00:00.000Z");
-    expect(schedule[0].endsAt).toBe("2026-10-16T03:00:00.000Z");
-    expect(schedule[1].endsAt).toBe("2026-11-15T03:00:00.000Z");
-    expect(schedule[2].endsAt).toBe("2026-12-15T03:00:00.000Z");
+    expect(schedule[0]!.startsAt).toBe("2026-09-16T03:00:00.000Z");
+    expect(schedule[0]!.endsAt).toBe("2026-10-16T03:00:00.000Z");
+    expect(schedule[1]!.endsAt).toBe("2026-11-15T03:00:00.000Z");
+    expect(schedule[2]!.endsAt).toBe("2026-12-15T03:00:00.000Z");
     for (const c of schedule) {
       expect(c.companion).toBe(true);
       expect(c.teamGoalRequiredForIndividualPrize).toBe(false);
@@ -27,13 +27,13 @@ describe("Travel campaign deadlines", () => {
       "Buenos Aires",
       "Puerto Plata",
     ]);
-    expect(schedule[0].endsAt).toBe(schedule[1].startsAt);
-    expect(schedule[1].endsAt).toBe(schedule[2].startsAt);
+    expect(schedule[0]!.endsAt).toBe(schedule[1]!.startsAt);
+    expect(schedule[1]!.endsAt).toBe(schedule[2]!.startsAt);
     for (const c of schedule)
       expect(Date.parse(c.endsAt) - Date.parse(c.startsAt)).toBe(30 * 86400000);
   });
   it("changes campaign state exactly at its start and end", () => {
-    const [c] = campaignSchedule("2026-09-16T00:00:00-03:00");
+    const c = campaignSchedule("2026-09-16T00:00:00-03:00")[0]!;
     expect(campaignCountdown(c.startsAt, c.endsAt, Date.parse(c.startsAt) - 1000).state).toBe(
       "agendada",
     );

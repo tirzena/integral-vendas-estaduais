@@ -293,7 +293,7 @@ export const getPublicCatalog = createServerFn({ method: "GET" })
       ]);
       const whatsappBySeller = new Map(
         (authUsers?.users ?? []).flatMap((user) => {
-          const whatsapp = user.user_metadata?.whatsapp;
+          const whatsapp = user.user_metadata?.['whatsapp'];
           return sellerIds.includes(user.id) && typeof whatsapp === "string"
             ? [[user.id, whatsapp] as const]
             : [];
@@ -417,7 +417,7 @@ export const getPublicCatalog = createServerFn({ method: "GET" })
           ...mediaEntries(i).flatMap((entry) => {
             const url = entry.path ? signed.get(entry.path) : entry.url;
             if (!url) return [];
-            return [{ id: entry.id, kind: entry.kind, url, label: entry.label }];
+            return [{ id: entry.id, kind: entry.kind as PublicCatalogMedia["kind"], url, label: entry.label }];
           }),
         ];
         const coverImage = image ?? media.find((entry) => entry.kind === "image")?.url ?? null;
@@ -442,7 +442,7 @@ export const getPublicCatalog = createServerFn({ method: "GET" })
           currency: (catalog.currency ?? "USD") as "BRL" | "USD" | "PYG",
           available: Number(i.quantity ?? 0) - Number(i.reserved ?? 0) > 0,
           stock: Math.max(0, Number(i.quantity ?? 0) - Number(i.reserved ?? 0)),
-          minQuantity: Math.max(1, Number((c.pricing_rules as any)?.products?.[i.id]?.min_quantity ?? i.min_quantity ?? 1)),
+          minQuantity: Math.max(1, Number((c['pricing_rules'] as any)?.products?.[i.id]?.min_quantity ?? i.min_quantity ?? 1)),
           offer: offers.includes(i.id),
           group: [macroName(i.product_id), subName(i.category_id)].filter(Boolean).join(" › "),
         };
@@ -644,7 +644,7 @@ async function registerCatalogContact(
       if (item.product_id) linkedProductIds.add(item.product_id);
     }
   }
-  const productId = linkedProductIds.size === 1 ? [...linkedProductIds][0] : null;
+  const productId = linkedProductIds.size === 1 ? ([...linkedProductIds][0] ?? null) : null;
   const orderedItemIds = [...new Set(orderedItems.map((item) => item.item_id))];
   const { data: orderedInventory } = await supabaseAdmin
     .from("inventory_items")

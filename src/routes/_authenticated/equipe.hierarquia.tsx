@@ -251,11 +251,11 @@ function HierarchyPage() {
 
   const data = query.data;
   const profilesById = useMemo(
-    () => new Map((data?.profiles ?? []).map((profile: any) => [profile.id, profile])),
+    () => new Map<string, any>((data?.profiles ?? []).map((profile: any) => [profile.id, profile])),
     [data?.profiles],
   );
   const areasById = useMemo(
-    () => new Map((data?.areas ?? []).map((area: any) => [area.id, area])),
+    () => new Map<string, any>((data?.areas ?? []).map((area: any) => [area.id, area])),
     [data?.areas],
   );
   const assignmentsByRole = useMemo(() => {
@@ -937,7 +937,7 @@ function OrganizationChart({
   const [draggedRoleId, setDraggedRoleId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
   if (!roles.length) return <EmptyHierarchy />;
-  const allRolesById = new Map(allRoles.map((role: any) => [role.id, role]));
+  const allRolesById = new Map<string, any>(allRoles.map((role: any) => [role.id, role]));
   const levels = ORG_TIER_ORDER.map((tier) => ({
     tier,
     roles: roles.filter((role: any) => organizationTier(role) === tier).sort(sortRoles),
@@ -1440,7 +1440,7 @@ function AreaDetails({ area, data, onClose }: any) {
 
   async function saveArea() {
     if (!area) return;
-    if (!form.name.trim()) return toast.error("Informe o nome da área.");
+    if (!form.name.trim()) return void toast.error("Informe o nome da área.");
     setSaving(true);
     const { error } = await db
       .from("organization_areas")
@@ -1452,7 +1452,7 @@ function AreaDetails({ area, data, onClose }: any) {
       })
       .eq("id", area.id);
     setSaving(false);
-    if (error) return toast.error("Não foi possível editar a área: " + error.message);
+    if (error) return void toast.error("Não foi possível editar a área: " + error.message);
     toast.success("Área atualizada.");
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["company-hierarchy"] }),
@@ -1473,7 +1473,7 @@ function AreaDetails({ area, data, onClose }: any) {
     setDeleting(true);
     const { error } = await db.from("organization_areas").delete().eq("id", area.id);
     setDeleting(false);
-    if (error) return toast.error("Não foi possível excluir a área: " + error.message);
+    if (error) return void toast.error("Não foi possível excluir a área: " + error.message);
     toast.success("Área excluída.");
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["company-hierarchy"] }),
@@ -1627,7 +1627,7 @@ function RoleDetails({ role, data, assignmentsByRole, onClose }: any) {
 
   async function saveRole() {
     if (!role) return;
-    if (!form.name.trim()) return toast.error("Informe o nome do cargo.");
+    if (!form.name.trim()) return void toast.error("Informe o nome do cargo.");
     setSaving(true);
     const { error } = await db
       .from("job_roles")
@@ -1652,7 +1652,7 @@ function RoleDetails({ role, data, assignmentsByRole, onClose }: any) {
       })
       .eq("id", role.id);
     setSaving(false);
-    if (error) return toast.error(error.message);
+    if (error) return void toast.error(error.message);
     toast.success("Cargo atualizado no organograma.");
     await queryClient.invalidateQueries({ queryKey: ["company-hierarchy"] });
     onClose();
@@ -2021,7 +2021,7 @@ function EditStructureDialog({ open, onOpenChange, data }: any) {
     setOrganizationTier(selected?.organization_tier ?? "cargo");
   }
   async function save() {
-    if (!roleId) return toast.error("Escolha um cargo.");
+    if (!roleId) return void toast.error("Escolha um cargo.");
     setSaving(true);
     const { error } = await db
       .from("job_roles")
@@ -2032,7 +2032,7 @@ function EditStructureDialog({ open, onOpenChange, data }: any) {
       })
       .eq("id", roleId);
     setSaving(false);
-    if (error) return toast.error(error.message);
+    if (error) return void toast.error(error.message);
     toast.success("Estrutura atualizada.");
     await queryClient.invalidateQueries({ queryKey: ["company-hierarchy"] });
     onOpenChange(false);

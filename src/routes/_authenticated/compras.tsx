@@ -404,8 +404,8 @@ function PurchasesPage() {
           lost: lost ? 1 : 0,
         })) {
           if (quantity * ratio <= 0) continue;
-          const previous = groups[group].get(key);
-          groups[group].set(key, {
+          const previous = groups[group]?.get(key);
+          groups[group]?.set(key, {
             description,
             quantity: (previous?.quantity ?? 0) + quantity * ratio,
           });
@@ -498,7 +498,7 @@ function PurchasesPage() {
         <Summary
           label="Total comprado"
           value={summaries.purchased}
-          products={productSummaries.purchased}
+          products={productSummaries['purchased'] ?? []}
           equivalent={false}
           currency="BRL"
           icon={<PackagePlus className="size-5 text-primary" />}
@@ -506,7 +506,7 @@ function PurchasesPage() {
         <Summary
           label="Total pago"
           value={summaries.paid}
-          products={productSummaries.paid}
+          products={productSummaries['paid'] ?? []}
           equivalent={true}
           currency="BRL"
           icon={<WalletCards className="size-5 text-emerald-600" />}
@@ -514,7 +514,7 @@ function PurchasesPage() {
         <Summary
           label="Custo faturado a pagar"
           value={summaries.payable}
-          products={productSummaries.payable}
+          products={productSummaries['payable'] ?? []}
           equivalent={true}
           currency="BRL"
           icon={<ReceiptText className="size-5 text-amber-600" />}
@@ -522,7 +522,7 @@ function PurchasesPage() {
         <Summary
           label="Total em trajeto"
           value={summaries.transit}
-          products={productSummaries.transit}
+          products={productSummaries['transit'] ?? []}
           equivalent={false}
           currency="BRL"
           icon={<PackagePlus className="size-5" />}
@@ -530,7 +530,7 @@ function PurchasesPage() {
         <Summary
           label="Total perdido"
           value={summaries.lost}
-          products={productSummaries.lost}
+          products={productSummaries['lost'] ?? []}
           equivalent={false}
           currency="BRL"
           icon={<ReceiptText className="size-5 text-destructive" />}
@@ -1273,11 +1273,11 @@ function Summary({
   value,
   currency,
   icon,
-  products,
-  equivalent,
+  products = [],
+  equivalent = false,
 }: {
-  products: { description: string; quantity: number }[];
-  equivalent: boolean;
+  products?: { description: string; quantity: number }[];
+  equivalent?: boolean;
   label: string;
   value: number;
   currency: Currency;

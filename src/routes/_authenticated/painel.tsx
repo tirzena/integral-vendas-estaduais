@@ -1,3 +1,4 @@
+import { readAllRows } from "@/lib/read-all-rows";
 import { useOperationalAccess } from "@/hooks/useOperationalAccess";
 import { CompanyReadOnlyView } from "@/components/finance/CompanyReadOnlyView";
 import { LogisticsConsole } from "@/components/orders/LogisticsConsole";
@@ -160,7 +161,7 @@ function PainelBase() {
                 ),
             ),
           ),
-          mine(
+          readAllRows(mine(
             (supabase as any)
               .from("division_orders_public")
               .select(
@@ -168,10 +169,10 @@ function PainelBase() {
               )
               .is("deleted_at", null)
               .is("superseded_at", null),
-          ),
-          supabase
+          )),
+          readAllRows(supabase
             .from("order_items")
-            .select("order_id,item_id,description,quantity,total,inventory_items(product_id)"),
+            .select("order_id,item_id,description,quantity,total,inventory_items(product_id)")),
           seesCompanyFinance
             ? scoped(
                 supabase
@@ -322,7 +323,7 @@ function PainelBase() {
     );
 
   const allOrders = (data?.orders ?? []).filter((order: any) => order.kind === "venda");
-  const customerStates = new Map(
+  const customerStates = new Map<string, string | null>(
     (data?.customers ?? []).map((customer: any) => [customer.id, customer.state]),
   );
   const warehouseStates = new Map(
@@ -718,7 +719,7 @@ function PainelBase() {
         return acc;
       },
       {},
-    ),
+    ) as Record<string, { name: string; receita: number; lucro: number }>,
   ).sort((a, b) => a.name.localeCompare(b.name));
   const orderStageChart = [
     { name: "Pedidos", total: orders.length },
@@ -1615,7 +1616,7 @@ function PainelBase() {
         orders={orders}
         leaders={regionLeaders}
         summary={dashboardSummary}
-        onLeaderChange={isAdmin ? saveRegionLeader : undefined}
+        {...(isAdmin ? { onLeaderChange: saveRegionLeader } : {})}
       />
       <div className="mb-5">
         <Card>

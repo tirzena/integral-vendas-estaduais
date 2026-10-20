@@ -77,12 +77,12 @@ function AdminClientes() {
     (person) => teamId === "todos" || teamSellerIds.has(person.id),
   );
   const filteredOrders = (data?.orders ?? []).filter(
-    (order) =>
+    (order: any) =>
       (teamId === "todos" || (!!order.seller_id && teamSellerIds.has(order.seller_id))) &&
       (sellerId === "todos" || order.seller_id === sellerId),
   );
   const buyerIds = Array.from(
-    new Set(filteredOrders.map((order) => order.customer_id).filter(Boolean) as string[]),
+    new Set(filteredOrders.map((order: any) => order.customer_id).filter(Boolean) as string[]),
   );
   const customerCountByTeam = (selectedTeamId: string) => {
     const sellers = new Set(
@@ -92,8 +92,8 @@ function AdminClientes() {
     );
     return new Set(
       (data?.orders ?? [])
-        .filter((order) => !!order.seller_id && sellers.has(order.seller_id))
-        .map((order) => order.customer_id)
+        .filter((order: any) => !!order.seller_id && sellers.has(order.seller_id))
+        .map((order: any) => order.customer_id)
         .filter(Boolean),
     ).size;
   };

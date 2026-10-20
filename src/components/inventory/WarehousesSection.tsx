@@ -87,7 +87,7 @@ export function WarehousesSection({
       name: form.name.trim(),
       address: form.address.trim() || null,
       city: form.city.trim(),
-      state: isBrazil && stateCodeFor(form.state) ? brazilStates[stateCodeFor(form.state)!].uf : form.state.trim(),
+      state: isBrazil && stateCodeFor(form.state) ? brazilStates[stateCodeFor(form.state)!]?.uf ?? form.state.trim() : form.state.trim(),
       country: form.country.trim(),
       level: form.level,
       parent_id: form.level === "principal" ? null : form.parent_id || null,
@@ -262,7 +262,7 @@ export function WarehousesSection({
               <div>
                 <Label>Pertence a (estrutura)</Label>
                 <Select
-                  value={form?.parent_id || undefined}
+                  value={form?.parent_id || ""}
                   onValueChange={(v) => setForm((f) => f && { ...f, parent_id: v })}
                 >
                   <SelectTrigger>
@@ -331,7 +331,7 @@ export function WarehousesSection({
             {["BR", "BRA", "BRASIL", "BRAZIL"].includes(form?.country.trim().toUpperCase() ?? "") && form?.level !== "principal" ? <>
               <div>
                 <Label>Região</Label>
-                <Select value={selectedRegion || undefined} onValueChange={(value) => {
+                <Select value={selectedRegion || ""} onValueChange={(value) => {
                   setSelectedRegion(value as BrazilRegion);
                   setForm((f) => f && { ...f, state: "" });
                 }}>
@@ -342,11 +342,11 @@ export function WarehousesSection({
               </div>
               <div>
                 <Label>Estado</Label>
-                <Select value={stateCodeFor(form?.state) ?? undefined} onValueChange={(code) =>
-                  setForm((f) => f && { ...f, state: brazilStates[code].uf })} disabled={!selectedRegion}>
+                <Select value={stateCodeFor(form?.state) ?? ""} onValueChange={(code) =>
+                  setForm((f) => f && { ...f, state: brazilStates[code]?.uf ?? code })} disabled={!selectedRegion}>
                   <SelectTrigger><SelectValue placeholder="Selecione o estado" /></SelectTrigger>
                   <SelectContent>{(BRAZIL_REGIONS[selectedRegion as BrazilRegion]?.codes ?? []).map((code) =>
-                    <SelectItem key={code} value={code}>{brazilStates[code].name} ({brazilStates[code].uf})</SelectItem>)}</SelectContent>
+                    <SelectItem key={code} value={code}>{brazilStates[code]?.name ?? code} ({brazilStates[code]?.uf ?? code})</SelectItem>)}</SelectContent>
                 </Select>
               </div>
             </> : <div>

@@ -133,7 +133,7 @@ export function roleInsight(role: any, data: any, assignmentsByRole: Map<string,
     )
     .sort((a: any, b: any) => {
       const scopeWeight: Record<string, number> = { cargo: 0, area: 1, camada: 2 };
-      return scopeWeight[a.scope_type] - scopeWeight[b.scope_type] || a.priority - b.priority;
+      return (scopeWeight[a.scope_type] ?? 0) - (scopeWeight[b.scope_type] ?? 0) || a.priority - b.priority;
     });
   const rule =
     role.trigger_metric && role.trigger_threshold
@@ -149,7 +149,7 @@ export function roleInsight(role: any, data: any, assignmentsByRole: Map<string,
   const progress = threshold > 0 ? Math.round((current / threshold) * 100) : 0;
   const calculated = recommendationForProgress(progress, role.trigger_exceeded_since);
   const stored = role.recommendation_status ?? "nao_necessario";
-  const recommendation = severity[stored] > severity[calculated] ? stored : calculated;
+  const recommendation = (severity[stored] ?? 0) > (severity[calculated] ?? 0) ? stored : calculated;
   const dismissed =
     role.recommendation_dismissed_until &&
     new Date(role.recommendation_dismissed_until).getTime() >= new Date().setHours(0, 0, 0, 0);
@@ -336,7 +336,7 @@ export function RecommendationsView({ data, assignmentsByRole, onSelect, onRefre
     .filter(({ insight }: any) => insight.recommendation !== "nao_necessario" && !insight.dismissed)
     .sort(
       (a: any, b: any) =>
-        severity[b.insight.recommendation] - severity[a.insight.recommendation] ||
+        (severity[b.insight.recommendation] ?? 0) - (severity[a.insight.recommendation] ?? 0) ||
         b.insight.progress - a.insight.progress,
     );
   async function dismiss(role: any) {

@@ -176,7 +176,7 @@ export function ScriptDialog({
             <Label htmlFor="visibility_scope">Quem pode visualizar</Label>
             <Select
               value={values["visibility_scope"] ?? "geral"}
-              onValueChange={(val) => setValues((v) => ({ ...v, visibility_scope: val, team_id: val === "geral" ? "" : v.team_id }))}
+              onValueChange={(val) => setValues((v) => ({ ...v, visibility_scope: val, team_id: val === "geral" ? "" : v['team_id'] }))}
             >
               <SelectTrigger id="visibility_scope" className="mt-1.5"><SelectValue /></SelectTrigger>
               <SelectContent>

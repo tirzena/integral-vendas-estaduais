@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { PageHeader } from "@/components/common/PageHeader";
 export const Route = createFileRoute("/_authenticated/autenticidade")({
   component: AuthenticityAdmin,
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (search: Record<string, unknown>): { purchaseId?: string | undefined; batchId?: string | undefined } => ({
     purchaseId: typeof search["purchaseId"] === "string" ? search["purchaseId"] : undefined,
     batchId: typeof search["batchId"] === "string" ? search["batchId"] : undefined,
   }),

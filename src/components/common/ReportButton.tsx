@@ -35,7 +35,7 @@ export type ReportData = {
   highlights?: { label: string; value: string }[];
   headers: string[];
   rows: (string | number | null | undefined)[][];
-  sections?: ReportSection[];
+  sections?: ReportSection[] | undefined;
   pdfDocument?: OrdersPdfDocument;
 };
 

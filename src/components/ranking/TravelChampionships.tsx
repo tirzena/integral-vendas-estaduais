@@ -296,10 +296,10 @@ function ChampionshipEditor({
     }).format(new Date(value)).replace(" ", "T");
   const [initialStart] = useState(() => formatBrasilia(c.starts_at));
   const [initialEnd] = useState(() => formatBrasilia(c.ends_at || new Date(Date.parse(c.starts_at) + 30 * 86_400_000).toISOString()));
-  const [startDay, setStartDay] = useState(() => initialStart.split("T")[0]);
-  const [startTime, setStartTime] = useState(() => initialStart.split("T")[1]);
-  const [endDay, setEndDay] = useState(() => initialEnd.split("T")[0]);
-  const [endTime, setEndTime] = useState(() => initialEnd.split("T")[1]);
+  const [startDay, setStartDay] = useState(() => initialStart.split("T")[0] ?? "");
+  const [startTime, setStartTime] = useState(() => initialStart.split("T")[1] ?? "");
+  const [endDay, setEndDay] = useState(() => initialEnd.split("T")[0] ?? "");
+  const [endTime, setEndTime] = useState(() => initialEnd.split("T")[1] ?? "");
   const validTime = (value: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
   const startDate = validTime(startTime) && startDay
     ? new Date(`${startDay}T${startTime}:00-03:00`) : new Date(NaN);

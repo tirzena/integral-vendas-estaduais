@@ -69,7 +69,7 @@ export function RolesPermissionsSection({ canWrite }: { canWrite: boolean }) {
       exact.length || levelId === null
         ? exact
         : data.grants.filter((g: any) => g.job_role_id === selectedRole && g.job_level_id === null);
-    return new Set(source.filter((g: any) => g.allowed).map((g: any) => g.permission_key));
+    return new Set<string>(source.filter((g: any) => g.allowed).map((g: any) => g.permission_key));
   }, [data, selectedRole, selectedLevel]);
 
   useEffect(() => setChecked(new Set(visibleGrants)), [visibleGrants]);
@@ -82,7 +82,7 @@ export function RolesPermissionsSection({ canWrite }: { canWrite: boolean }) {
   async function createArea() {
     if (!areaName.trim()) return;
     const { error } = await db.from("organization_areas").insert({ name: areaName.trim() });
-    if (error) return toast.error("Não foi possível criar a área: " + error.message);
+    if (error) return void toast.error("Não foi possível criar a área: " + error.message);
     setAreaName("");
     toast.success("Área criada.");
     await refresh();
@@ -92,20 +92,20 @@ export function RolesPermissionsSection({ canWrite }: { canWrite: boolean }) {
     if (!levelName.trim()) return;
     const rank = Math.max(0, ...(data?.levels ?? []).map((l: any) => Number(l.rank))) + 10;
     const { error } = await db.from("job_levels").insert({ name: levelName.trim(), rank });
-    if (error) return toast.error("Não foi possível criar o nível: " + error.message);
+    if (error) return void toast.error("Não foi possível criar o nível: " + error.message);
     setLevelName("");
     toast.success("Nível criado.");
     await refresh();
   }
 
   async function createRole() {
-    if (!roleName.trim() || !roleArea) return toast.error("Informe a área e o nome do cargo.");
+    if (!roleName.trim() || !roleArea) return void toast.error("Informe a área e o nome do cargo.");
     const { data: role, error } = await db
       .from("job_roles")
       .insert({ name: roleName.trim(), area_id: roleArea })
       .select("id")
       .single();
-    if (error) return toast.error("Não foi possível criar o cargo: " + error.message);
+    if (error) return void toast.error("Não foi possível criar o cargo: " + error.message);
     setRoleName("");
     setSelectedRole(role.id);
     toast.success("Cargo criado.");
@@ -117,9 +117,9 @@ export function RolesPermissionsSection({ canWrite }: { canWrite: boolean }) {
     id: string,
     systemKey?: string,
   ) {
-    if (systemKey) return toast.error("Este item padrão pode ser desativado, mas não excluído.");
+    if (systemKey) return void toast.error("Este item padrão pode ser desativado, mas não excluído.");
     const { error } = await db.from(kind).delete().eq("id", id);
-    if (error) return toast.error("Não foi possível excluir: " + error.message);
+    if (error) return void toast.error("Não foi possível excluir: " + error.message);
     toast.success("Item excluído.");
     await refresh();
   }
@@ -133,7 +133,7 @@ export function RolesPermissionsSection({ canWrite }: { canWrite: boolean }) {
     const { error: deleteError } = await del;
     if (deleteError) {
       setSaving(false);
-      return toast.error(deleteError.message);
+      return void toast.error(deleteError.message);
     }
     if (checked.size) {
       const { error } = await db.from("job_role_permissions").insert(
@@ -146,7 +146,7 @@ export function RolesPermissionsSection({ canWrite }: { canWrite: boolean }) {
       );
       if (error) {
         setSaving(false);
-        return toast.error(error.message);
+        return void toast.error(error.message);
       }
     }
     setSaving(false);

@@ -224,7 +224,7 @@ export function EditMemberDialog({
                       </span>
                     </label>
                     <Select
-                      value={selected ? jobDraft[role.id] : "none"}
+                      value={selected ? (jobDraft[role.id] ?? "none") : "none"}
                       disabled={!selected}
                       onValueChange={(v) => setJobDraft((old) => ({ ...old, [role.id]: v }))}
                     >

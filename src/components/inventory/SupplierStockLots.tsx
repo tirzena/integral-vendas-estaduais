@@ -129,7 +129,7 @@ export function SupplierStockLots({
                     </Button>
                     {data.isAdmin && (
                       <Button variant="outline" asChild>
-                        <Link to="/autenticidade" search={{ batchId: batch.id }}>
+                        <Link to="/autenticidade" search={{ purchaseId: undefined, batchId: batch.id }}>
                           Abrir lote e códigos
                         </Link>
                       </Button>

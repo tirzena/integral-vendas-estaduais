@@ -10,7 +10,7 @@ vi.mock("@/hooks/useProductScope", () => ({useProductScope: () => ({products: [{
 vi.mock("@tanstack/react-query", () => ({useQuery: () => ({data: [{id: "product",name: "Produto de estudo",product_id: "category",brand: "Marca",public_description: "Descrição pública",
           image_url: "registered.jpg",intended_use: "Finalidade documentada",information_source_url: "https://www.fda.gov/",description: "PRIVATE_NOTES",cost: "PRIVATE_COST"}], isLoading: false,isError: false})}));
 
-import { StudyGuide } from "../src/routes/_authenticated/guia-de-estudo";
+import { StudyGuide } from "../src/components/catalog/StudyGuide";
 
 it("renders the library with public product information and study controls", () => {
   const html = renderToStaticMarkup(createElement(StudyGuide));

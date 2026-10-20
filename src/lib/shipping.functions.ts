@@ -90,7 +90,10 @@ export const calculateOrderShipping = createServerFn({ method: "POST" })
           BRL: data.manualRates.BRL,
           PYG: data.manualRates.PYG,
         };
-        rates.set(source, values[data.currency] / values[source]);
+        const targetRate = values[data.currency];
+        const sourceRate = values[source];
+        if (!targetRate || !sourceRate) throw new Error("Cotação manual inválida.");
+        rates.set(source, targetRate / sourceRate);
         continue;
       }
       const { data: exchange, error } = await supabaseAdmin.rpc("financial_rate_at", {

@@ -92,7 +92,7 @@ export function downloadOrdersReportPdf(document: OrdersPdfDocument, filename: s
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(8.5);
         pdf.setTextColor(30, 41, 59);
-        pdf.text(wraps[offset], x + 3, y + 8.5);
+        pdf.text(wraps[offset] ?? [], x + 3, y + 8.5);
       });
       y += height + 2;
     }
@@ -109,10 +109,10 @@ export function downloadOrdersReportPdf(document: OrdersPdfDocument, filename: s
       pdf.setTextColor(...navy);
       let x = left;
       order.itemHeaders.forEach((label, index) => {
-        pdf.text(label, index === 0 ? x + 2 : x + widths[index] - 2, y + 5, {
+        pdf.text(label, index === 0 ? x + 2 : x + (widths[index] ?? 38) - 2, y + 5, {
           align: index === 0 ? "left" : "right",
         });
-        x += widths[index];
+        x += widths[index] ?? 38;
       });
       y += 8;
     };
@@ -121,7 +121,7 @@ export function downloadOrdersReportPdf(document: OrdersPdfDocument, filename: s
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(7.5);
       const wrapped = row.map((cell, index) =>
-        pdf.splitTextToSize(cell || "—", widths[index] - 4) as string[],
+        pdf.splitTextToSize(cell || "—", (widths[index] ?? 38) - 4) as string[],
       );
       const height = Math.max(9, ...wrapped.map((lines) => lines.length * 4 + 3));
       if (y + height > bottom) {
@@ -131,10 +131,10 @@ export function downloadOrdersReportPdf(document: OrdersPdfDocument, filename: s
       pdf.setTextColor(36, 45, 57);
       let x = left;
       wrapped.forEach((lines, index) => {
-        pdf.text(lines, index === 0 ? x + 2 : x + widths[index] - 2, y + 5, {
+        pdf.text(lines, index === 0 ? x + 2 : x + (widths[index] ?? 38) - 2, y + 5, {
           align: index === 0 ? "left" : "right",
         });
-        x += widths[index];
+        x += widths[index] ?? 38;
       });
       pdf.setDrawColor(225, 229, 234);
       pdf.line(left, y + height, left + width, y + height);

@@ -102,19 +102,19 @@ export async function downloadPurchasePdf(data: PurchasePdfData) {
   }
   field(
     "Fornecedor",
-    [data.supplier.name, data.supplier.document, data.supplier.contact_name]
+    [data.supplier['name'], data.supplier['document'], data.supplier['contact_name']]
       .filter(Boolean)
       .join(" · "),
   );
   field(
     "Contato do fornecedor",
-    [data.supplier.phone, data.supplier.email].filter(Boolean).join(" · "),
+    [data.supplier['phone'], data.supplier['email']].filter(Boolean).join(" · "),
   );
-  field("Endereço do fornecedor", data.supplier.address);
-  field("Comprado por", [data.buyer.name, data.buyer.email].filter(Boolean).join(" · "));
+  field("Endereço do fornecedor", data.supplier['address']);
+  field("Comprado por", [data.buyer['name'], data.buyer['email']].filter(Boolean).join(" · "));
   field(
     "Entrada no estoque",
-    [data.warehouse.name, data.warehouse.address, data.warehouse.city, data.warehouse.state]
+    [data.warehouse['name'], data.warehouse['address'], data.warehouse['city'], data.warehouse['state']]
       .filter(Boolean)
       .join(" · "),
   );

@@ -53,7 +53,7 @@ export default {
       }
       const runtime = (env ?? {}) as Record<string, unknown>;
       const server = typeof process !== "undefined" ? process.env : {};
-      const configured = Boolean((runtime.SUPABASE_URL || server.SUPABASE_URL) && (runtime.SUPABASE_PUBLISHABLE_KEY || server.SUPABASE_PUBLISHABLE_KEY));
+      const configured = Boolean((runtime['SUPABASE_URL'] || server['SUPABASE_URL']) && (runtime['SUPABASE_PUBLISHABLE_KEY'] || server['SUPABASE_PUBLISHABLE_KEY']));
       return request.method === "HEAD" ? new Response(null, { status: 200 }) : installPage(configured);
     }
     try {

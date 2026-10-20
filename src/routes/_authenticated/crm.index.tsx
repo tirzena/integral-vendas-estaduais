@@ -239,7 +239,7 @@ function Crm() {
     return groups;
   }, [stages]);
 
-  const listStages = isAll
+  const listStages: { key: string; name: string; position: number; ids: string[] }[] = isAll
     ? groupedStages
     : currentStages.map((s: any) => ({
         key: s.id,

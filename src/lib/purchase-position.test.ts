@@ -29,7 +29,7 @@ describe("Estoque separado do custo faturado", () => {
     ).toBe(0));
   it("soma saídas e estornos pela origem do lote", () => {
     const receipts = receipt(100);
-    receipts[0].stock_lot_movements.push({
+    receipts[0]!.stock_lot_movements.push({
       quantity: -30,
       orders: { status: "faturado", workflow_stage: "faturado" },
     });

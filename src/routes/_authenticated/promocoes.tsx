@@ -359,9 +359,8 @@ function PromotionsPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={!estadualAccess.canWrite}
+                    disabled={!estadualAccess.canWrite || cancel.isPending}
                     onClick={() => cancel.mutate(promotion.id)}
-                    disabled={cancel.isPending}
                   >
                     <XCircle className="mr-2 size-4" />
                     Encerrar promoção

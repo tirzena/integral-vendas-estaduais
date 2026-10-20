@@ -479,7 +479,7 @@ function Inbox() {
                 </div>
                 {(eligibleAssignees ?? []).length > 0 && (
                   <Select
-                    value={current?.assignee_id ?? undefined}
+                    value={current?.assignee_id ?? ""}
                     onValueChange={(value) => assignmentMutation.mutate(value)}
                     disabled={assignmentMutation.isPending}
                   >
