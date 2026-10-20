@@ -5,7 +5,9 @@ import { OrderEditDialog } from "@/components/orders/OrderEditDialog";
 const fixture = vi.hoisted(() => ({
   slots: [] as any[],
   index: 0,
-  actor: { userId: "seller", isAdmin: false, loading: false, viewAs: null as any },
+  queryOptions: null as any,
+  seesCompanySales: false,
+  actor: { roles: ["vendedor"], userId: "seller", isAdmin: false, loading: false, viewAs: null as any },
   data: {
     can_edit: true,
     requires_approval: false,
@@ -33,11 +35,14 @@ vi.mock("react", async (original) => ({
 }));
 vi.mock("@tanstack/react-query", () => ({
   // Deliberately do not execute queryFn: reproduces reopening cached orders.
-  useQuery: () => ({ data: fixture.data, isLoading: false }),
+  useQuery: (options: any) => {
+    fixture.queryOptions = options;
+    return { data: fixture.data, isLoading: false };
+  },
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 vi.mock("@/hooks/usePermissions", () => ({
-  usePermissions: () => ({ loading: false, seesCompanySales: false }),
+  usePermissions: () => ({ loading: false, seesCompanySales: fixture.seesCompanySales }),
 }));
 vi.mock("@/hooks/useAuth", () => ({ useCurrentUser: () => fixture.actor }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: vi.fn() } }));
@@ -59,6 +64,9 @@ function render() {
 describe("reabrir editor de pedido em cache", () => {
   beforeEach(() => {
     fixture.slots = [];
+    fixture.actor.roles = ["vendedor"];
+    fixture.actor.isAdmin = false;
+    fixture.seesCompanySales = false;
     fixture.actor.viewAs = null;
   });
   it("preenche o formulário sem repetir a consulta e copia os itens", () => {
@@ -84,5 +92,40 @@ describe("reabrir editor de pedido em cache", () => {
     fixture.actor.viewAs = { userId: "other" };
     render();
     expect(render()).toContain("Saia do modo espelho");
+  });
+});
+
+
+describe("consultas do editor com múltiplos cargos", () => {
+  it.each([
+    { roles: ["vendedor"], admin: false, sales: false, restricted: true },
+    { roles: ["vendedor", "gestor"], admin: false, sales: true, restricted: true },
+    { roles: ["vendedor", "financeiro"], admin: false, sales: true, restricted: true },
+    { roles: ["gestor"], admin: false, sales: true, restricted: false },
+    { roles: ["vendedor", "superadmin"], admin: true, sales: true, restricted: false },
+  ])("respeita a rota do servidor para $roles", async ({ roles, admin, sales, restricted }) => {
+    fixture.slots = [];
+    fixture.actor.roles = roles;
+    fixture.actor.isAdmin = admin;
+    fixture.seesCompanySales = sales;
+    const { supabase } = await import("@/integrations/supabase/client");
+    const rpc = vi.mocked(supabase.rpc);
+    rpc.mockReset();
+    rpc.mockImplementation(async (name: any) => {
+      if (name === "integral_order_context" || name === "division_order_context")
+        return { data: { ...fixture.data }, error: null } as any;
+      if (name === "seller_portal_data")
+        return { data: { items: [], warehouses: [] }, error: null } as any;
+      if (name === "estadual_seller_customers") return { data: [], error: null } as any;
+      if (restricted) throw Error("Use the seller portal RPC.");
+      return { data: [], error: null } as any;
+    });
+    (supabase as any).from = vi.fn(() => ({ select: () => ({ is: async () => ({ data: [], error: null }) }) }));
+    render();
+    await expect(fixture.queryOptions.queryFn()).resolves.toHaveProperty("customers");
+    const names = rpc.mock.calls.map(([name]) => name);
+    expect(names).toContain(restricted ? "seller_portal_data" : "sales_items_for_sale");
+    expect(names).toContain(restricted ? "estadual_seller_customers" : "sales_warehouses");
+    if (restricted) expect((supabase as any).from).not.toHaveBeenCalled();
   });
 });

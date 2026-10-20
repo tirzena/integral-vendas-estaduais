@@ -28,7 +28,9 @@ export function OrderEditDialog({
 function OrderEditor({ orderId, onClose }: { orderId: string; onClose: () => void }) {
   const actor = useCurrentUser();
   const permissions = usePermissions();
-  const broadSales = actor.isAdmin || permissions.seesCompanySales;
+  // Match the server seller boundary even when another job grants company_sales.
+  const restrictedSeller = actor.roles.includes("vendedor") && !actor.isAdmin;
+  const broadSales = !restrictedSeller && (actor.isAdmin || permissions.seesCompanySales);
   const client = useQueryClient(),
     [form, setForm] = useState<any>(null),
     [reason, setReason] = useState(""),

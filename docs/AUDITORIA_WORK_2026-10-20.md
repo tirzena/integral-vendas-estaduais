@@ -71,3 +71,10 @@ A projeção divisional usa SECURITY INVOKER e mantém as políticas existentes 
 - Teste SQL com rollback: criador diferente do vendedor, autoria protegida em fixture administrativa, solicitação e aprovação, autoria herdada pela revisão. Aprovado.
 - Os testes não editaram pedidos ou pagamentos reais. A identificação do criador para registros anteriores continua limitada pela ausência desse dado no histórico.
 - A implantação da interface atualizada na Hostinger continua pendente.
+
+
+## Correção do erro “Use the seller portal RPC.” no editor
+
+Reproduzido com o perfil vendedor que também possui a capacidade company_sales: sales_items_for_sale bloqueia a chamada, enquanto seller_portal_data e estadual_seller_customers retornam corretamente. O editor agora usa a mesma fronteira do servidor (cargo vendedor sem admin), independente de capacidades comerciais adicionais. As permissões de outros cargos permanecem intactas.
+
+Regressão do formulário cobre vendedor, vendedor+gestor, vendedor+financeiro, gestor e vendedor+superadmin. Suítes: 13 testes na Direção Geral e 17 no Estadual. Consulta controlada no banco reproduziu a mensagem original e confirmou as consultas corretas, com rollback e sem alterar registros reais.
