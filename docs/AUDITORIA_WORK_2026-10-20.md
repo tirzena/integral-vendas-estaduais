@@ -78,3 +78,10 @@ A projeção divisional usa SECURITY INVOKER e mantém as políticas existentes 
 Reproduzido com o perfil vendedor que também possui a capacidade company_sales: sales_items_for_sale bloqueia a chamada, enquanto seller_portal_data e estadual_seller_customers retornam corretamente. O editor agora usa a mesma fronteira do servidor (cargo vendedor sem admin), independente de capacidades comerciais adicionais. As permissões de outros cargos permanecem intactas.
 
 Regressão do formulário cobre vendedor, vendedor+gestor, vendedor+financeiro, gestor e vendedor+superadmin. Suítes: 13 testes na Direção Geral e 17 no Estadual. Consulta controlada no banco reproduziu a mensagem original e confirmou as consultas corretas, com rollback e sem alterar registros reais.
+
+
+## Compatibilidade imediata com o editor ainda publicado
+
+Após o usuário informar persistência do erro, os módulos efetivamente servidos nos dois domínios ainda continham a seleção antiga baseada apenas em company_sales. Aplicada a migração seller_editor_read_compatibility: sales_items_for_sale e sales_warehouses agora delegam ao payload restrito de seller_portal_data para vendedores, mantendo formato de resposta, filtro de produto e ausência de custos e localização exata. Outros perfis seguem os caminhos anteriores.
+
+Teste em transação com SET LOCAL ROLE authenticated confirmou contexto do pedido, consulta de clientes e equivalência exata das quantidades de itens e estoques com o payload autorizado. Não houve alteração de dados reais. Esta compatibilidade de leitura vale imediatamente, inclusive para a interface antiga, sem desativar controles de autorização ou aprovação.
