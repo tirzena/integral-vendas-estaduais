@@ -16,13 +16,14 @@ export function OrderApprovals() {
   const query = useQuery({
     queryKey: ["order-change-requests", userId],
     enabled: !!userId && !viewAs && access.data === true,
-    refetchInterval: 60_000,
+    refetchInterval: 15_000,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       const r = await (supabase as any)
         .from("order_change_requests")
         .select("*")
         .eq("status", "pending")
-        .order("created_at");
+        .order("created_at", { ascending: false });
       if (r.error) throw r.error;
       const requests = (r.data ?? []) as any[];
       if (!requests.length) return requests;
@@ -31,9 +32,18 @@ export function OrderApprovals() {
         .select("id,seller_id")
         .in("id", [...new Set(requests.map((r) => r.order_id))]);
       if (orders.error) throw orders.error;
+      const memberIds = [...new Set([
+        ...requests.map((request) => request.requested_by),
+        ...(orders.data ?? []).map((order: any) => order.seller_id),
+      ].filter(Boolean))];
+      const members = await (supabase as any).from("profiles").select("id,full_name").in("id", memberIds);
+      if (members.error) throw members.error;
+      const memberName = (id: string) => members.data?.find((member: any) => member.id === id)?.full_name || "Membro não identificado";
       return requests.map((r) => ({
         ...r,
         current_seller_id: orders.data?.find((o: any) => o.id === r.order_id)?.seller_id,
+        requester_name: memberName(r.requested_by),
+        seller_name: memberName(orders.data?.find((o: any) => o.id === r.order_id)?.seller_id),
       }));
     },
   });
@@ -74,7 +84,13 @@ export function OrderApprovals() {
   if (!access.data || viewAs) return null;
   return (
     <section className="my-4 space-y-3 rounded-lg border p-4">
-      <h2 className="font-semibold">Solicitações de alteração de pedidos</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-semibold">Solicitações de alteração de pedidos</h2>
+        <Button variant="outline" size="sm" disabled={query.isFetching} onClick={() => query.refetch()}>
+          {query.isFetching ? "Atualizando…" : "Atualizar solicitações"}
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">Mais recentes primeiro · atualização automática a cada 15 segundos · horários de Brasília</p>
       {query.isLoading ? (
         <p>Carregando…</p>
       ) : query.error ? (
@@ -87,7 +103,16 @@ export function OrderApprovals() {
             <p className="font-medium">
               Pedido {r.previous_snapshot?.number ?? r.previous_snapshot?.order?.number ?? "—"}
             </p>
-            <p>{r.reason}</p>
+            <div className="grid gap-1 text-sm sm:grid-cols-2">
+              <p><span className="text-muted-foreground">Solicitado por:</span> <strong>{r.requester_name}</strong></p>
+              <p><span className="text-muted-foreground">Vendedor responsável:</span> {r.seller_name}</p>
+              <p className="sm:col-span-2"><span className="text-muted-foreground">Data e hora:</span>{" "}
+                <time dateTime={r.created_at}>{new Intl.DateTimeFormat("pt-BR", {
+                  dateStyle: "short", timeStyle: "medium", timeZone: "America/Sao_Paulo",
+                }).format(new Date(r.created_at))}</time> (Brasília)
+              </p>
+            </div>
+            <p><span className="text-muted-foreground">Justificativa:</span> {r.reason}</p>
             <details>
               <summary>Comparar valores anteriores e propostos</summary>
               <table className="mt-3 w-full text-left text-sm">

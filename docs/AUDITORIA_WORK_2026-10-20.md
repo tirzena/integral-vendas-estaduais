@@ -120,3 +120,10 @@ Teste transacional passou com produto e usuários sintéticos: destino autorizad
 O seletor de inclusão foi separado em busca por nome/SKU, seleção de produto liberado e botão Adicionar ao pedido. Produtos já presentes ficam fora das opções para evitar duplicação. Após adicionar, quantidade/preço/desconto ficam editáveis na nova linha; a solicitação mantém a mesma aprovação administrativa.
 
 Teste SQL transacional com dois produtos sintéticos passou: original preservado antes da aprovação e segundo produto presente na revisão aprovada com quantidade e preço propostos. Fixtures revertidas. Teste de renderização verifica presença dos controles de inclusão. A disponibilização visual depende da implantação na Hostinger.
+
+
+## Identificação e atualização das solicitações de edição
+
+Incluídos nome do solicitante, vendedor responsável e data/hora explícita em America/Sao_Paulo. Fila ordenada por criação decrescente, botão de atualização manual e atualização automática a cada 15 segundos.
+
+Conferida solicitação real da Renata no pedido 79, pendente, registrada em 20/10/2026 às 15:29:26 (Brasília). A consulta executada como authenticated com identidade do superadmin conseguiu ler solicitação, pedido e nome do solicitante. Não foi aprovada/rejeitada nem modificada. A fila anterior exibia os registros mais antigos primeiro e não mostrava autoria/data. Implantação necessária para os novos campos aparecerem na interface.
