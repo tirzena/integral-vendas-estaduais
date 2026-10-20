@@ -441,6 +441,30 @@ export function DocsList({
   });
 
 
+  const pendingEditRequests = useQuery({
+    queryKey: [
+      "pending-order-edit-requests",
+      userId,
+      (data?.docs ?? []).map((doc: any) => doc.id).sort().join(","),
+    ],
+    enabled: !isQuote && !!userId && !!data?.docs?.length,
+    refetchInterval: 15_000,
+    queryFn: async () => {
+      const ids = (data?.docs ?? []).map((doc: any) => doc.id);
+      const pending = new Set<string>();
+      for (let offset = 0; offset < ids.length; offset += 100) {
+        const { data: rows, error } = await (supabase as any)
+          .from("order_change_requests")
+          .select("order_id")
+          .eq("status", "pending")
+          .in("order_id", ids.slice(offset, offset + 100));
+        if (error) throw error;
+        for (const row of rows ?? []) pending.add(row.order_id);
+      }
+      return pending;
+    },
+  });
+
   const pendingPaymentAmounts = useQuery({
     queryKey: ["pending-payment-amounts", userId, (data?.docs ?? []).map((doc: any) => doc.id).sort().join(",")],
     enabled: !isQuote && !!data?.docs?.length,
@@ -2282,6 +2306,11 @@ export function DocsList({
                         <Badge className="mt-2" variant={orderReviewStage(d) === "rejected" ? "destructive" : "secondary"}>
                           {pendingPaymentOrders.data?.has(d.id) && orderReviewStage(d) === "approved"
                             ? orderReviewLabels.payment_pending : orderReviewLabels[orderReviewStage(d)]}
+                        </Badge>
+                      )}
+                      {!isQuote && pendingEditRequests.data?.has(d.id) && (
+                        <Badge className="ml-2 mt-2" variant="outline">
+                          Alteração aguardando aprovação
                         </Badge>
                       )}
                       {d.converted_order_id && (
