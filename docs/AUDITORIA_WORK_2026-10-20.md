@@ -58,3 +58,16 @@ A projeção divisional usa SECURITY INVOKER e mantém as políticas existentes 
 - O login Google iniciado em `estadual.qrcodevalidacao.com/auth` terminou em `tirzena.vercel.app/painel`. Retornar ao domínio Estadual levou novamente ao login, sem sessão autenticada nesse domínio.
 - O código atual pede retorno para `window.location.origin + '/painel'`. É necessário conferir a configuração de URLs permitidas/retorno do Supabase e o código efetivamente implantado. A causa de configuração ainda não foi inspecionada.
 - As ferramentas administrativas de Hostinger não estavam expostas nesta sessão. A publicação no GitHub está confirmada; reimplantação e auditoria completa autenticada na Hostinger seguem pendentes.
+
+## Complemento: edição e criador do pedido
+
+- Eliminado o caminho que aplicava diretamente a edição de pedidos legados. Toda edição pelo fluxo unificado cria uma solicitação pendente, mantém o pedido atual e só aplica os dados depois da aprovação.
+- Os RPCs públicos antigos de edição direta foram bloqueados para impedir contorno da fila. O PDV passa a exigir o fluxo de revisão para qualquer edição, inclusive se a configuração geral ainda estiver carregando.
+- Criado registro privado de autoria capturado pelo banco para novos pedidos. A revisão herda o criador original; o aprovador não assume essa autoria. O criador ou vendedor responsável pode solicitar alterações, mantendo as demais permissões e concessões.
+- Pedidos históricos sem autoria comprovada não foram preenchidos por suposição: continuam editáveis pelo vendedor responsável e pelos perfis já autorizados.
+- O editor não envia um custo interno ausente como zero. O servidor preserva o custo existente quando o formulário não o fornece.
+- Corrigido o resumo do cliente no editor para acompanhar a opção selecionada, incluindo a mudança de venda balcão para cliente identificado.
+- Teste SQL com rollback: pedido legado balcão → proposta de cliente/logística → fila pendente → aprovação independente → nova versão com cliente, logística e custo interno preservados. Aprovado.
+- Teste SQL com rollback: criador diferente do vendedor, autoria protegida em fixture administrativa, solicitação e aprovação, autoria herdada pela revisão. Aprovado.
+- Os testes não editaram pedidos ou pagamentos reais. A identificação do criador para registros anteriores continua limitada pela ausência desse dado no histórico.
+- A implantação da interface atualizada na Hostinger continua pendente.

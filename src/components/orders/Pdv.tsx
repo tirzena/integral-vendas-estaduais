@@ -1242,7 +1242,7 @@ export function Pdv({
       );
       if (workflowError)
         return void toast.error("Não foi possível conferir o fluxo de aprovação. Tente novamente.");
-      const requiresReview = kind !== "orcamento" && workflowEnabled === true;
+      const requiresReview = Boolean(sourceOrderId) || (kind !== "orcamento" && workflowEnabled === true);
       if (requiresReview && (payments.length > 0 || useCustomerCredit))
         return void toast.error(
           "Envie o pedido para aprovação sem pagamentos. Após aprovado, registre o pagamento e o comprovante nos detalhes do pedido.",

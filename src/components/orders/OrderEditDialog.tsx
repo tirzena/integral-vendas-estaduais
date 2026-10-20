@@ -130,7 +130,6 @@ function OrderEditor({ orderId, onClose }: { orderId: string; onClose: () => voi
         delivery_recipient_name: form.delivery_recipient_name ?? "",
         delivery_recipient_document: form.delivery_recipient_document ?? "",
         shipping_cep: form.shipping_cep ?? "",
-        variable_cost: Number(form.variable_cost ?? 0),
         seller_id: form.seller_id,
         order_date: form.order_date,
         delivery_deadline: form.delivery_deadline,
@@ -188,8 +187,14 @@ function OrderEditor({ orderId, onClose }: { orderId: string; onClose: () => voi
           form && (
             <div className="space-y-4">
               <p>
-                Cliente: {query.data.customer?.name ?? "Venda balcão"} · Estoque:{" "}
-                {query.data.warehouse?.name ?? "Não definido"}
+                Cliente:{" "}
+                {form.customer_id
+                  ? (query.data.customers.find((customer: any) => customer.id === form.customer_id)
+                      ?.name ??
+                    query.data.customer?.name ??
+                    "Cliente identificado")
+                  : "Venda balcão"}{" "}
+                · Estoque: {query.data.warehouse?.name ?? "Não definido"}
               </p>
               {(query.data.requires_approval || form.approval_status === "approved") && (
                 <p className="rounded-lg border p-3 text-sm">
