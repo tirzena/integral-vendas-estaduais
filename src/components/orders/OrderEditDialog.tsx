@@ -38,6 +38,12 @@ function OrderEditor({ orderId, onClose }: { orderId: string; onClose: () => voi
     [requestId] = useState(() => crypto.randomUUID());
   const [selectedProductId, setSelectedProductId] = useState("");
   const [productSearch, setProductSearch] = useState("");
+  const [showNewCustomer, setShowNewCustomer] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
+  const [newCustomerEmail, setNewCustomerEmail] = useState("");
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
+  const [createdCustomers, setCreatedCustomers] = useState<{ id: string; name: string }[]>([]);
   const query = useQuery({
     queryKey: ["order-editor", orderId, actor.userId, broadSales],
     enabled: !!orderId && !actor.loading && !permissions.loading && !actor.viewAs,
@@ -66,6 +72,64 @@ function OrderEditor({ orderId, onClose }: { orderId: string; onClose: () => voi
       return r.data;
     },
   });
+  const customersForSelection = [
+    ...(query.data?.customers ?? []),
+    ...createdCustomers.filter(
+      (created) => !(query.data?.customers ?? []).some((customer: any) => customer.id === created.id),
+    ),
+  ];
+
+  async function registerCustomer() {
+    if (creatingCustomer || busy || !query.data?.can_edit || actor.viewAs) return;
+    const name = newCustomerName.trim();
+    const phone = newCustomerPhone.trim();
+    const email = newCustomerEmail.trim();
+    if (!name || name.length > 150 || phone.length > 80 || email.length > 254) {
+      toast.error("Informe um nome válido (até 150 caracteres) e confira telefone e e-mail.");
+      return;
+    }
+    setCreatingCustomer(true);
+    try {
+      let id: string;
+      if (broadSales) {
+        const result = await (supabase as any)
+          .from("customers")
+          .insert({
+            name,
+            phone: phone || null,
+            whatsapp: phone || null,
+            email: email || null,
+            created_by: actor.userId,
+            origin: "Edição de pedido",
+          })
+          .select("id")
+          .single();
+        if (result.error) throw result.error;
+        id = result.data.id;
+      } else {
+        const result = await (supabase as any).rpc("integral_seller_create_customer", {
+          p_name: name,
+          p_phone: phone || null,
+          p_email: email || null,
+        });
+        if (result.error) throw result.error;
+        id = result.data;
+      }
+      setCreatedCustomers((current) => [...current, { id, name }]);
+      setForm((current: any) => ({ ...current, customer_id: id }));
+      setShowNewCustomer(false);
+      setNewCustomerName("");
+      setNewCustomerPhone("");
+      setNewCustomerEmail("");
+      toast.success("Cliente cadastrado. Envie a alteração para aprovação e vinculação ao pedido.");
+      void client.invalidateQueries({ queryKey: ["estadual-seller-customers"] });
+    } catch (error) {
+      toast.error((error as Error).message);
+    } finally {
+      setCreatingCustomer(false);
+    }
+  }
+
   // Cached data must initialize a newly opened editor too. Background refetches
   // must not overwrite changes the user is typing.
   useEffect(() => {
@@ -224,7 +288,7 @@ function OrderEditor({ orderId, onClose }: { orderId: string; onClose: () => voi
               <p>
                 Cliente:{" "}
                 {form.customer_id
-                  ? (query.data.customers.find((customer: any) => customer.id === form.customer_id)
+                  ? (customersForSelection.find((customer: any) => customer.id === form.customer_id)
                       ?.name ??
                     query.data.customer?.name ??
                     "Cliente identificado")
@@ -246,17 +310,27 @@ function OrderEditor({ orderId, onClose }: { orderId: string; onClose: () => voi
                   >
                     <option value="">Venda balcão</option>
                     {form.customer_id &&
-                      !query.data.customers.some((c: any) => c.id === form.customer_id) && (
+                      !customersForSelection.some((c: any) => c.id === form.customer_id) && (
                         <option value={form.customer_id}>
                           {query.data.customer?.name ?? "Cliente atual"}
                         </option>
                       )}
-                    {query.data.customers.map((c: any) => (
+                    {customersForSelection.map((c: any) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
                       </option>
                     ))}
                   </select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2 w-fit"
+                    disabled={busy || creatingCustomer || !query.data.can_edit}
+                    onClick={() => setShowNewCustomer((open) => !open)}
+                  >
+                    {showNewCustomer ? "Cancelar cadastro" : "Cadastrar novo cliente"}
+                  </Button>
                 </label>
                 <label className="grid gap-1 text-sm">
                   Estoque de origem
@@ -278,6 +352,49 @@ function OrderEditor({ orderId, onClose }: { orderId: string; onClose: () => voi
                   </select>
                 </label>
               </div>
+              {showNewCustomer && (
+                <div className="space-y-3 rounded-lg border p-3">
+                  <p className="text-sm font-semibold">Identificar a venda balcão</p>
+                  <p className="text-xs text-muted-foreground">
+                    O cadastro do cliente é independente. O pedido só será vinculado após
+                    enviar a alteração e obter a aprovação administrativa.
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <label className="grid gap-1 text-sm">
+                      Nome completo
+                      <Input
+                        value={newCustomerName}
+                        maxLength={150}
+                        onChange={(event) => setNewCustomerName(event.target.value)}
+                      />
+                    </label>
+                    <label className="grid gap-1 text-sm">
+                      Telefone
+                      <Input
+                        value={newCustomerPhone}
+                        maxLength={80}
+                        onChange={(event) => setNewCustomerPhone(event.target.value)}
+                      />
+                    </label>
+                    <label className="grid gap-1 text-sm">
+                      E-mail
+                      <Input
+                        type="email"
+                        value={newCustomerEmail}
+                        maxLength={254}
+                        onChange={(event) => setNewCustomerEmail(event.target.value)}
+                      />
+                    </label>
+                  </div>
+                  <Button
+                    type="button"
+                    disabled={busy || creatingCustomer || !query.data.can_edit || !newCustomerName.trim()}
+                    onClick={() => void registerCustomer()}
+                  >
+                    {creatingCustomer ? "Cadastrando…" : "Cadastrar e selecionar cliente"}
+                  </Button>
+                </div>
+              )}
               <fieldset className="space-y-3 rounded-lg border p-3" disabled={busy || !query.data.can_edit}>
                 <legend className="px-1 text-sm font-semibold">Adicionar novo produto</legend>
                 <label className="grid gap-1 text-sm">
@@ -410,7 +527,7 @@ function OrderEditor({ orderId, onClose }: { orderId: string; onClose: () => voi
             Cancelar
           </Button>
           <Button
-            disabled={busy || !form || !!query.error || !!actor.viewAs || !query.data?.can_edit}
+            disabled={busy || creatingCustomer || !form || !!query.error || !!actor.viewAs || !query.data?.can_edit}
             onClick={save}
           >
             {busy
