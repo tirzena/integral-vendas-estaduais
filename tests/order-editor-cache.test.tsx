@@ -76,6 +76,9 @@ describe("reabrir editor de pedido em cache", () => {
     const html = render();
     expect(html).toContain("Venda balcão");
     expect(html).toContain("Cliente identificado");
+    expect(html).toContain("Adicionar novo produto");
+    expect(html).toContain("Adicionar ao pedido");
+    expect(html).toContain("Buscar produto por nome ou código");
     expect(html).toContain("Transportadora");
     expect(html).toContain("Código de rastreio");
     expect(html).toContain("Prazo de entrega");

@@ -113,3 +113,10 @@ Adicionado gatilho para alterações administrativas de preço de venda ou moeda
 A leitura das notificações do próprio vendedor foi liberada mantendo restrição de acesso às de terceiros. RPC de confirmação limitada às próprias notificações; guarda por linha proíbe alterar título, corpo ou destinatário ao confirmar leitura. Interface mostra aviso de tela por até 15 segundos, agrupando mudanças, mantém histórico no sino, atualiza consultas de preços e usa Realtime com consulta de segurança a cada 60 segundos. Modo espelho não lê nem confirma notificações de outro membro.
 
 Teste transacional passou com produto e usuários sintéticos: destino autorizado, exclusão de vendedor sem concessão, não duplicação, troca de moeda, leitura isolada e confirmação. Todas as fixtures revertidas. Geração no banco está ativa; aviso visual depende de implantação do código. Alterações de preço anteriores não foram reconstruídas nem notificadas retroativamente.
+
+
+## Inclusão de novos produtos ao editar pedido
+
+O seletor de inclusão foi separado em busca por nome/SKU, seleção de produto liberado e botão Adicionar ao pedido. Produtos já presentes ficam fora das opções para evitar duplicação. Após adicionar, quantidade/preço/desconto ficam editáveis na nova linha; a solicitação mantém a mesma aprovação administrativa.
+
+Teste SQL transacional com dois produtos sintéticos passou: original preservado antes da aprovação e segundo produto presente na revisão aprovada com quantidade e preço propostos. Fixtures revertidas. Teste de renderização verifica presença dos controles de inclusão. A disponibilização visual depende da implantação na Hostinger.

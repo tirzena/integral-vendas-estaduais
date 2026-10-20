@@ -36,6 +36,8 @@ function OrderEditor({ orderId, onClose }: { orderId: string; onClose: () => voi
     [reason, setReason] = useState(""),
     [busy, setBusy] = useState(false),
     [requestId] = useState(() => crypto.randomUUID());
+  const [selectedProductId, setSelectedProductId] = useState("");
+  const [productSearch, setProductSearch] = useState("");
   const query = useQuery({
     queryKey: ["order-editor", orderId, actor.userId, broadSales],
     enabled: !!orderId && !actor.loading && !permissions.loading && !actor.viewAs,
@@ -162,6 +164,37 @@ function OrderEditor({ orderId, onClose }: { orderId: string; onClose: () => voi
       setBusy(false);
     }
   }
+  function addProduct() {
+    if (!form || !query.data || busy || !query.data.can_edit) return;
+                    const item = query.data.catalog.find((i: any) => i.id === selectedProductId);
+                    if (!item) return;
+                    if (form.items.some((i: any) => i.item_id === item.id))
+                      return void toast.error("O produto já está no pedido.");
+                    const rate = Number(
+                      query.data.exchange_rates_snapshot?.[item.currency] ??
+                        (item.currency === form.currency ? 1 : 0),
+                    );
+                    if (!(rate > 0)) return void toast.error("Cotação do produto indisponível.");
+                    change("items", [
+                      ...form.items,
+                      {
+                        id: crypto.randomUUID(),
+                        item_id: item.id,
+                        description: item.name,
+                        sku: item.sku,
+                        barcode: item.barcode,
+                        unit: item.unit ?? "UN",
+                        quantity: 1,
+                        unit_price: Math.round((Number(item.price) / rate) * 100) / 100,
+                        discount: 0,
+                        commission_enabled: true,
+                        commission_percent: Number(item.commission_percent ?? 5),
+                        max_discount_percent: Number(item.max_discount_percent ?? 0),
+                      },
+                    ]);
+                    setSelectedProductId("");
+                    setProductSearch("");
+  }
   const change = (key: string, value: any) => setForm({ ...form, [key]: value });
   return (
     <Dialog
@@ -200,8 +233,7 @@ function OrderEditor({ orderId, onClose }: { orderId: string; onClose: () => voi
               </p>
               {(query.data.requires_approval || form.approval_status === "approved") && (
                 <p className="rounded-lg border p-3 text-sm">
-                  Este pedido já foi aprovado, tem pagamento confirmado ou envio iniciado. As
-                  alterações só serão aplicadas após aprovação administrativa.
+                  As alterações e os novos produtos só serão aplicados após aprovação administrativa.
                 </p>
               )}
               <div className="grid gap-3 sm:grid-cols-2">
@@ -246,48 +278,33 @@ function OrderEditor({ orderId, onClose }: { orderId: string; onClose: () => voi
                   </select>
                 </label>
               </div>
-              <label className="grid gap-1 text-sm">
-                Adicionar produto concedido
-                <select
-                  className="rounded-md border bg-background p-2"
-                  value=""
-                  onChange={(e) => {
-                    const item = query.data.catalog.find((i: any) => i.id === e.target.value);
-                    if (!item) return;
-                    if (form.items.some((i: any) => i.item_id === item.id))
-                      return void toast.error("O produto já está no pedido.");
-                    const rate = Number(
-                      query.data.exchange_rates_snapshot?.[item.currency] ??
-                        (item.currency === form.currency ? 1 : 0),
-                    );
-                    if (!(rate > 0)) return void toast.error("Cotação do produto indisponível.");
-                    change("items", [
-                      ...form.items,
-                      {
-                        id: crypto.randomUUID(),
-                        item_id: item.id,
-                        description: item.name,
-                        sku: item.sku,
-                        barcode: item.barcode,
-                        unit: item.unit ?? "UN",
-                        quantity: 1,
-                        unit_price: Math.round((Number(item.price) / rate) * 100) / 100,
-                        discount: 0,
-                        commission_enabled: true,
-                        commission_percent: Number(item.commission_percent ?? 5),
-                        max_discount_percent: Number(item.max_discount_percent ?? 0),
-                      },
-                    ]);
-                  }}
-                >
-                  <option value="">Selecione um produto</option>
-                  {query.data.catalog.map((item: any) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <fieldset className="space-y-3 rounded-lg border p-3" disabled={busy || !query.data.can_edit}>
+                <legend className="px-1 text-sm font-semibold">Adicionar novo produto</legend>
+                <label className="grid gap-1 text-sm">
+                  Buscar produto por nome ou código
+                  <Input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder="Digite o nome ou código do produto" />
+                </label>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <label className="grid min-w-0 flex-1 gap-1 text-sm">
+                    Produtos liberados
+                    <select
+                      className="min-w-0 rounded-md border bg-background p-2"
+                      value={selectedProductId}
+                      onChange={(event) => setSelectedProductId(event.target.value)}
+                    >
+                      <option value="">Selecione um novo produto</option>
+                      {query.data.catalog.filter((item: any) =>
+                        !form.items.some((line: any) => line.item_id === item.id) &&
+                        `${item.name} ${item.sku ?? ""}`.toLocaleLowerCase("pt-BR").includes(productSearch.trim().toLocaleLowerCase("pt-BR"))
+                      ).map((item: any) => (
+                        <option key={item.id} value={item.id}>{item.name}{item.sku ? ` · ${item.sku}` : ""}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <Button className="self-end" disabled={!selectedProductId || busy || !query.data.can_edit} onClick={addProduct}>Adicionar ao pedido</Button>
+                </div>
+                <p className="text-xs text-muted-foreground">O novo produto será incluído abaixo. Confira quantidade e preço antes de enviar a solicitação.</p>
+              </fieldset>
               <div className="overflow-auto">
                 <table className="w-full text-sm">
                   <thead>
