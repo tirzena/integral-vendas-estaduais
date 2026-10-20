@@ -1,5 +1,5 @@
 import { catalogAudience, catalogPublicUrl } from "@/lib/catalog-views";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { jsPDF } from "jspdf";
 import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -232,6 +232,10 @@ function PublicCatalogPage() {
   const [freightLoading, setFreightLoading] = useState(false);
   const [freightError, setFreightError] = useState<string | null>(null);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
+  const [visibleCategory, setVisibleCategory] = useState<string | null>(null);
+  const categorySections = useRef(new Map<string, HTMLElement>());
+  const categoryButtons = useRef(new Map<string, HTMLButtonElement>());
+  const categorySidebar = useRef<HTMLElement>(null);
   const quoteFreight = useServerFn(quoteCatalogFreight);
 
   useEffect(() => {
@@ -272,6 +276,50 @@ function PublicCatalogPage() {
       return normalize(`${i.name} ${i.brand ?? ""} ${i.sku ?? ""} ${i.spec}`).includes(term);
     });
   }, [catalog.items, search, group, brand, onlyOffers]);
+
+  // Track the document scroll without moving the page or changing product filters.
+  useEffect(() => {
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const readingLine = Math.min(160, window.innerHeight * 0.25);
+      let current: string | null = null;
+      for (const section of sections) {
+        const rect = categorySections.current.get(section.category)?.getBoundingClientRect();
+        if (!rect) continue;
+        if (rect.top <= readingLine) current = section.category;
+        else if (!current && rect.top < window.innerHeight) {
+          current = section.category;
+          break;
+        } else break;
+      }
+      setVisibleCategory(current);
+    };
+    const schedule = () => {
+      if (!frame) frame = window.requestAnimationFrame(update);
+    };
+    update();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [sections]);
+
+  useEffect(() => {
+    const sidebar = categorySidebar.current;
+    const button = visibleCategory ? categoryButtons.current.get(visibleCategory) : null;
+    if (!sidebar || !button || !window.matchMedia("(min-width: 768px)").matches) return;
+    const bounds = sidebar.getBoundingClientRect();
+    const target = button.getBoundingClientRect();
+    // Only scroll this menu; scrollIntoView could also move the document.
+    if (target.top < bounds.top + 12)
+      sidebar.scrollTop += target.top - bounds.top - 12;
+    else if (target.bottom > bounds.bottom - 12)
+      sidebar.scrollTop += target.bottom - bounds.bottom + 12;
+  }, [visibleCategory]);
 
   const itemById = (id: string) => catalog.items.find((i) => i.id === id);
   const lines = cart

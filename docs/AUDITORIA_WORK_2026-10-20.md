@@ -99,3 +99,8 @@ Validação no navegador: material de membro abriu com preços no público vende
 Removida a área de produtos presa em h-dvh/overflow-hidden e a lógica que alterava a altura do cabeçalho com base no scroll interno. A página usa rolagem natural, cabeçalho sem animação de altura e banner de 144 px em telas pequenas. Busca, botões e espaçamentos foram compactados; categorias recolhem no celular e continuam visíveis no desktop. Listas largas mantêm rolagem horizontal local.
 
 A verificação visual na versão publicada depende da implantação. Não foram alterados catálogo, preços, pedidos ou regras de público vendedor/cliente.
+
+
+## Categoria acompanhando a rolagem
+
+O menu destaca a categoria na linha de leitura do documento e rola apenas sua própria área no desktop para manter esse botão visível. O acompanhamento não muda os filtros nem usa scrollIntoView, evitando deslocamento involuntário da página. No celular, o botão recolhido identifica a categoria atual. Atualizações de rolagem limitadas por requestAnimationFrame, com limpeza de eventos e frame ao desmontar. Verificação visual na publicação depende da implantação.
