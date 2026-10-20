@@ -321,17 +321,17 @@ function OrderEditor({ orderId, onClose }: { orderId: string; onClose: () => voi
                       </option>
                     ))}
                   </select>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="mt-2 w-fit"
-                    disabled={busy || creatingCustomer || !query.data.can_edit}
-                    onClick={() => setShowNewCustomer((open) => !open)}
-                  >
-                    {showNewCustomer ? "Cancelar cadastro" : "Cadastrar novo cliente"}
-                  </Button>
                 </label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="self-end"
+                  disabled={busy || creatingCustomer || !query.data.can_edit}
+                  onClick={() => setShowNewCustomer((open) => !open)}
+                >
+                  {showNewCustomer ? "Cancelar cadastro" : "Cadastrar novo cliente"}
+                </Button>
                 <label className="grid gap-1 text-sm">
                   Estoque de origem
                   <select
