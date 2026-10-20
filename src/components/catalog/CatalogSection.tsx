@@ -3,7 +3,7 @@ import { useSalesCatalog } from "@/hooks/useSalesCatalog";
 import { informationSourceUrl } from "@/lib/product-information";
 import { StockEntryDialog } from "@/components/inventory/StockEntryDialog";
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { catalogViewPath } from "@/lib/catalog-views";
+import { catalogPublicUrl } from "@/lib/catalog-views";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -113,7 +113,7 @@ function CatalogViewLinks({ slug }: { slug: string }) {
             onClick={async () => {
               try {
                 await navigator.clipboard.writeText(
-                  window.location.origin + catalogViewPath(slug, view.audience),
+                  catalogPublicUrl(slug, view.audience),
                 );
                 toast.success(`Link ${view.label} copiado.`);
               } catch {
@@ -125,7 +125,7 @@ function CatalogViewLinks({ slug }: { slug: string }) {
             Link {view.label}
           </Button>
           <Button size="sm" variant="outline" asChild>
-            <a href={catalogViewPath(slug, view.audience)} target="_blank" rel="noreferrer">
+            <a href={catalogPublicUrl(slug, view.audience)} target="_blank" rel="noreferrer">
               <ExternalLink className="mr-1 size-3" />
               Ver {view.label}
             </a>
@@ -1323,9 +1323,7 @@ export function CatalogSection({
   }
 
   const linkOf = (slug: string) =>
-    typeof window === "undefined"
-      ? `/catalogo/${slug}`
-      : `${window.location.origin}/catalogo/${slug}`;
+    catalogPublicUrl(slug, "vendedor").split("?")[0];
 
   return (
     <section className="surface-card p-4">

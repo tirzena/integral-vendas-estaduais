@@ -85,3 +85,10 @@ Regressão do formulário cobre vendedor, vendedor+gestor, vendedor+financeiro, 
 Após o usuário informar persistência do erro, os módulos efetivamente servidos nos dois domínios ainda continham a seleção antiga baseada apenas em company_sales. Aplicada a migração seller_editor_read_compatibility: sales_items_for_sale e sales_warehouses agora delegam ao payload restrito de seller_portal_data para vendedores, mantendo formato de resposta, filtro de produto e ausência de custos e localização exata. Outros perfis seguem os caminhos anteriores.
 
 Teste em transação com SET LOCAL ROLE authenticated confirmou contexto do pedido, consulta de clientes e equivalência exata das quantidades de itens e estoques com o payload autorizado. Não houve alteração de dados reais. Esta compatibilidade de leitura vale imediatamente, inclusive para a interface antiga, sem desativar controles de autorização ou aprovação.
+
+
+## Visualização pública de catálogos
+
+Reproduzida falha na rota pública Estadual: Missing Supabase environment variable(s): SUPABASE_SERVICE_ROLE_KEY. O mesmo material e catálogo geral abrem na Direção Geral. Links de copiar e visualizar agora apontam à publicação central em login.qrcodevalidacao.com, preservando slug codificado e público vendedor/cliente. A rota Estadual redireciona links antigos antes de executar o loader que depende da chave. Não adicionada chave administrativa ao portal divisional.
+
+Validação no navegador: material de membro abriu com preços no público vendedor e sem coluna de valores no cliente; catálogo geral e promoção também abriram na publicação central. Testes automatizados de público, codificação do slug e ocultação de preço passaram (16 na Direção Geral; 20 no Estadual). Redirecionamento Estadual depende da implantação do novo código na Hostinger. Nenhum catálogo ou preço real foi alterado.

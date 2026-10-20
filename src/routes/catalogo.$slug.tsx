@@ -1,7 +1,7 @@
-import { catalogAudience } from "@/lib/catalog-views";
+import { catalogAudience, catalogPublicUrl } from "@/lib/catalog-views";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { jsPDF } from "jspdf";
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Calculator,
@@ -59,6 +59,10 @@ export const Route = createFileRoute("/catalogo/$slug")({
   validateSearch: (search: Record<string, unknown>) => ({
     publico: catalogAudience(search["publico"]),
   }),
+  // This portal has no service-role key; the central public route owns catalog reads.
+  beforeLoad: ({ params, search }) => {
+    throw redirect({ href: catalogPublicUrl(params.slug, search.publico), reloadDocument: true });
+  },
   loaderDeps: ({ search }) => ({ audience: search.publico }),
   loader: async ({ params, deps }) => {
     const catalog = await getPublicCatalog({

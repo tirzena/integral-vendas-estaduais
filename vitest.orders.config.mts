@@ -4,6 +4,7 @@ export default defineConfig({
   resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
   test: {
     include: [
+      "src/lib/catalog-views.test.ts",
       "tests/order-editor-cache.test.tsx",
       "tests/order-approval-close.test.tsx",
       "src/lib/order-exchange.test.ts",
