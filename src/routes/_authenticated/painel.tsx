@@ -161,10 +161,10 @@ function PainelBase() {
             ),
           ),
           mine(
-            supabase
-              .from("orders")
+            (supabase as any)
+              .from("division_orders_public")
               .select(
-                "id,number,total,currency,total_cost_brl,total_cost_usd,shipping_cost,amount_paid,status,kind,origin,stock_state,workflow_stage,payment_status,fulfillment_status,created_at,seller_id,customer_id,product_id,delivery_deadline,delivered_at,tracking_status,tracking_code,carrier,warehouse_id,shipping_state",
+                "id,number,total,currency,shipping_cost,amount_paid,status,kind,origin,stock_state,workflow_stage,payment_status,fulfillment_status,created_at,seller_id,customer_id,product_id,delivery_deadline,delivered_at,tracking_status,tracking_code,carrier,warehouse_id,shipping_state",
               )
               .is("deleted_at", null)
               .is("superseded_at", null),
@@ -1854,7 +1854,6 @@ function Painel() {
   const { isAdmin, roles, loading } = useCurrentUser();
   if (loading || operational.isLoading)
     return <p className="p-4 text-sm text-muted-foreground">Conferindo acesso…</p>;
-  if (!isAdmin && operational.companyObserver) return <CompanyReadOnlyView />;
   if (
     !isAdmin &&
     operational.dispatch &&

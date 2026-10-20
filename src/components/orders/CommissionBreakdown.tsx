@@ -35,7 +35,7 @@ export function CommissionBreakdown({ orderId }: { orderId: string }) {
             args: { p_order: string },
           ) => Promise<{ data: Breakdown; error: Error | null }>;
         }
-      ).rpc("remuneration_commission_breakdown", { p_order: orderId });
+      ).rpc("division_commission_breakdown", { p_order: orderId });
       if (error) throw error;
       return data;
     },
@@ -56,30 +56,17 @@ export function CommissionBreakdown({ orderId }: { orderId: string }) {
               <table className="w-full text-left">
                 <thead>
                   <tr>
-                    {["Produto", "Base de cálculo", "Venda após descontos", "Taxa", "Comissão"].map(
-                      (h) => (
-                        <th key={h} className="p-2">
-                          {h}
-                        </th>
-                      ),
-                    )}
+                    {["Produto", "Comissão"].map((h) => (
+                      <th key={h} className="p-2">
+                        {h}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {query.data.items.map((item) => (
                     <tr key={item.id} className="border-t">
                       <td className="p-2">{item.description}</td>
-                      <td className="p-2">{item.bases.map((b) => bases[b] ?? b).join(" + ")}</td>
-                      <td className="p-2">
-                        {formatMoney(Number(item.net_sale_basis), query.data.currency)}
-                      </td>
-                      <td className="p-2">
-                        {!item.commission_enabled
-                          ? "Sem comissão"
-                          : Number(item.commission_percent) > 0
-                            ? `${Number(item.commission_percent).toLocaleString("pt-BR")}%`
-                            : "Valor definido no acordo"}
-                      </td>
                       <td className="p-2">
                         {formatMoney(Number(item.commission_amount), query.data.currency)}
                       </td>

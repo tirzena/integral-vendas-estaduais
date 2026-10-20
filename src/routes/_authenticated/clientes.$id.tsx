@@ -98,7 +98,7 @@ function ClienteDetalhe() {
             .eq("customer_id", id)
             .order("created_at", { ascending: false })
             .limit(100),
-          supabase.from("orders").select("*").eq("customer_id", id),
+          (supabase as any).from("division_orders_public").select("*").is("deleted_at", null).is("superseded_at", null).eq("customer_id", id),
           supabase.from("quotes").select("*").eq("customer_id", id),
           supabase.from("customer_documents").select("*").eq("customer_id", id),
           supabase.from("accounts_receivable").select("*").eq("customer_id", id),

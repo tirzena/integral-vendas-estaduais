@@ -57,13 +57,14 @@ function LeadDetalhe() {
           .eq("customer_id", id)
           .order("created_at", { ascending: false })
           .limit(50),
-        supabase
-          .from("orders")
-          .select("id,code,total,currency,status,created_at")
+        (supabase as any)
+          .from("division_orders_public")
+          .select("id,number,total,currency,status,created_at")
+          .is("deleted_at", null).is("superseded_at", null)
           .eq("customer_id", id),
         supabase
           .from("quotes")
-          .select("id,code,total,currency,status,created_at")
+          .select("id,number,total,currency,status,created_at")
           .eq("customer_id", id),
       ]);
       return {

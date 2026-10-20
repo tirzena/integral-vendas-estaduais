@@ -75,7 +75,6 @@ export const ROUTE_CAPABILITY: Record<string, Capability> = {
   "/entregas": "deliveries_view",
   "/produtos": "inventory_view",
   "/categorias": "inventory_manage",
-  "/categorias": "inventory_manage",
   "/estoque": "inventory_manage",
 };
 
@@ -109,8 +108,10 @@ export function usePermissions() {
           : (dynamicCaps.data ?? []),
   );
 
-  const can = (c: Capability) => isSuperAdmin || (c === "inventory_manage" ? isAdmin : caps.has(c));
+  const can = (c: Capability) =>
+    c !== "company_finance" && (isSuperAdmin || (c === "inventory_manage" ? isAdmin : caps.has(c)));
   const canOpen = (route: string) => {
+    if (ROUTE_CAPABILITY[route] === "company_finance") return false;
     if (isSuperAdmin) return true;
     const needed = ROUTE_CAPABILITY[route];
     if (!needed) return list.length > 0;
@@ -131,6 +132,6 @@ export function usePermissions() {
     canOpen,
     /** Quando falso, a pessoa só pode ver os próprios resultados. */
     seesCompanySales: caps.has("company_sales"),
-    seesCompanyFinance: caps.has("company_finance"),
+    seesCompanyFinance: false,
   };
 }

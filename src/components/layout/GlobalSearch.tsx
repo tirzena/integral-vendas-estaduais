@@ -36,7 +36,7 @@ export function GlobalSearch({
             ? supabase.from("products").select("id,name").in("id", productIds).ilike("name", like).limit(5)
             : Promise.resolve({ data: [] as { id: string; name: string }[] }),
           productIds.length
-            ? supabase.from("orders").select("id,number,status").in("product_id", productIds).limit(5)
+            ? (supabase as any).from("division_orders_public").select("id,number,status").is("deleted_at", null).is("superseded_at", null).in("product_id", productIds).limit(5)
             : Promise.resolve({ data: [] as { id: string; number: number; status: string }[] }),
           supabase.from("quotes").select("id,number,status").limit(5),
           productIds.length
@@ -56,7 +56,7 @@ export function GlobalSearch({
       (products.data ?? []).forEach((p) =>
         out.push({ id: p.id, label: p.name, group: "Produtos", to: "/produtos" }),
       );
-      (orders.data ?? []).forEach((o) =>
+      (orders.data ?? []).forEach((o: { id: string; number: number; status: string }) =>
         out.push({ id: o.id, label: `Pedido #${o.number}`, group: "Pedidos", to: "/pedidos" }),
       );
       (quotes.data ?? []).forEach((q) =>

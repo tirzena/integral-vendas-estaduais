@@ -83,8 +83,8 @@ export function MyFinance({ userId, period, dateRange }: Props) {
           .eq("user_id", uid)
           .order("created_at", { ascending: false }),
         supabase.from("member_compensations").select("*").eq("user_id", uid),
-        supabase
-          .from("orders")
+        (supabase as any)
+          .from("division_orders_public")
           .select("*,customers(name)")
           .eq("seller_id", uid).is("deleted_at", null).is("superseded_at", null)
           .order("created_at", { ascending: false }),

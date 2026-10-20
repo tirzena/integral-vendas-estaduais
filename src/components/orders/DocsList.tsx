@@ -195,9 +195,7 @@ export function DocsList({
   const { seesCompanySales, seesCompanyFinance, isAdmin, roles, can, userId } =
     usePermissions();
   const canIssueCredit = isAdmin || roles.includes("financeiro");
-  const canUseLineCosts = roles.some((role) =>
-    ["superadmin", "admin", "financeiro"].includes(role),
-  );
+  const canUseLineCosts = false;
   const stockOnly = can("inventory_manage") && !seesCompanySales;
   const queryClient = useQueryClient();
   const rates = useRates();
@@ -343,7 +341,7 @@ export function DocsList({
       canUseLineCosts,
     ],
     queryFn: async () => {
-      const table = isQuote ? "quotes" : "orders";
+      const table = isQuote ? "quotes" : "division_orders_public";
       let q = (supabase.from(table as any) as any)
         .select("*")
         .order("number", { ascending: false });
@@ -394,7 +392,7 @@ export function DocsList({
           requestedId &&
           !(docs ?? []).some((d: any) => d.id === requestedId)
         ) {
-          const requested = await (supabase.from("orders") as any)
+          const requested = await ((supabase as any).from("division_orders_public") as any)
             .select("*")
             .eq("id", requestedId)
             .is("deleted_at", null)
@@ -1742,7 +1740,7 @@ export function DocsList({
     enabled: !!detailDoc && !isQuote,
     queryFn: async () => {
       if (!stockOnly) {
-        const result = await (supabase as any).rpc("integral_order_context", {
+        const result = await (supabase as any).rpc("division_order_context", {
           p_order_id: detailDoc.id,
         });
         if (result.error) throw result.error;
@@ -1750,10 +1748,10 @@ export function DocsList({
       }
       const [detail, history, proofs, paymentRows, orderRates] =
         await Promise.all([
-          (supabase as any).rpc("sales_order_detail", {
+          (supabase as any).rpc("division_order_detail", {
             p_order_id: detailDoc.id,
           }),
-          (supabase as any).rpc("sales_order_history", {
+          (supabase as any).rpc("division_order_history", {
             p_order_id: detailDoc.id,
           }),
           (supabase as any)
@@ -1769,7 +1767,7 @@ export function DocsList({
             .eq("order_id", detailDoc.id)
             .order("created_at", { ascending: true }),
           (supabase as any)
-            .from("orders")
+            .from("division_orders_public" as any)
             .select(
               "exchange_rates_snapshot,exchange_rate_source,exchange_rate_locked_at",
             )
@@ -2551,12 +2549,6 @@ export function DocsList({
                       >
                         <Eye className="mr-1 h-4 w-4" /> Ver detalhes
                       </Button>
-                    )}
-                    {!isQuote && !cancelled && (d.seller_id === userId || isAdmin) && (
-                      <>
-                        {operations.data?.includes("orders.edit_open") && <Button type="button" size="icon" variant="outline" aria-label="Editar pedido" title="Editar pedido ou solicitar alteração" onClick={()=>setEditingOrderId(d.id)}><Pencil className="size-4" /></Button>}
-                        {operations.data?.includes("orders.delete") && <Button type="button" size="icon" variant="outline" className="text-destructive" aria-label="Excluir pedido" title="Excluir pedido ou solicitar cancelamento" onClick={()=>{setDeleteReason("");setDeleteDoc(d);}}><Trash2 className="size-4" /></Button>}
-                      </>
                     )}
                     <div className="flex flex-col items-stretch gap-2">
 {!isQuote &&
@@ -3676,7 +3668,7 @@ export function OrderHistoryList() {
     enabled: !!selectedOrderId,
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc(
-        "sales_order_detail",
+        "division_order_detail",
         {
           p_order_id: selectedOrderId,
         },

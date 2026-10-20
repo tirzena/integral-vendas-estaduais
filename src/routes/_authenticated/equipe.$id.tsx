@@ -63,7 +63,7 @@ function TeamDetail() {
         await Promise.all([
           memberIds.length
             ? (supabase as any)
-                .from("orders")
+                .from("division_orders_public" as any)
                 .select(
                   "id,number,revision_no,seller_id,status,workflow_stage,total,currency,created_at,order_date,shipping_address,shipping_city,shipping_state",
                 )
@@ -534,7 +534,7 @@ function MemberDetail({ id }: { id: string }) {
       if (!allowed)
         return { allowed: false, profile: null, teams: [], roles: [], jobs: [], orders: [] };
       const orders = await (supabase as any)
-        .from("orders")
+        .from("division_orders_public" as any)
         .select(
           "id,number,revision_no,seller_id,status,workflow_stage,total,currency,created_at,order_date,shipping_address,shipping_city,shipping_state",
         )

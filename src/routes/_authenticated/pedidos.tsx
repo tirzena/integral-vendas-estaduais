@@ -114,7 +114,7 @@ function Pedidos() {
     refetchInterval: 60_000,
     queryFn: async () => {
       const ordersQuery = (supabase as any)
-        .from("orders")
+        .from("division_orders_public" as any)
         .select("id,workflow_stage,status,product_id,origin,kind,stock_state,approval_status,review_outcome,delivered_at,amount_paid,total,fulfillment_status")
         .is("deleted_at", null)
         .is("superseded_at", null);

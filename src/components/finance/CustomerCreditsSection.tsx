@@ -24,14 +24,14 @@ export function CustomerCreditsSection() {
     queryFn: async () => {
       const [customers, orders] = await Promise.all([
         supabase.from("customers").select("id,name").is("deleted_at", null).order("name").limit(1000),
-        supabase.from("orders").select("customer_id,delivered_at,fulfillment_status")
+        (supabase as any).from("division_orders_public").select("customer_id,delivered_at,fulfillment_status")
           .is("deleted_at", null).is("superseded_at", null).limit(1000),
       ]);
       if (customers.error) throw customers.error;
       if (orders.error) throw orders.error;
       const delivered = new Set((orders.data ?? [])
-        .filter((order) => order.delivered_at || order.fulfillment_status === "entregue")
-        .map((order) => order.customer_id));
+        .filter((order: any) => order.delivered_at || order.fulfillment_status === "entregue")
+        .map((order: any) => order.customer_id));
       return (customers.data ?? []).filter((customer) => delivered.has(customer.id));
     },
   });

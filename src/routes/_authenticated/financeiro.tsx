@@ -703,7 +703,6 @@ function Financeiro() {
   const operational = useOperationalAccess();
   const { isAdmin,roles,loading } = useCurrentUser();
   if (loading || operational.isLoading) return <p className="p-4 text-sm text-muted-foreground">Conferindo acesso…</p>;
-  if (!isAdmin && operational.companyObserver) return <CompanyReadOnlyView initialSection="receivable" />;
   
   return <FinanceiroBase />;
 }

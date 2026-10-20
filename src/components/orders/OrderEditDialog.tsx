@@ -1,6 +1,7 @@
 import { useCurrentUser } from "@/hooks/useAuth";
+import { usePermissions } from "@/hooks/usePermissions";
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,20 +22,26 @@ export function OrderEditDialog({
   orderId: string | null;
   onClose: () => void;
 }) {
+  return orderId ? <OrderEditor key={orderId} orderId={orderId} onClose={onClose} /> : null;
+}
+
+function OrderEditor({ orderId, onClose }: { orderId: string; onClose: () => void }) {
   const actor = useCurrentUser();
+  const permissions = usePermissions();
+  const broadSales = actor.isAdmin || permissions.seesCompanySales;
   const client = useQueryClient(),
     [form, setForm] = useState<any>(null),
     [reason, setReason] = useState(""),
     [busy, setBusy] = useState(false),
     [requestId] = useState(() => crypto.randomUUID());
   const query = useQuery({
-    queryKey: ["order-editor", orderId, actor.userId, actor.isAdmin],
-    enabled: !!orderId && !actor.loading,
+    queryKey: ["order-editor", orderId, actor.userId, broadSales],
+    enabled: !!orderId && !actor.loading && !permissions.loading && !actor.viewAs,
     queryFn: async () => {
-      const r = await (supabase as any).rpc("integral_order_context", { p_order_id: orderId });
+      const r = await (supabase as any).rpc("division_order_context", { p_order_id: orderId });
       if (r.error) throw r.error;
       const [catalog, customers, warehouses] = await Promise.all(
-        actor.isAdmin
+        broadSales
           ? [
               (supabase as any).rpc("sales_items_for_sale"),
               (supabase as any).from("customers").select("id,name").is("deleted_at", null),
@@ -48,16 +55,41 @@ export function OrderEditDialog({
       );
       if (catalog.error) throw catalog.error;
       if (customers.error) throw customers.error;
-      r.data.catalog = actor.isAdmin ? catalog.data : catalog.data.items;
+      if (warehouses.error) throw warehouses.error;
+      r.data.catalog = broadSales ? catalog.data : catalog.data.items;
       r.data.customers = customers.data ?? [];
-      r.data.warehouses = actor.isAdmin ? (warehouses.data ?? []) : (catalog.data.warehouses ?? []);
-      const next = { ...r.data.order, items: r.data.items.map((i: any) => ({ ...i })) };
-      setForm(next);
+      r.data.warehouses = broadSales ? (warehouses.data ?? []) : (catalog.data.warehouses ?? []);
       return r.data;
     },
   });
+  // Cached data must initialize a newly opened editor too. Background refetches
+  // must not overwrite changes the user is typing.
+  useEffect(() => {
+    if (query.data)
+      setForm(
+        (current: any) =>
+          current ?? {
+            ...query.data.order,
+            items: query.data.items.map((item: any) => ({ ...item })),
+          },
+      );
+  }, [query.data]);
   async function save() {
-    if (!form || busy) return;
+    if (!form || busy || actor.viewAs || !query.data?.can_edit) return;
+    if (
+      !form.items.length ||
+      form.items.some(
+        (item: any) =>
+          !Number.isFinite(Number(item.quantity)) ||
+          Number(item.quantity) <= 0 ||
+          !Number.isFinite(Number(item.unit_price)) ||
+          Number(item.unit_price) < 0 ||
+          !Number.isFinite(Number(item.discount ?? 0)) ||
+          Number(item.discount ?? 0) < 0 ||
+          Number(item.discount ?? 0) > Number(item.quantity) * Number(item.unit_price),
+      )
+    )
+      return void toast.error("Confira quantidades, preços e descontos dos produtos.");
     if (reason.trim().length < 5)
       return void toast.error("Descreva a alteração com pelo menos 5 caracteres.");
     setBusy(true);
@@ -140,11 +172,15 @@ export function OrderEditDialog({
       <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {query.data?.requires_approval ? "Solicitar alteração" : "Editar pedido"} #
-            {form?.number}
+            {query.data?.requires_approval || form?.approval_status === "approved"
+              ? "Solicitar alteração"
+              : "Editar pedido"}{" "}
+            #{form?.number}
           </DialogTitle>
         </DialogHeader>
-        {query.isLoading ? (
+        {actor.viewAs ? (
+          <p role="status">Saia do modo espelho para editar um pedido.</p>
+        ) : query.isLoading || (query.data && !form) ? (
           <p>Carregando os dados atuais…</p>
         ) : query.error ? (
           <p role="alert">{(query.error as Error).message}</p>
@@ -155,10 +191,10 @@ export function OrderEditDialog({
                 Cliente: {query.data.customer?.name ?? "Venda balcão"} · Estoque:{" "}
                 {query.data.warehouse?.name ?? "Não definido"}
               </p>
-              {query.data.requires_approval && (
+              {(query.data.requires_approval || form.approval_status === "approved") && (
                 <p className="rounded-lg border p-3 text-sm">
-                  Este pedido tem pagamento confirmado ou envio iniciado. As alterações só serão
-                  aplicadas após aprovação administrativa.
+                  Este pedido já foi aprovado, tem pagamento confirmado ou envio iniciado. As
+                  alterações só serão aplicadas após aprovação administrativa.
                 </p>
               )}
               <div className="grid gap-3 sm:grid-cols-2">
@@ -170,6 +206,12 @@ export function OrderEditDialog({
                     onChange={(e) => change("customer_id", e.target.value || null)}
                   >
                     <option value="">Venda balcão</option>
+                    {form.customer_id &&
+                      !query.data.customers.some((c: any) => c.id === form.customer_id) && (
+                        <option value={form.customer_id}>
+                          {query.data.customer?.name ?? "Cliente atual"}
+                        </option>
+                      )}
                     {query.data.customers.map((c: any) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
@@ -225,7 +267,8 @@ export function OrderEditDialog({
                         unit_price: Math.round((Number(item.price) / rate) * 100) / 100,
                         discount: 0,
                         commission_enabled: true,
-                        commission_percent: 5,
+                        commission_percent: Number(item.commission_percent ?? 5),
+                        max_discount_percent: Number(item.max_discount_percent ?? 0),
                       },
                     ]);
                   }}
@@ -303,12 +346,31 @@ export function OrderEditDialog({
                     ["shipping_cep", "CEP"],
                     ["shipping_country", "País"],
                     ["whatsapp", "WhatsApp"],
+                    ["carrier", "Transportadora"],
+                    ["tracking_code", "Código de rastreio"],
                     ["notes", "Observações"],
                   ] as [string, string][]
                 ).map(([key, label]) => (
                   <label className="grid gap-1 text-sm" key={key}>
                     {label}
                     <Input value={form[key] ?? ""} onChange={(e) => change(key, e.target.value)} />
+                  </label>
+                ))}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {(
+                  [
+                    ["order_date", "Data do pedido"],
+                    ["delivery_deadline", "Prazo de entrega"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <label className="grid gap-1 text-sm" key={key}>
+                    {label}
+                    <Input
+                      type="date"
+                      value={form[key] ?? ""}
+                      onChange={(event) => change(key, event.target.value || null)}
+                    />
                   </label>
                 ))}
               </div>
@@ -323,10 +385,13 @@ export function OrderEditDialog({
           <Button variant="outline" disabled={busy} onClick={onClose}>
             Cancelar
           </Button>
-          <Button disabled={busy || !form || !!query.error} onClick={save}>
+          <Button
+            disabled={busy || !form || !!query.error || !!actor.viewAs || !query.data?.can_edit}
+            onClick={save}
+          >
             {busy
               ? "Salvando…"
-              : query.data?.requires_approval
+              : query.data?.requires_approval || form?.approval_status === "approved"
                 ? "Enviar solicitação"
                 : "Salvar alterações"}
           </Button>

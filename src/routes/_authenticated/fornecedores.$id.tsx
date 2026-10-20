@@ -88,8 +88,8 @@ function FornecedorDetalhe() {
         portal,
       ] = await Promise.all([
         supabase.from("suppliers").select("*").eq("id", id).maybeSingle(),
-        supabase
-          .from("orders")
+        (supabase as any)
+          .from("division_orders_public")
           .select("*, customers(name)")
           .eq("supplier_id", id)
           .is("deleted_at", null)

@@ -41,7 +41,7 @@ function ReportsPage() {
       if (!scopeIds.length) return [];
       const rows: ReportOrder[] = [];
       for (let offset = 0; ; offset += 500) {
-        let query = supabase.from("orders")
+        let query = (supabase as any).from("division_orders_public")
           .select("id,number,created_at,status,total,amount_paid,currency,product_id,seller_id")
           .is("deleted_at", null).is("superseded_at", null)
           .in("product_id", productId === "todos" ? scopeIds : [productId])
@@ -53,7 +53,7 @@ function ReportsPage() {
           end.setDate(end.getDate() + 1);
           query = query.lt("created_at", end.toISOString());
         }
-        const { data, error } = await query.returns<ReportOrder[]>();
+        const { data, error } = await query;
         if (error) throw error;
         rows.push(...(data ?? []));
         if (!data || data.length < 500) break;

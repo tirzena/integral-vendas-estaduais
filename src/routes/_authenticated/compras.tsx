@@ -154,7 +154,7 @@ function PurchasesPage() {
       const orders: any[] = [];
       for (let offset = 0; offset < ids.length; offset += 100) {
         const result = await (supabase as any)
-          .from("orders")
+          .from("division_orders_public" as any)
           .select(
             "id,number,revision_no,seller_id,origin,status,workflow_stage,fulfillment_status,tracking_status,delivered_at,total,currency,amount_paid,amount_receivable",
           )

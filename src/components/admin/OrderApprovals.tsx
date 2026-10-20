@@ -16,6 +16,7 @@ export function OrderApprovals() {
   const query = useQuery({
     queryKey: ["order-change-requests", userId],
     enabled: !!userId && !viewAs && access.data === true,
+    refetchInterval: 60_000,
     queryFn: async () => {
       const r = await (supabase as any)
         .from("order_change_requests")
@@ -26,7 +27,7 @@ export function OrderApprovals() {
       const requests = (r.data ?? []) as any[];
       if (!requests.length) return requests;
       const orders = await (supabase as any)
-        .from("orders")
+        .from("division_orders_public" as any)
         .select("id,seller_id")
         .in("id", [...new Set(requests.map((r) => r.order_id))]);
       if (orders.error) throw orders.error;
@@ -100,6 +101,18 @@ export function OrderApprovals() {
                 <tbody>
                   {(
                     [
+                      ["customer_id", "Cliente"],
+                      ["warehouse_id", "Estoque"],
+                      ["order_date", "Data do pedido"],
+                      ["delivery_deadline", "Prazo de entrega"],
+                      ["delivery_recipient_name", "Destinatário"],
+                      ["delivery_recipient_document", "Documento"],
+                      ["shipping_address_number", "Número"],
+                      ["shipping_cep", "CEP"],
+                      ["shipping_country", "País"],
+                      ["carrier", "Transportadora"],
+                      ["tracking_code", "Rastreio"],
+                      ["whatsapp", "WhatsApp"],
                       ["notes", "Observações"],
                       ["shipping_address", "Endereço"],
                       ["shipping_city", "Cidade"],
@@ -110,8 +123,14 @@ export function OrderApprovals() {
                   ).map(([key, label]) => (
                     <tr key={key} className="border-b">
                       <td className="py-2">{label}</td>
-                      <td>{String(r.previous_snapshot?.[key] ?? "—")}</td>
-                      <td>{String(r.proposed_args?.[`p_${key}`] ?? "—")}</td>
+                      <td>
+                        {String(
+                          r.previous_snapshot?.order?.[key] ?? r.previous_snapshot?.[key] ?? "—",
+                        )}
+                      </td>
+                      <td>
+                        {String(r.proposed_followup?.[key] ?? r.proposed_args?.[`p_${key}`] ?? "—")}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
