@@ -92,3 +92,10 @@ Teste em transação com SET LOCAL ROLE authenticated confirmou contexto do pedi
 Reproduzida falha na rota pública Estadual: Missing Supabase environment variable(s): SUPABASE_SERVICE_ROLE_KEY. O mesmo material e catálogo geral abrem na Direção Geral. Links de copiar e visualizar agora apontam à publicação central em login.qrcodevalidacao.com, preservando slug codificado e público vendedor/cliente. A rota Estadual redireciona links antigos antes de executar o loader que depende da chave. Não adicionada chave administrativa ao portal divisional.
 
 Validação no navegador: material de membro abriu com preços no público vendedor e sem coluna de valores no cliente; catálogo geral e promoção também abriram na publicação central. Testes automatizados de público, codificação do slug e ocultação de preço passaram (16 na Direção Geral; 20 no Estadual). Redirecionamento Estadual depende da implantação do novo código na Hostinger. Nenhum catálogo ou preço real foi alterado.
+
+
+## Catálogo no celular: cabeçalho e rolagem
+
+Removida a área de produtos presa em h-dvh/overflow-hidden e a lógica que alterava a altura do cabeçalho com base no scroll interno. A página usa rolagem natural, cabeçalho sem animação de altura e banner de 144 px em telas pequenas. Busca, botões e espaçamentos foram compactados; categorias recolhem no celular e continuam visíveis no desktop. Listas largas mantêm rolagem horizontal local.
+
+A verificação visual na versão publicada depende da implantação. Não foram alterados catálogo, preços, pedidos ou regras de público vendedor/cliente.

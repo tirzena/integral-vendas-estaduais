@@ -1,5 +1,5 @@
 import { catalogAudience, catalogPublicUrl } from "@/lib/catalog-views";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { jsPDF } from "jspdf";
 import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -231,34 +231,8 @@ function PublicCatalogPage() {
   const [freightQuote, setFreightQuote] = useState<CatalogFreightQuote | null>(null);
   const [freightLoading, setFreightLoading] = useState(false);
   const [freightError, setFreightError] = useState<string | null>(null);
-  const [headerCompact, setHeaderCompact] = useState(false);
-  const productsScrollRef = useRef<HTMLDivElement>(null);
-  const headerWheelRef = useRef<HTMLDivElement>(null);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
   const quoteFreight = useServerFn(quoteCatalogFreight);
-
-  useEffect(() => {
-    const scroller = productsScrollRef.current;
-    const header = headerWheelRef.current;
-    if (!scroller) return;
-    const onScroll = () => setHeaderCompact(scroller.scrollTop > 24);
-    const forwardWheel = (event: WheelEvent) => {
-      if (event.deltaY === 0) return;
-      scroller.scrollBy({ top: event.deltaY, behavior: "auto" });
-      if (event.deltaY > 0) setHeaderCompact(true);
-      if (event.deltaY < 0 && scroller.scrollTop <= 24) setHeaderCompact(false);
-      event.preventDefault();
-    };
-    const forwardTouch = () => setHeaderCompact(true);
-    onScroll();
-    scroller.addEventListener("scroll", onScroll, { passive: true });
-    header?.addEventListener("wheel", forwardWheel, { passive: false });
-    header?.addEventListener("touchmove", forwardTouch, { passive: true });
-    return () => {
-      scroller.removeEventListener("scroll", onScroll);
-      header?.removeEventListener("wheel", forwardWheel);
-      header?.removeEventListener("touchmove", forwardTouch);
-    };
-  }, []);
 
   useEffect(() => {
     try {
@@ -401,21 +375,21 @@ function PublicCatalogPage() {
   } as React.CSSProperties;
 
   return (
-    <main className="bg-background flex h-dvh flex-col overflow-hidden" style={style}>
-      <div ref={headerWheelRef} className="z-40 shrink-0 bg-background shadow-xl shadow-black/20">
+    <main className="bg-background min-h-svh overflow-x-clip" style={style}>
+      <div className="bg-background shadow-sm">
         <header className="relative border-b bg-card">
           {catalog.banner ? (
             <div className="relative w-full">
               <img
                 src={catalog.banner}
                 alt={`Banner do catálogo ${catalog.title}`}
-                className={`block w-full object-cover object-center transition-[height] duration-300 ${headerCompact ? "h-[130px] sm:h-[155px]" : "h-[clamp(320px,42vh,520px)]"}`}
+                className="block h-36 w-full object-cover object-center sm:h-52 lg:h-64"
               />
               <div
                 className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/10 to-black/20"
                 aria-hidden="true"
               />
-              <div className="absolute inset-0 z-10 mx-auto flex max-w-6xl items-end px-5 pb-5 sm:items-center sm:pb-0">
+              <div className="absolute inset-0 z-10 mx-auto flex max-w-6xl items-end px-4 pb-4 sm:px-5 sm:items-center sm:pb-0">
                 <div className="flex w-full flex-wrap items-center gap-4">
                   {catalog.logo && (
                     <img
@@ -427,7 +401,7 @@ function PublicCatalogPage() {
                   <div className="min-w-0 flex-1 text-white drop-shadow-md">
                     <p className="text-xs tracking-[0.3em] uppercase text-white/80">OS</p>
                     <h1
-                      className={`font-display mt-1 font-black tracking-tight transition-all duration-300 ${headerCompact ? "text-2xl sm:text-3xl" : "text-3xl sm:text-5xl lg:text-6xl"}`}
+                      className="font-display mt-1 break-words text-2xl leading-tight font-black tracking-tight sm:text-4xl lg:text-5xl"
                     >
                       {catalog.title}
                     </h1>
@@ -441,7 +415,7 @@ function PublicCatalogPage() {
               </div>
             </div>
           ) : (
-            <div className="mx-auto flex min-h-[180px] max-w-6xl flex-wrap items-center gap-4 px-5 py-8">
+            <div className="mx-auto flex min-h-24 max-w-6xl flex-wrap items-center gap-4 px-4 py-4 sm:min-h-36 sm:px-5 sm:py-6">
               <div className="min-w-0 flex-1">
                 <p className="text-muted-foreground text-xs tracking-[0.3em] uppercase">OS</p>
                 <h1 className="font-display mt-1 text-3xl font-semibold sm:text-4xl">
@@ -453,7 +427,7 @@ function PublicCatalogPage() {
         </header>
 
         <div
-          className={`mx-auto max-w-6xl px-5 transition-all duration-300 ${headerCompact ? "py-2" : "py-5"}`}
+          className="mx-auto max-w-6xl px-4 py-3 sm:px-5"
         >
           <div className="grid gap-2 lg:grid-cols-[minmax(260px,2fr)_minmax(190px,1fr)]">
             <div className="relative">
@@ -512,7 +486,7 @@ function PublicCatalogPage() {
             )}
             <Button
               variant="outline"
-              className="catalog-site-button catalog-site-tirzena h-11 shrink-0 px-6 font-semibold"
+              className="catalog-site-button catalog-site-tirzena h-9 shrink-0 px-3 text-xs font-semibold sm:text-sm"
               asChild
             >
               <a href="https://www.tirzena.com" target="_blank" rel="noopener noreferrer">
@@ -521,7 +495,7 @@ function PublicCatalogPage() {
             </Button>
             <Button
               variant="outline"
-              className="catalog-site-button catalog-site-retrazin h-11 shrink-0 px-6 font-semibold"
+              className="catalog-site-button catalog-site-retrazin h-9 shrink-0 px-3 text-xs font-semibold sm:text-sm"
               asChild
             >
               <a href="https://www.retrazin.com" target="_blank" rel="noopener noreferrer">
@@ -532,14 +506,14 @@ function PublicCatalogPage() {
         </div>
       </div>
 
-      <div ref={productsScrollRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <div>
         <div className="mx-auto max-w-6xl px-5 pb-8 pt-4">
           {filtered.length === 0 ? (
             <p className="text-muted-foreground text-sm">
               Nenhum produto encontrado com esses filtros.
             </p>
           ) : catalog.layout === "lista" ? (
-            <div className="overflow-x-auto rounded-xl border">
+            <div className="min-w-0 max-w-full overflow-x-auto rounded-xl border">
               <table className="w-full min-w-[620px] text-left text-sm">
                 <thead className="bg-muted/50">
                   <tr>
