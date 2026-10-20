@@ -1,11 +1,8 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/")({
-  ssr: false,
-  beforeLoad: async () => {
-    const { supabase } = await import("@/integrations/supabase/client");
-    const { data } = await supabase.auth.getUser();
-    throw redirect({ to: data.user ? "/painel" : "/auth" });
+  beforeLoad: () => {
+    // AuthPage restores existing sessions; this entry must never wait on auth network calls.
+    throw redirect({ to: "/auth", replace: true });
   },
-  component: () => null,
 });

@@ -127,3 +127,10 @@ Teste SQL transacional com dois produtos sintéticos passou: original preservado
 Incluídos nome do solicitante, vendedor responsável e data/hora explícita em America/Sao_Paulo. Fila ordenada por criação decrescente, botão de atualização manual e atualização automática a cada 15 segundos.
 
 Conferida solicitação real da Renata no pedido 79, pendente, registrada em 20/10/2026 às 15:29:26 (Brasília). A consulta executada como authenticated com identidade do superadmin conseguiu ler solicitação, pedido e nome do solicitante. Não foi aprovada/rejeitada nem modificada. A fila anterior exibia os registros mais antigos primeiro e não mostrava autoria/data. Implantação necessária para os novos campos aparecerem na interface.
+
+
+## Tela vazia na entrada
+
+Reproduzida entrada vazia em / nos dois domínios; acesso direto a /auth renderizou a tela de entrada. Estadual apresentou erro React 418 na hidratação da raiz. Removido bloqueio de autenticação antes da primeira renderização: Direção Geral mostra a entrada pública imediatamente e usa presença de sessão somente para escolher o destino; a área protegida continua validando usuário e concessão no servidor. Estadual redireciona / diretamente a /auth, que restaura sessões existentes.
+
+Adicionado estado de carregamento explícito do roteador e opções de recuperação após espera prolongada. Testes de regressão cobrem renderização imediata da entrada geral e redirecionamento síncrono estadual. A sessão autenticada do usuário não foi reproduzida; falhas posteriores ao login ainda precisam de validação na publicação. Nenhum dado ou credencial alterado.
