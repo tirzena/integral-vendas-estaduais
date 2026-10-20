@@ -50,3 +50,11 @@ A projeção divisional usa SECURITY INVOKER e mantém as políticas existentes 
 4. Auditar o restante das consultas e portais divisionais: esta entrega não certifica todos os caminhos existentes.
 5. Resolver os erros antigos de TypeScript e revisar os avisos preexistentes do assessor de segurança. Os novos modelos são invoker e não receberam acesso anônimo.
 6. A interface de edição mantém as restrições monetárias e de concessões do servidor; esta entrega não certifica edição irrestrita de todos os campos ou todos os estados na interface real.
+
+## Verificação online após a publicação
+
+- As branches main receberam os commits de código `8c7e6a9` (Direção Geral) e `40e015e` (Estadual).
+- Os módulos de pedidos efetivamente referenciados pelo HTML dos dois domínios foram consultados. Não continham o novo editor; no Estadual também não continham `division_order_context`. A implantação das alterações publicadas não foi confirmada e os módulos observados permaneciam anteriores à entrega.
+- O login Google iniciado em `estadual.qrcodevalidacao.com/auth` terminou em `tirzena.vercel.app/painel`. Retornar ao domínio Estadual levou novamente ao login, sem sessão autenticada nesse domínio.
+- O código atual pede retorno para `window.location.origin + '/painel'`. É necessário conferir a configuração de URLs permitidas/retorno do Supabase e o código efetivamente implantado. A causa de configuração ainda não foi inspecionada.
+- As ferramentas administrativas de Hostinger não estavam expostas nesta sessão. A publicação no GitHub está confirmada; reimplantação e auditoria completa autenticada na Hostinger seguem pendentes.
