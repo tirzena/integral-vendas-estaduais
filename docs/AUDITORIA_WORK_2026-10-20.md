@@ -134,3 +134,14 @@ Conferida solicitação real da Renata no pedido 79, pendente, registrada em 20/
 Reproduzida entrada vazia em / nos dois domínios; acesso direto a /auth renderizou a tela de entrada. Estadual apresentou erro React 418 na hidratação da raiz. Removido bloqueio de autenticação antes da primeira renderização: Direção Geral mostra a entrada pública imediatamente e usa presença de sessão somente para escolher o destino; a área protegida continua validando usuário e concessão no servidor. Estadual redireciona / diretamente a /auth, que restaura sessões existentes.
 
 Adicionado estado de carregamento explícito do roteador e opções de recuperação após espera prolongada. Testes de regressão cobrem renderização imediata da entrada geral e redirecionamento síncrono estadual. A sessão autenticada do usuário não foi reproduzida; falhas posteriores ao login ainda precisam de validação na publicação. Nenhum dado ou credencial alterado.
+
+
+## Navegação após retornar à aba
+
+Estadual mantinha uma assinatura de auth por useSession/useCurrentUser e invalidava todas as consultas dentro de SIGNED_IN, evento também emitido no retorno ao foco. A camada Realtime ainda invalidava globalmente ao conectar/reconectar e em alterações de muitas tabelas. Direção Geral já centralizava sessão, mas ainda executava invalidação de perfil dentro do callback de auth.
+
+Criado observador compartilhado com uma assinatura, processamento dos eventos fora do callback do SDK, proteção contra leitura inicial atrasada e cancelamento ao desmontar. Retornos da mesma conta e renovação de token não limpam cache nem provocam refetch global. Troca de conta/logout continuam limpando cache antes de publicar a próxima sessão. Estadual passou a usar o provider central no root; política de atualização alinhada ao estoque em Realtime e demais áreas a cada 10 minutos. Consultas deixam de recarregar por foco/reconexão por padrão, preservando overrides específicos e validações de autorização.
+
+Seis testes de regressão passaram: callback sem consultas, foco repetido/refresh, troca de conta, desmontagem, corrida de inicialização e logout. Suítes: 24 testes na Direção Geral; 28 no Estadual. Sem alteração de dados, credenciais ou concessões. Validação com troca real de aba em sessão autenticada na hospedagem continua pendente.
+
+Conferidos também os repositórios integral-estoques, integral-fornecedores, integral-transportes, integral-lideranca-regional, integral-distribuidores-municipais e integral-captacao: são portais PHP com links nativos/formulários, não a mesma camada React/Auth. Não aplicado patch de autenticação React nesses projetos sem evidência. Falha autenticada nesses portais ainda requer reprodução própria.

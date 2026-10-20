@@ -1,3 +1,4 @@
+import { AuthSessionProvider } from "@/hooks/useAuth";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -126,10 +127,12 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <AuthSessionProvider>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
       <I18nRuntime />
       <Toaster position="top-right" richColors />
+          </AuthSessionProvider>
     </QueryClientProvider>
   );
 }

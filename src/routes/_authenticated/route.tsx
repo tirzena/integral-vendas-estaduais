@@ -38,42 +38,39 @@ export const Route = createFileRoute("/_authenticated")({
 function AuthenticatedLayout() {
   const queryClient = useQueryClient();
   useEffect(() => {
-    const tables = [
-      "inventory_items",
-      "inventory_movements",
-      "warehouse_inventory",
-      "inventory_item_locations",
-      "orders",
-      "order_items",
-      "customers",
-      "customer_products",
-      "delivery_events",
-      "delivery_assignments",
-      "payments",
-      "accounts_receivable",
-      "accounts_payable",
-      "digital_catalogs",
-      "promotions",
-      "tasks",
-      "whatsapp_conversations",
-      "internal_notices",
-      "purchase_orders",
-      "purchase_order_items",
-      "supplier_stock_lots",
-      "stock_lot_balances",
-    ];
-    const channel = supabase.channel("integral-live-data");
-    for (const table of tables) {
+    // Apenas estoque precisa de sincronização instantânea.
+    // Os demais módulos carregam ao abrir/recarregar a página para reduzir
+    // conexões, invalidações globais e carga no Supabase.
+    const channel = supabase.channel("integral-stock-live");
+    for (const table of ["inventory_items", "warehouse_inventory"]) {
       channel.on("postgres_changes", { event: "*", schema: "public", table }, () => {
-        void queryClient.invalidateQueries({ refetchType: "active" });
+        void queryClient.invalidateQueries({
+          refetchType: "active",
+          predicate: (query) => {
+            const key = String(query.queryKey[0] ?? "").toLowerCase();
+            return key.includes("estoque") || key.includes("inventory") || key.includes("stock");
+          },
+        });
       });
     }
-    channel.subscribe((status) => {
-      if (status === "SUBSCRIBED") {
-        void queryClient.invalidateQueries({ refetchType: "active" });
-      }
-    });
-    return () => { void supabase.removeChannel(channel); };
+    channel.subscribe();
+
+    // Fora do estoque, uma atualização leve a cada 10 minutos mantém telas
+    // abertas razoavelmente atuais sem o custo do Realtime global.
+    const interval = window.setInterval(() => {
+      void queryClient.invalidateQueries({
+        refetchType: "active",
+        predicate: (query) => {
+          const key = String(query.queryKey[0] ?? "").toLowerCase();
+          return !(key.includes("estoque") || key.includes("inventory") || key.includes("stock"));
+        },
+      });
+    }, 600_000);
+
+    return () => {
+      window.clearInterval(interval);
+      void supabase.removeChannel(channel);
+    };
   }, [queryClient]);
 
   return (

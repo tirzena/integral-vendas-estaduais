@@ -1,8 +1,9 @@
+import { observeAuthSession } from "@/lib/auth-session-observer";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { createContext, createElement, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { useViewAs } from "@/hooks/useImpersonation";
+import { setViewAs, useViewAs } from "@/hooks/useImpersonation";
 
 export type AppRole =
   | "superadmin"
@@ -25,31 +26,44 @@ export const ROLE_LABELS: Record<AppRole, string> = {
   entregador: "Entregador",
 };
 
-export function useSession() {
+const SessionContext = createContext<{
+  session: Session | null;
+  user: Session["user"] | null;
+  loading: boolean;
+} | null>(null);
+
+/** Uma assinatura de autenticação para toda a aplicação. */
+export function AuthSessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    let active = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (!active) return;
-      setSession(data.session);
+    // Mantém a página de instalação acessível quando a conexão ainda não foi configurada.
+    let auth;
+    try {
+      auth = supabase.auth;
+    } catch {
       setLoading(false);
+      return;
+    }
+    return observeAuthSession(auth, {
+      onSession: (next) => { setSession(next); setLoading(false); },
+      onIdentityChange: () => { queryClient.clear(); setViewAs(null); },
+      onUserUpdated: (userId) => { void queryClient.invalidateQueries({ queryKey: ["me", userId] }); },
+      onInitialError: () => setLoading(false),
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
-      setSession(next);
-      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") {
-        if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
-      }
-    });
-    return () => {
-      active = false;
-      sub.subscription.unsubscribe();
-    };
   }, [queryClient]);
 
-  return { session, user: session?.user ?? null, loading };
+  return createElement(SessionContext.Provider, {
+    value: { session, user: session?.user ?? null, loading },
+  }, children);
+}
+
+export function useSession() {
+  const context = useContext(SessionContext);
+  if (!context) throw new Error("useSession precisa estar dentro de AuthSessionProvider");
+  return context;
 }
 
 export function useCurrentUser() {
@@ -61,11 +75,17 @@ export function useCurrentUser() {
   const profile = useQuery({
     queryKey: ["me", userId],
     enabled: !!userId,
+    staleTime: 10 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     queryFn: async () => {
-      const [{ data: prof }, { data: roles }] = await Promise.all([
+      const [{ data: prof, error: profileError }, { data: roles, error: rolesError }] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", userId!).maybeSingle(),
         supabase.from("user_roles").select("role").eq("user_id", userId!),
       ]);
+      if (profileError) throw profileError;
+      if (rolesError) throw rolesError;
       return {
         profile: prof,
         roles: (roles ?? []).map((r) => r.role as AppRole),
