@@ -104,3 +104,12 @@ A verificação visual na versão publicada depende da implantação. Não foram
 ## Categoria acompanhando a rolagem
 
 O menu destaca a categoria na linha de leitura do documento e rola apenas sua própria área no desktop para manter esse botão visível. O acompanhamento não muda os filtros nem usa scrollIntoView, evitando deslocamento involuntário da página. No celular, o botão recolhido identifica a categoria atual. Atualizações de rolagem limitadas por requestAnimationFrame, com limpeza de eventos e frame ao desmontar. Verificação visual na publicação depende da implantação.
+
+
+## Avisos de alteração de preço
+
+Adicionado gatilho para alterações administrativas de preço de venda ou moeda em inventory_items. Cria notificação com produto, valor anterior/novo e moeda apenas para vendedores ativos autorizados ao produto; não notifica alteração de custo/estoque ou gravação do mesmo preço. Não altera pedidos existentes.
+
+A leitura das notificações do próprio vendedor foi liberada mantendo restrição de acesso às de terceiros. RPC de confirmação limitada às próprias notificações; guarda por linha proíbe alterar título, corpo ou destinatário ao confirmar leitura. Interface mostra aviso de tela por até 15 segundos, agrupando mudanças, mantém histórico no sino, atualiza consultas de preços e usa Realtime com consulta de segurança a cada 60 segundos. Modo espelho não lê nem confirma notificações de outro membro.
+
+Teste transacional passou com produto e usuários sintéticos: destino autorizado, exclusão de vendedor sem concessão, não duplicação, troca de moeda, leitura isolada e confirmação. Todas as fixtures revertidas. Geração no banco está ativa; aviso visual depende de implantação do código. Alterações de preço anteriores não foram reconstruídas nem notificadas retroativamente.

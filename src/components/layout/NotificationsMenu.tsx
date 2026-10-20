@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { toast } from "sonner";
+import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell } from "lucide-react";
 import { Link } from "@tanstack/react-router";
@@ -16,16 +17,20 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export function NotificationsMenu() {
-  const { userId } = useCurrentUser();
+  const { userId, viewAs } = useCurrentUser();
+  const announced = useRef(new Set<string>());
   const queryClient = useQueryClient();
 
   const { data } = useQuery({
     queryKey: ["notifications", userId],
-    enabled: !!userId,
+    enabled: !!userId && !viewAs,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("notifications")
         .select("*")
+        .eq("user_id", userId!)
         .order("created_at", { ascending: false })
         .limit(20);
       if (error) throw error;
@@ -34,7 +39,7 @@ export function NotificationsMenu() {
   });
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || viewAs) return;
     const channel = supabase
       .channel("notif-" + userId)
       .on(
@@ -46,16 +51,30 @@ export function NotificationsMenu() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [userId, queryClient]);
+  }, [userId, viewAs, queryClient]);
 
   const items = data ?? [];
   const unread = items.filter((n) => !n.read_at).length;
 
+  useEffect(() => {
+    if (!userId || viewAs) return;
+    const changes = (data ?? []).filter((n) =>
+      n.notification_type === "product_price_changed" && !n.read_at &&
+      !announced.current.has(`${userId}:${n.id}`));
+    if (!changes.length) return;
+    changes.forEach((n) => announced.current.add(`${userId}:${n.id}`));
+    toast.info(changes.length === 1 ? "Preço de produto atualizado" : `${changes.length} alterações de preços`, {
+      description: changes.slice(0, 3).map((n) => n.body).join("\n"),
+      duration: 15_000,
+    });
+    queryClient.invalidateQueries({ predicate: (query) =>
+      ["inventory_items", "seller-portal", "seller-portal-data", "pdv-data", "estadual-seller-pdv", "order-editor"].includes(String(query.queryKey[0])) });
+  }, [data, userId, viewAs, queryClient]);
+
   async function markAllRead() {
-    await supabase
-      .from("notifications")
-      .update({ read_at: new Date().toISOString() })
-      .is("read_at", null);
+    if (!userId || viewAs) return;
+    const { error } = await (supabase as any).rpc("acknowledge_my_notifications");
+    if (error) return void toast.error("Não foi possível marcar as notificações como lidas.");
     queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
   }
 
