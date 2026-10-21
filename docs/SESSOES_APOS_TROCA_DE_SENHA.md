@@ -14,4 +14,6 @@ Validação: oito testes de regressão por projeto; fixture SQL em docs/sql/test
 
 Limites: abas suspensas/offline verificam ao retornar à atividade/conexão. JWTs são independentes da sessão; a checagem explícita cobre as funções de servidor acima. Rotas diretas de REST/Storage continuam com sua política de autorização e prazo do JWT, e não foi alterada toda a RLS neste ajuste. Publicação Git não comprova implantação Hostinger; teste em vários dispositivos reais após implantação permanece necessário.
 
+Dependências: durante a CI foi identificado alerta alto do Vite 8.1.5 (launch-editor); atualizado para 8.3.5 nos dois projetos e repetidos testes/builds. Não removido nem ignorado o bloqueio de auditoria.
+
 Referências: https://supabase.com/docs/guides/auth/sessions e https://supabase.com/docs/reference/javascript/auth-signout .
