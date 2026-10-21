@@ -100,6 +100,13 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
       throw new Error('Unauthorized: No user ID found in token');
     }
 
+    const sessionStatus = await (supabase as unknown as {
+      rpc: (name: "integral_my_session_active") => Promise<{ data: boolean | null; error: unknown }>;
+    }).rpc("integral_my_session_active");
+    if (sessionStatus.error || sessionStatus.data !== true) {
+      throw new Error("Sessão encerrada. Entre novamente.");
+    }
+
     return next({
       context: {
         supabase,

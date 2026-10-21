@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { changePasswordAndSignOut } from "@/lib/password-session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -100,13 +101,17 @@ function AuthPage() {
     if (newPassword.length < 8) return void toast.error("Use ao menos 8 caracteres.");
     if (newPassword !== confirmPassword) return void toast.error("As senhas não conferem.");
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
-    setLoading(false);
-    if (error) return void toast.error("Não foi possível atualizar a senha: " + error.message);
-    setNewPassword("");
-    setConfirmPassword("");
-    toast.success("Senha atualizada. Você já pode entrar.");
-    navigate({ to: "/painel" });
+    try {
+      await changePasswordAndSignOut(supabase.auth, newPassword);
+      setNewPassword("");
+      setConfirmPassword("");
+      toast.success("Senha atualizada. Entre novamente com a nova senha.");
+      window.location.replace("/auth");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível atualizar a senha.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

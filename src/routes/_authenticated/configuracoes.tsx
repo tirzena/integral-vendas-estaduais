@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { changePasswordAndSignOut } from "@/lib/password-session";
 import { useCurrentUser, ROLE_LABELS } from "@/hooks/useAuth";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Badge } from "@/components/ui/badge";
@@ -147,11 +148,11 @@ function Configuracoes() {
       return void toast.error("A confirmação da senha não confere.");
     setSavingPassword(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password });
-      if (error) throw error;
+      await changePasswordAndSignOut(supabase.auth, password);
       setPassword("");
       setConfirmPassword("");
-      toast.success("Senha alterada.");
+      toast.success("Senha alterada. Entre novamente com a nova senha.");
+      window.location.replace("/auth");
     } catch (error) {
       toast.error((error as Error).message);
     } finally {

@@ -1,4 +1,5 @@
 import { observeAuthSession } from "@/lib/auth-session-observer";
+import { isIntegralSessionActive, watchSessionRevocation } from "@/lib/password-session";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createContext, createElement, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
@@ -47,13 +48,45 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
+    let hadSession = false;
     return observeAuthSession(auth, {
-      onSession: (next) => { setSession(next); setLoading(false); },
+      onSession: (next) => {
+        setSession(next);
+        setLoading(false);
+        if (hadSession && !next) window.location.replace("/auth");
+        hadSession = !!next;
+      },
       onIdentityChange: () => { queryClient.clear(); setViewAs(null); },
       onUserUpdated: (userId) => { void queryClient.invalidateQueries({ queryKey: ["me", userId] }); },
       onInitialError: () => setLoading(false),
     });
   }, [queryClient]);
+
+  useEffect(() => {
+    if (!session?.access_token) return;
+    const watcher = watchSessionRevocation({
+      check: () => isIntegralSessionActive(supabase),
+      isVisible: () => document.visibilityState !== "hidden",
+      onRevoked: () => {
+        queryClient.clear();
+        setViewAs(null);
+        setSession(null);
+        void supabase.auth.signOut({ scope: "local" }).finally(() => {
+          window.location.replace("/auth");
+        });
+      },
+    });
+    const onFocus = () => { void watcher.check(); };
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("online", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      watcher.stop();
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("online", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [session?.access_token, queryClient]);
 
   return createElement(SessionContext.Provider, {
     value: { session, user: session?.user ?? null, loading },
