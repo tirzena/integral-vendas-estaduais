@@ -45,7 +45,7 @@ export const connectSellerWhatsapp = createServerFn({method:"POST"})
     const {data:account,error}=await db.from("whatsapp_accounts").insert({
       provider:"evolution",instance_name:newWhatsappInstanceName(),
       display_name:"WhatsApp do vendedor",product_id:data.productId,product_ids:[data.productId],
-      status:"pendente",connection_status:"conectando",demo_mode:false,created_by:context.userId,
+      status:"pendente",connection_status:"conectando",demo_mode:false,created_by:context.userId,is_seller_owned:true,
     }).select("id").single();
     if(error || !account) throw new Error("Não foi possível criar a conexão.");
     try{
