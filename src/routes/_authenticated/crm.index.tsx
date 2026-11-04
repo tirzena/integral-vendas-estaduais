@@ -8,6 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useProductScope } from "@/hooks/useProductScope";
 import { useCurrentUser } from "@/hooks/useAuth";
 import { useEstadualAccess } from "@/hooks/useEstadualAccess";
+import { Inbox } from "./atendimentos.index";
+import { SellerWhatsappConnection } from "@/components/crm/SellerWhatsappConnection";
 import { usePeople } from "@/hooks/usePeople";
 import { CURRENCIES, formatMoney, formatDate } from "@/lib/format";
 import { CurrencyValues } from "@/components/common/CurrencyValues";
@@ -462,6 +464,11 @@ function Crm() {
         }
       />
 
+      {sellerPortal && <SellerWhatsappConnection />}
+      <div className="mb-5 rounded-xl border p-3">
+        <h2 className="mb-3 text-lg font-semibold">Meus atendimentos WhatsApp</h2>
+        <Inbox />
+      </div>
       <StatCards stats={summary} />
 
       {isLoading ? (
