@@ -531,7 +531,7 @@ export function Inbox() {
                     {openingHandoff?"Abrindo...":"Atender pelo meu WhatsApp"}
                   </Button>
                 )}
-                <Select value={current?.lead_disposition ?? "em_atendimento"}
+                <Select value={(current as any)?.lead_disposition ?? "em_atendimento"}
                   onValueChange={v=>dispositionMutation.mutate(v)} disabled={dispositionMutation.isPending}>
                   <SelectTrigger className="w-44" title="Resultado do lead"><SelectValue /></SelectTrigger>
                   <SelectContent>
