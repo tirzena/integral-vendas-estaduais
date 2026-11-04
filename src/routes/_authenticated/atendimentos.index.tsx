@@ -88,12 +88,12 @@ export function Inbox() {
   const { data: accounts } = useQuery({
     queryKey: ["wa-accounts-inbox"],
     queryFn: async () => {
-      const { data } = await (supabase as any)
+      let query = (supabase as any)
         .from("whatsapp_accounts")
         .select("id,display_name,phone_e164,display_phone_number,connection_status,product_id,product_ids")
-        .is("deleted_at", null)
-        .eq("created_by",userId)
-        .order("display_name");
+        .is("deleted_at", null);
+      if (!isAdmin && userId) query = query.eq("created_by", userId);
+      const { data } = await query.order("display_name");
       return data ?? [];
     },
   });
