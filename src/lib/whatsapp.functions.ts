@@ -47,7 +47,7 @@ async function loadAccount(context: any, accountId: string) {
   if (!visible) throw new Error("Conta de WhatsApp não encontrada no seu acesso.");
   const { data } = await (context.supabase as any)
     .from("whatsapp_accounts")
-    .select("id,instance_name,display_name,product_id,product_ids,connection_status,deleted_at,created_by")
+    .select("id,instance_name,display_name,product_id,product_ids,connection_status,deleted_at,created_by,is_seller_owned")
     .eq("id", accountId)
     .maybeSingle();
   if (!data || data.deleted_at) throw new Error("Conta de WhatsApp indisponível.");
@@ -312,7 +312,7 @@ export const sendWhatsappMessage = createServerFn({ method: "POST" })
 
     const account = await loadAccount(context, conversation.account_id);
     const { data: canManageWhatsapp } = await context.supabase.rpc("whatsapp_can_manage");
-    if (!canManageWhatsapp && account.created_by !== context.userId)
+    if (!canManageWhatsapp && (account.created_by !== context.userId || !account.is_seller_owned))
       throw new Error("Esta conversa chegou pelo número principal. Abra-a no seu WhatsApp para responder.");
     if (account.connection_status !== "conectado") {
       throw new Error("A conta de WhatsApp desta conversa não está conectada.");
@@ -426,7 +426,7 @@ export const startWhatsappConversation = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const account = await loadAccount(context, data.accountId);
     const { data: canManageWhatsapp } = await context.supabase.rpc("whatsapp_can_manage");
-    if (!canManageWhatsapp && account.created_by !== context.userId)
+    if (!canManageWhatsapp && (account.created_by !== context.userId || !account.is_seller_owned))
       throw new Error("Você só pode iniciar conversas pelo seu próprio WhatsApp.");
     if (account.connection_status !== "conectado") throw new Error("A conta escolhida não está conectada.");
     const chosenProductId = data.productId || account.product_id;
