@@ -20,7 +20,7 @@ export const mySellerWhatsapp = createServerFn({method:"GET"})
     const db=await sellerDatabase(context);
     const {data,error}=await db.from("whatsapp_accounts")
       .select("id,display_name,phone_e164,connection_status,created_at")
-      .eq("created_by",context.userId).is("deleted_at",null).order("created_at",{ascending:false}).limit(1);
+      .eq("created_by",context.userId).eq("is_seller_owned",true).is("deleted_at",null).order("created_at",{ascending:false}).limit(1);
     if(error) throw error;
     return data?.[0] ?? null;
   });
@@ -39,7 +39,7 @@ export const connectSellerWhatsapp = createServerFn({method:"POST"})
     });
     if(grantedError || !granted) throw new Error("Categoria não autorizada para este vendedor.");
     const {data:existing,error:existingError}=await db.from("whatsapp_accounts")
-      .select("id").eq("created_by",context.userId).is("deleted_at",null).limit(1);
+      .select("id").eq("created_by",context.userId).eq("is_seller_owned",true).is("deleted_at",null).limit(1);
     if(existingError) throw existingError;
     if(existing?.length) throw new Error("Você já possui um WhatsApp vinculado. Use reconectar.");
     const {data:account,error}=await db.from("whatsapp_accounts").insert({
@@ -71,7 +71,7 @@ export const refreshSellerWhatsapp = createServerFn({method:"POST"})
   .handler(async ({context,data})=>{
     const db=await sellerDatabase(context);
     const {data:owned}=await db.from("whatsapp_accounts").select("id")
-      .eq("id",data.accountId).eq("created_by",context.userId).is("deleted_at",null).maybeSingle();
+      .eq("id",data.accountId).eq("created_by",context.userId).eq("is_seller_owned",true).is("deleted_at",null).maybeSingle();
     if(!owned) throw new Error("WhatsApp não pertence a este vendedor.");
     const check=await invokeEvolution(context,"check",{accountId:data.accountId});
     if(check.status==="conectado" || check.connected) {
@@ -97,7 +97,7 @@ export const openSellerHandoff = createServerFn({method:"POST"})
    if(!source || source.assignee_id!==context.userId) throw new Error("Atendimento não atribuído a você.");
    const {data:accounts}=await db.from("whatsapp_accounts")
      .select("id,product_id,connection_status").eq("created_by",context.userId)
-     .eq("connection_status","conectado").is("deleted_at",null).limit(1);
+     .eq("connection_status","conectado").eq("is_seller_owned",true).is("deleted_at",null).limit(1);
    const account=accounts?.[0];
    if(!account)throw new Error("Vincule e conecte seu WhatsApp antes de iniciar atendimento.");
    if(source.product_id && account.product_id!==source.product_id)
