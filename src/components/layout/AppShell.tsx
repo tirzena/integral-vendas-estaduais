@@ -174,10 +174,11 @@ function NavList({ onNavigate, collapsed }: { onNavigate?: () => void; collapsed
           },
         ]
       : normalGroups;
+  const visibleGroups = groups.map(g => ({...g, items: g.items.filter(item => canOpen(item.to))})).filter(g => g.items.length > 0);
 
   return (
     <nav className="flex flex-col gap-3 px-2 pb-6">
-      {groups.map((group) => (
+      {visibleGroups.map((group) => (
         <div key={group.label} className="flex flex-col gap-0.5">
           {!collapsed && (
             <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/45">
