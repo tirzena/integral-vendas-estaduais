@@ -17,6 +17,7 @@ export function SellerWhatsappConnection() {
  const [product,setProduct]=useState("");
  const [audience,setAudience]=useState<"atacado"|"varejo">("atacado");
  const [qr,setQr]=useState<string|null>(null);
+ const [consented,setConsented]=useState(false);
  const own=useQuery({queryKey:["seller-whatsapp-own"],queryFn:()=>get(),refetchOnWindowFocus:true});
  const connection=useMutation({
   mutationFn:async()=>create({data:{productId:product || products[0]?.id || "",audience}}),
@@ -46,8 +47,12 @@ export function SellerWhatsappConnection() {
       <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
       <SelectContent><SelectItem value="atacado">Atacado</SelectItem><SelectItem value="varejo">Varejo</SelectItem></SelectContent>
      </Select>
-     <Button onClick={()=>connection.mutate()} disabled={connection.isPending || !products.length}>{connection.isPending?"Conectando...":"Vincular meu WhatsApp"}</Button>
+     <Button onClick={()=>connection.mutate()} disabled={connection.isPending || !products.length || !consented}>{connection.isPending?"Conectando...":"Vincular meu WhatsApp"}</Button>
     </div>
+    <label className="flex items-start gap-2 text-xs text-muted-foreground">
+      <input type="checkbox" className="mt-1" checked={consented} onChange={e=>setConsented(e.target.checked)} />
+      Entendo que as conversas e o histórico deste número poderão ser sincronizados com o CRM e visualizados por administradores. Vincularei apenas um número de atendimento autorizado, e não um WhatsApp pessoal privado.
+    </label>
    </>}
    {qr && <div className="max-w-xs rounded-lg border p-3"><p className="mb-2 text-sm font-medium">Escaneie em Aparelhos conectados no WhatsApp</p>
     <img alt="QR Code para vincular meu WhatsApp" className="h-auto w-full" src={qr.startsWith("data:")?qr:`data:image/png;base64,${qr}`} />
