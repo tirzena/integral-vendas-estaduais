@@ -68,6 +68,15 @@ export const Route = createFileRoute("/_authenticated/crm/")({
   component: Crm,
 });
 
+const OUTCOME_LABELS: Record<string,string> = {
+  em_atendimento: "Em atendimento",
+  fechou_venda: "Fechou venda",
+  curioso: "Só curioso",
+  nao_respondeu: "Não respondeu",
+  desqualificado: "Desqualificado",
+  retornar: "Retornar depois",
+};
+
 type ViewMode = "kanban" | "lista" | "tabela";
 
 function Crm() {
@@ -546,6 +555,7 @@ function Crm() {
                     >
                       <p className="truncate text-sm font-medium">
                         {card.customers?.name ?? "Contato"}
+                        {card.crm_lead_outcome && <Badge variant="outline" className="ml-2 text-[10px]">{OUTCOME_LABELS[card.crm_lead_outcome] ?? card.crm_lead_outcome}</Badge>}
                       </p>
                       <p className="truncate text-xs text-muted-foreground">
                         {card.customers?.phone ??
@@ -622,6 +632,7 @@ function Crm() {
                             className="block truncate text-sm font-medium hover:underline"
                           >
                             {card.customers?.name ?? "Contato"}
+                        {card.crm_lead_outcome && <Badge variant="outline" className="ml-2 text-[10px]">{OUTCOME_LABELS[card.crm_lead_outcome] ?? card.crm_lead_outcome}</Badge>}
                           </Link>
                           <p className="truncate text-xs text-muted-foreground">
                             {card.customers?.phone ??
@@ -706,6 +717,7 @@ function Crm() {
                       className="hover:underline"
                     >
                       {card.customers?.name ?? "Contato"}
+                        {card.crm_lead_outcome && <Badge variant="outline" className="ml-2 text-[10px]">{OUTCOME_LABELS[card.crm_lead_outcome] ?? card.crm_lead_outcome}</Badge>}
                     </Link>
                     {card.is_demo && (
                       <Badge variant="outline" className="ml-2">
