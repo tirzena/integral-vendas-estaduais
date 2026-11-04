@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/layout/AppShell";
+import { MenuGate } from "@/components/layout/MenuGate";
 import { ProductScopeProvider } from "@/hooks/useProductScope";
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -76,7 +77,7 @@ function AuthenticatedLayout() {
   return (
     <ProductScopeProvider>
       <AppShell>
-        <Outlet />
+        <MenuGate><Outlet /></MenuGate>
       </AppShell>
     </ProductScopeProvider>
   );
