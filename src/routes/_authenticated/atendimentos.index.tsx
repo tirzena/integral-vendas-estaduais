@@ -24,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { authenticatedFileClient } from "@/lib/authenticated-storage";
 import { useProductScope } from "@/hooks/useProductScope";
 import { useCurrentUser } from "@/hooks/useAuth";
+import { openSellerHandoff } from "@/lib/seller-whatsapp.functions";
 import { formatDateTime } from "@/lib/format";
 import { formatPhoneBr, maskPhone, messageStatusLabel } from "@/lib/whatsapp";
 import {
@@ -56,9 +57,10 @@ export const Route = createFileRoute("/_authenticated/atendimentos/")({
   component: Inbox,
 });
 
-function Inbox() {
+export function Inbox() {
   const { productId } = useProductScope();
-  const { userId } = useCurrentUser();
+  const { userId, isAdmin } = useCurrentUser();
+  const openHandoff = useServerFn(openSellerHandoff);
   const queryClient = useQueryClient();
   const send = useServerFn(sendWhatsappMessage);
   const deleteForEveryone = useServerFn(deleteWhatsappMessageForEveryone);
@@ -68,6 +70,7 @@ function Inbox() {
   const startConversation = useServerFn(startWhatsappConversation);
 
   const [selected, setSelected] = useState<string | null>(null);
+  const [openingHandoff,setOpeningHandoff] = useState(false);
   const [text, setText] = useState("");
   const [note, setNote] = useState("");
   const [accountFilter, setAccountFilter] = useState("todas");
@@ -89,6 +92,7 @@ function Inbox() {
         .from("whatsapp_accounts")
         .select("id,display_name,phone_e164,display_phone_number,connection_status,product_id,product_ids")
         .is("deleted_at", null)
+        .eq("created_by",userId)
         .order("display_name");
       return data ?? [];
     },
@@ -109,6 +113,7 @@ function Inbox() {
           ? q.or(`product_id.eq.${productId},account_id.in.(${accountIds.join(",")})`)
           : q.eq("product_id", productId);
       }
+      if (!isAdmin && userId) q = q.eq("assignee_id", userId);
       if (accountFilter !== "todas") q = q.eq("account_id", accountFilter);
       if (onlyUnread) q = q.gt("unread_count", 0);
       const { data } = await q.limit(200);
@@ -164,8 +169,8 @@ function Inbox() {
     queryKey: ["wa-team-assignees", selected],
     enabled: !!selected,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).rpc("whatsapp_team_assignees", {
-        _conversation_id: selected,
+      const { data, error } = await (supabase as any).rpc("whatsapp_all_assignees", {
+        p_conversation: selected,
       });
       if (error) throw error;
       return data ?? [];
@@ -177,11 +182,16 @@ function Inbox() {
       : null;
   const currentAccount = current?.account_id ? accountsById[current.account_id] : null;
   const canSend = currentAccount?.connection_status === "conectado";
+  const onMyWhatsapp = Boolean(current && (accounts ?? []).some((a:any)=>a.id===current.account_id));
   const anyConnected = (accounts ?? []).some((a: any) => a.connection_status === "conectado");
 
   const assignmentMutation = useMutation({
-    mutationFn: (assigneeId: string) =>
-      assignConversation({ data: { conversationId: selected!, assigneeId } }),
+    mutationFn: async (assigneeId: string) => {
+      const {error}=await (supabase as any).rpc("whatsapp_assign_many", {
+        p_conversations:[selected],p_assignee:assigneeId,p_reason:"Transferência solicitada pelo vendedor",
+      });
+      if(error)throw error;
+    },
     onSuccess: () => {
       toast.success("Responsável atualizado.");
       queryClient.invalidateQueries({ queryKey: ["wa-conversations"] });
@@ -189,6 +199,26 @@ function Inbox() {
     },
     onError: (e: any) => toast.error(e?.message ?? "Não foi possível transferir o contato."),
   });
+
+  const dispositionMutation = useMutation({
+    mutationFn: async (status:string)=>{
+      const {error}=await (supabase as any).rpc("whatsapp_update_disposition",{p_conversation:selected,p_status:status});
+      if(error)throw error;
+    },
+    onSuccess:()=>{toast.success("Resultado salvo.");void queryClient.invalidateQueries({queryKey:["wa-conversations"]});},
+    onError:(e:any)=>toast.error(e.message),
+  });
+  async function continueInOwnWhatsapp() {
+    if(!selected) return;
+    setOpeningHandoff(true);
+    try {
+      const result=await openHandoff({data:{conversationId:selected}});
+      await queryClient.invalidateQueries({queryKey:["wa-conversations"]});
+      setSelected(result.id);
+      toast.success("Atendimento aberto no seu WhatsApp. A próxima mensagem sairá do seu número.");
+    } catch(e) { toast.error((e as Error).message); }
+    finally {setOpeningHandoff(false);}
+  }
 
   const sendMutation = useMutation({
     mutationFn: async () => {
@@ -495,6 +525,24 @@ function Inbox() {
                     </SelectContent>
                   </Select>
                 )}
+                {!onMyWhatsapp && !isAdmin && current?.assignee_id===userId && (
+                  <Button type="button" size="sm" variant="outline" disabled={openingHandoff}
+                    onClick={()=>void continueInOwnWhatsapp()}>
+                    {openingHandoff?"Abrindo...":"Atender pelo meu WhatsApp"}
+                  </Button>
+                )}
+                <Select value={current?.lead_disposition ?? "em_atendimento"}
+                  onValueChange={v=>dispositionMutation.mutate(v)} disabled={dispositionMutation.isPending}>
+                  <SelectTrigger className="w-44" title="Resultado do lead"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="em_atendimento">Em atendimento</SelectItem>
+                    <SelectItem value="fechou_venda">Fechou venda</SelectItem>
+                    <SelectItem value="curioso">Só curioso</SelectItem>
+                    <SelectItem value="nao_respondeu">Não respondeu</SelectItem>
+                    <SelectItem value="desqualificado">Desqualificado</SelectItem>
+                    <SelectItem value="retornar">Retornar depois</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Button
                   size="icon"
                   variant="ghost"
