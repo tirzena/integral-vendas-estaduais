@@ -221,6 +221,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<"dark" | "light">(readSavedTheme);
   const navigate = useNavigate();
   const { profile, email, roles, loading } = useCurrentUser();
+  const { canOpen } = usePermissions();
   const { products, productId, setProductId, canSeeAll } = useProductScope();
   const rates = useRates();
 
@@ -315,14 +316,14 @@ export function AppShell({ children }: { children: ReactNode }) {
             </span>
           </div>
 
-          <Button
+          {canOpen("/painel") && <Button
             variant="outline"
             className="integral-search text-muted-foreground min-w-0 flex-1 justify-start gap-2 md:max-w-xs"
             onClick={() => setSearchOpen(true)}
           >
             <Search className="size-4" />
             <span className="truncate">Buscar em tudo…</span>
-          </Button>
+          </Button>}
 
           <Select value={productId} onValueChange={setProductId}>
             <SelectTrigger className="w-[170px]">
@@ -357,11 +358,11 @@ export function AppShell({ children }: { children: ReactNode }) {
             </span>
           </div>
 
-          <Button variant="ghost" size="icon" asChild aria-label="Chat interno">
+          {canOpen("/chat") && <Button variant="ghost" size="icon" asChild aria-label="Chat interno">
             <Link to="/chat">
               <MessagesSquare className="size-5" />
             </Link>
-          </Button>
+          </Button>}
 
           <LanguageSwitcher />
 
@@ -402,16 +403,16 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
+              {canOpen("/configuracoes") && <DropdownMenuItem asChild>
                 <Link to="/configuracoes">
                   <Settings className="mr-2 size-4" /> Meu perfil e configurações
                 </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
+              </DropdownMenuItem>}
+              {canOpen("/avisos") && <DropdownMenuItem asChild>
                 <Link to="/avisos">
                   <Bell className="mr-2 size-4" /> Avisos internos
                 </Link>
-              </DropdownMenuItem>
+              </DropdownMenuItem>}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={signOut}>
                 <LogOut className="mr-2 size-4" /> Sair
@@ -426,7 +427,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </main>
       </div>
 
-      <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} />
+      {canOpen("/painel") && <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} />}
     </div>
   );
 }
