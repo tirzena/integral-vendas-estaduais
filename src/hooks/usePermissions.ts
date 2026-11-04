@@ -2,6 +2,7 @@ import { useCurrentUser, type AppRole } from "@/hooks/useAuth";
 import { useViewAs } from "@/hooks/useImpersonation";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useMenuAccess } from "@/hooks/useMenuAccess";
 
 /**
  * Cada cargo enxerga uma parte diferente do sistema.
@@ -80,6 +81,7 @@ export const ROUTE_CAPABILITY: Record<string, Capability> = {
 
 export function usePermissions() {
   const { roles, loading, userId, isAdmin } = useCurrentUser();
+  const menu = useMenuAccess();
   const viewAs = useViewAs();
   const list: AppRole[] = roles;
   const isSuperAdmin = roles.includes("superadmin");
@@ -111,6 +113,7 @@ export function usePermissions() {
   const can = (c: Capability) =>
     c !== "company_finance" && (isSuperAdmin || (c === "inventory_manage" ? isAdmin : caps.has(c)));
   const canOpen = (route: string) => {
+    if (!menu.isAllowed(route)) return false;
     if (ROUTE_CAPABILITY[route] === "company_finance") return false;
     if (isSuperAdmin) return true;
     const needed = ROUTE_CAPABILITY[route];
@@ -119,8 +122,8 @@ export function usePermissions() {
   };
 
   return {
-    loading: loading || (!!userId && !viewAs && !isSuperAdmin && dynamicCaps.isLoading),
-    error: dynamicCaps.error,
+    loading: menu.loading || loading || (!!userId && !viewAs && !isSuperAdmin && dynamicCaps.isLoading),
+    error: menu.error || dynamicCaps.error,
     retryPermissions: dynamicCaps.refetch,
     userId,
     viewAs,
