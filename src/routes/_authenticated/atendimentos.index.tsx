@@ -506,6 +506,7 @@ export function Inbox() {
                     {current?.customers?.name || current?.contact_name || current?.contact_phone}
                   </p>
                   <p className="text-xs text-muted-foreground">{formatPhoneBr(current?.contact_phone)}</p>
+                  <p className="text-xs font-medium text-primary">Atendimento: {(eligibleAssignees ?? []).find((person:any)=>person.id===current?.assignee_id)?.full_name || (current?.assignee_id ? "Membro designado" : "Sem responsável")}</p>
                 </div>
                 {(eligibleAssignees ?? []).length > 0 && (
                   <Select
