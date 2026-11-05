@@ -28,9 +28,9 @@ export const mySellerWhatsapp = createServerFn({ method: "GET" })
     const { data, error } = await db.from("whatsapp_accounts")
       .select("id,display_name,phone_e164,connection_status,created_at,product_ids")
       .eq("created_by", context.userId).eq("is_seller_owned", true)
-      .is("deleted_at", null).order("created_at", { ascending: false }).limit(1);
+      .is("deleted_at", null).order("created_at", { ascending: false }).limit(20);
     if (error) throw error;
-    return data?.[0] ?? null;
+    return data ?? [];
   });
 
 export const connectSellerWhatsapp = createServerFn({ method: "POST" })
@@ -57,10 +57,10 @@ export const connectSellerWhatsapp = createServerFn({ method: "POST" })
       });
       return { accountId, qrBase64: qr.qrBase64 ?? null };
     } catch (error) {
-      await callSellerRpc(db, "integral_seller_whatsapp_discard", {
-        p_account: accountId,
-      }).catch(() => undefined);
-      throw error;
+      // The database registration remains reusable even if the external
+      // provider is unavailable. Do not silently delete the user's number.
+      return { accountId, qrBase64: null, connectionError:
+        error instanceof Error ? error.message : "Falha ao iniciar o QR Code." };
     }
   });
 
