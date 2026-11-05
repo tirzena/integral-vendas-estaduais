@@ -15,6 +15,14 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 
+type SellerAccount = {
+  id: string;
+  phone_e164: string | null;
+  connection_status: string;
+  product_ids: string[];
+  created_at: string;
+};
+
 export function SellerWhatsappConnection() {
   const { products } = useProductScope();
   const qc = useQueryClient();
@@ -35,7 +43,7 @@ export function SellerWhatsappConnection() {
     queryFn: () => get(),
     refetchOnWindowFocus: true,
   });
-  const accounts = own.data ?? [];
+  const accounts: SellerAccount[] = own.data ?? [];
   const selectedAccount = accounts.find(account => account.id === accountChoice) ?? null;
   const activeProducts = useMemo(() => products.filter(p => p.is_active), [products]);
   const availableIds = useMemo(() => activeProducts.map(p => p.id), [activeProducts]);
