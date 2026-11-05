@@ -44,6 +44,13 @@ export function SellerWhatsappConnection() {
     refetchOnWindowFocus: true,
   });
   const accounts: SellerAccount[] = own.data ?? [];
+  const connectedCount = accounts.filter(account => account.connection_status === "conectado" && Boolean(account.phone_e164)).length;
+  const labelFor = (account: SellerAccount) =>
+    account.connection_status === "conectado" && account.phone_e164
+      ? "Conectado"
+      : account.connection_status === "aguardando_qr"
+        ? "Cadastro pendente · aguardando leitura do QR"
+        : "Cadastro pendente · conexão não confirmada";
   const selectedAccount = accounts.find(account => account.id === accountChoice) ?? null;
   const activeProducts = useMemo(() => products.filter(p => p.is_active), [products]);
   const availableIds = useMemo(() => activeProducts.map(p => p.id), [activeProducts]);
