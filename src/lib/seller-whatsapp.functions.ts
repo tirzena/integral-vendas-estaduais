@@ -89,12 +89,29 @@ export const refreshSellerWhatsapp = createServerFn({ method: "POST" })
   })
   .handler(async ({ context, data }) => {
     const db = await sellerDatabase(context);
-    const { data: owned, error } = await db.from("whatsapp_accounts").select("id")
+    const { data: owned, error } = await db.from("whatsapp_accounts").select("id,connection_status")
       .eq("id", data.accountId).eq("created_by", context.userId)
       .eq("is_seller_owned", true).is("deleted_at", null).maybeSingle();
     if (error || !owned) throw new Error("WhatsApp não pertence a este vendedor.");
 
-    const check = await invokeEvolution(context, "check", { accountId: data.accountId });
+    let check;
+    try {
+      check = await invokeEvolution(context, "check", { accountId: data.accountId });
+    } catch (error) {
+      // Uma tentativa anterior pode ter criado o registro no banco antes da instância
+      // na Evolution. Só recupera uma instância ausente; erros gerais não são ocultados.
+      const message = error instanceof Error ? error.message : "";
+      if (owned.connection_status === "conectado" ||
+          !/not found|not exist|não encontrad|404|instance does not exist/i.test(message)) {
+        throw error;
+      }
+      const created = await invokeEvolution(context, "create", { accountId: data.accountId });
+      await callSellerRpc(db, "integral_seller_whatsapp_state", {
+        p_account: data.accountId,
+        p_status: created.qrBase64 ? "aguardando_qr" : "conectando",
+      });
+      return { connected: false, qrBase64: created.qrBase64 ?? null };
+    }
     if (check.status === "conectado" || check.connected) {
       await callSellerRpc(db, "integral_seller_whatsapp_state", {
         p_account: data.accountId, p_status: "conectado",
