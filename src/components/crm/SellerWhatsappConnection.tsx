@@ -65,9 +65,9 @@ export function SellerWhatsappConnection() {
     if (accountChoice === null && !own.isPending && !own.isError) setAccountChoice(accounts[0]?.id ?? "new");
   }, [accountChoice, own.isPending, own.isError, accounts]);
   useEffect(() => {
+    // Keep the QR just returned by account creation: clearing it here races with
+    // the automatic selection of the newly created WhatsApp account.
     setProductIds(selectedAccount?.product_ids ?? []);
-    setQr(null);
-    setConnectionProblem(null);
   }, [accountChoice, selectedAccount?.id]);
   useEffect(() => {
     setProductIds(current => current.filter(id => availableIds.includes(id)));
