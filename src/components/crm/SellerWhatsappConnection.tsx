@@ -86,7 +86,8 @@ export function SellerWhatsappConnection() {
       setQr(result.qrBase64);
       setConnectionProblem(result.connectionError ?? null);
       if (result.connectionError) toast.warning("Número cadastrado, mas o QR Code ainda não está disponível.");
-      else toast.success("Número cadastrado. Faça a leitura do QR Code para conectar.");
+      else if (result.qrBase64) toast.success("QR Code gerado. Leia no WhatsApp para conectar.");
+      else toast.info("Número cadastrado. O QR Code ainda não foi gerado pelo provedor.");
     },
     onError: (error: Error) => toast.error(error.message),
   });
