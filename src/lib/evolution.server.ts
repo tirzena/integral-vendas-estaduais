@@ -7,8 +7,8 @@
 import { WHATSAPP_EVENTS } from "@/lib/whatsapp";
 
 const TIMEOUT_MS = 15000;
-/** A VPS da LEADinROI só aceita chamadas com esta origem. */
-const ORIGIN = "https://app.leadinroi.com";
+/** Origem oficial Tirzena para chamadas ao provedor de WhatsApp. */
+const ORIGIN = "https://tirzena.com";
 
 export type EvolutionConfig = { url: string; key: string; webhookSecret: string };
 
