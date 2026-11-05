@@ -31,6 +31,8 @@ export function SellerWhatsappConnection() {
      setProductIds(own.data.product_ids ?? []);
    }
  },[own.data?.id,own.data?.product_ids]);
+ const savedProductIds:string[]=own.data?.product_ids ?? [];
+ const alreadySaved=productIds.length===savedProductIds.length && productIds.every(id=>savedProductIds.includes(id));
  const connection=useMutation({
   mutationFn:async()=>create({data:{productIds,audience}}),
   onSuccess:async result=>{setQr(result.qrBase64);await qc.invalidateQueries({queryKey:["seller-whatsapp-own"]});toast.success("Conexão criada. Leia o QR Code no seu WhatsApp.");},
@@ -92,6 +94,7 @@ export function SellerWhatsappConnection() {
       <input type="checkbox" className="mt-1" checked={consented} onChange={e=>setConsented(e.target.checked)} />
       Entendo que as conversas e o histórico deste número poderão ser sincronizados com o CRM e visualizados por administradores. Vincularei apenas um número de atendimento autorizado, e não um WhatsApp pessoal privado.
     </label>}
+   {own.data && alreadySaved && <p role="status" className="text-sm text-muted-foreground">{allSelected ? "Todas as macroáreas autorizadas já estão salvas." : "Macroáreas já salvas."} {own.data.connection_status !== "conectado" && "Falta concluir a conexão pelo QR Code."}</p>}
    {qr && <div className="max-w-xs rounded-lg border p-3"><p className="mb-2 text-sm font-medium">Escaneie em Aparelhos conectados no WhatsApp</p>
     <img alt="QR Code para vincular meu WhatsApp" className="h-auto w-full" src={qr.startsWith("data:")?qr:`data:image/png;base64,${qr}`} />
    </div>}
