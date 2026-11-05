@@ -49,7 +49,7 @@ export function SellerWhatsappConnection() {
     account.connection_status === "conectado" && account.phone_e164
       ? "Conectado"
       : account.connection_status === "aguardando_qr"
-        ? "Cadastro pendente · aguardando leitura do QR"
+        ? "Cadastro pendente · QR não confirmado"
         : "Cadastro pendente · conexão não confirmada";
   const selectedAccount = accounts.find(account => account.id === accountChoice) ?? null;
   const activeProducts = useMemo(() => products.filter(p => p.is_active), [products]);
