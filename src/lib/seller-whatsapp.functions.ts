@@ -105,36 +105,24 @@ export const refreshSellerWhatsapp = createServerFn({ method: "POST" })
       });
       return { connected: false, qrBase64: created.qrBase64 ?? null };
     }
-    let check;
+    // QR retrieval must not depend on a webhook health check: some Evolution
+    // deployments expose QR while webhook/find or webhook/set returns 404.
+    let result;
     try {
-      check = await invokeEvolution(context, "check", { accountId: data.accountId });
+      result = await invokeEvolution(context, "qr", { accountId: data.accountId });
     } catch (error) {
-      // Uma tentativa anterior pode ter criado o registro no banco antes da instância
-      // na Evolution. Só recupera uma instância ausente; erros gerais não são ocultados.
       const message = error instanceof Error ? error.message : "";
-      if (owned.connection_status === "conectado" ||
-          !/not found|not exist|não encontrad|404|instance does not exist/i.test(message)) {
+      if (!/not found|not exist|não encontrad|404|instance does not exist/i.test(message)) {
         throw error;
       }
-      const created = await invokeEvolution(context, "create", { accountId: data.accountId });
-      await callSellerRpc(db, "integral_seller_whatsapp_state", {
-        p_account: data.accountId,
-        p_status: created.qrBase64 ? "aguardando_qr" : "conectando",
-      });
-      return { connected: false, qrBase64: created.qrBase64 ?? null };
+      result = await invokeEvolution(context, "create", { accountId: data.accountId });
     }
-    if (check.status === "conectado" || check.connected) {
-      await callSellerRpc(db, "integral_seller_whatsapp_state", {
-        p_account: data.accountId, p_status: "conectado",
-      });
-      return { connected: true, qrBase64: null };
-    }
-    const qr = await invokeEvolution(context, "qr", { accountId: data.accountId });
+    const connected = result.connected === true;
     await callSellerRpc(db, "integral_seller_whatsapp_state", {
       p_account: data.accountId,
-      p_status: qr.connected ? "conectado" : qr.qrBase64 ? "aguardando_qr" : "conectando",
+      p_status: connected ? "conectado" : result.qrBase64 ? "aguardando_qr" : "conectando",
     });
-    return { connected: !!qr.connected, qrBase64: qr.qrBase64 ?? null };
+    return { connected, qrBase64: result.qrBase64 ?? null };
   });
 
 /** Leave the original conversation in the central number and create/open
