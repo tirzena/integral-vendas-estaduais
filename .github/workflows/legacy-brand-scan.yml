@@ -1,0 +1,25 @@
+name: Check legacy brand references
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  scan-current-sources:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject obsolete third-party brand
+        shell: bash
+        run: |
+          set -euo pipefail
+          prefix="lead"
+          suffix="roi"
+          token="${prefix}in${suffix}"
+          pattern="${prefix}[[:space:]_.-]*in[[:space:]_.-]*${suffix}"
+          if git grep -I -n -i -E "${token}|${pattern}" -- .; then
+            echo "Obsolete brand reference found in tracked source files." >&2
+            exit 1
+          fi
+          echo "No obsolete brand references in tracked source files."
