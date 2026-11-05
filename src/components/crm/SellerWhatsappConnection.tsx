@@ -55,8 +55,8 @@ export function SellerWhatsappConnection() {
   // Choose the first connected number on load. "Adicionar outro número" is never
   // replaced by a background refetch, and each number keeps its own macroareas.
   useEffect(() => {
-    if (accountChoice === null && !own.isPending) setAccountChoice(accounts[0]?.id ?? "new");
-  }, [accountChoice, own.isPending, accounts]);
+    if (accountChoice === null && !own.isPending && !own.isError) setAccountChoice(accounts[0]?.id ?? "new");
+  }, [accountChoice, own.isPending, own.isError, accounts]);
   useEffect(() => {
     setProductIds(selectedAccount?.product_ids ?? []);
     setQr(null);
@@ -133,7 +133,7 @@ export function SellerWhatsappConnection() {
           Não foi possível carregar seus WhatsApps.
           <Button size="sm" variant="outline" onClick={() => void own.refetch()}>Recarregar</Button>
         </p>}
-        {!own.isPending && <div className="space-y-1">
+        {!own.isPending && !own.isError && <div className="space-y-1">
           <p className="text-sm font-medium">Número de atendimento</p>
           <Select value={accountChoice ?? ""} onValueChange={switchAccount}>
             <SelectTrigger className="w-full max-w-md"><SelectValue placeholder="Escolha o número" /></SelectTrigger>
