@@ -9,7 +9,7 @@ export const WHATSAPP_EVENTS = [
 ] as const;
 
 const TIMEOUT_MS = 15_000;
-const ORIGIN = "https://app.leadinroi.com";
+const ORIGIN = "https://tirzena.com";
 
 export type EvolutionConfig = {
   url: string;
