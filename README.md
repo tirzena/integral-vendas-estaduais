@@ -897,7 +897,7 @@ Esta é uma instalação independente do sistema OS.
 Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
 
 ```sh
-git clone https://github.com/leadinroi/tirzena.git
+git clone https://github.com/tirzena/integral-vendas-estaduais.git
 cd tirzena
 npm i
 npm run dev
