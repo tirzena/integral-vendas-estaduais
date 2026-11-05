@@ -123,12 +123,13 @@ export function SellerWhatsappConnection() {
       <CardHeader>
         <CardTitle>Meus WhatsApps de atendimento</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Vincule seus números comerciais. Escolha, para cada número, uma, várias ou todas
-          as macroáreas autorizadas. Somente seus atendimentos ficam visíveis para você;
-          administradores podem supervisionar os números conectados.
+          Cadastre seus números comerciais e escolha, para cada um, uma, várias ou todas as
+          macroáreas autorizadas. Um cadastro pendente não significa que o WhatsApp está conectado.
+          Apenas números conectados passam a atender clientes; administradores supervisionam os atendimentos.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
+        <p role="status" className="text-sm font-medium">{connectedCount} WhatsApp(s) conectado(s) · {accounts.length-connectedCount} cadastro(s) pendente(s)</p>
         {own.isError && <p role="alert" className="text-sm text-destructive">
           Não foi possível carregar seus WhatsApps.
           <Button size="sm" variant="outline" onClick={() => void own.refetch()}>Recarregar</Button>
@@ -140,7 +141,7 @@ export function SellerWhatsappConnection() {
             <SelectContent>
               {accounts.map((account, index) => (
                 <SelectItem key={account.id} value={account.id}>
-                  {account.phone_e164 || `WhatsApp ${index + 1}`} · {account.connection_status}
+                  {account.phone_e164 || `Cadastro ${index + 1} (sem número confirmado)`} · {labelFor(account)}
                 </SelectItem>
               ))}
               {accounts.length < 5 && <SelectItem value="new">+ Vincular outro WhatsApp</SelectItem>}
@@ -149,7 +150,7 @@ export function SellerWhatsappConnection() {
         </div>}
         {selectedAccount && <div className="flex flex-wrap items-center gap-3">
           <span className="text-sm">
-            Situação: <strong>{selectedAccount.connection_status}</strong> ·
+            Situação: <strong>{labelFor(selectedAccount)}</strong> ·
             {" "}{savedIds.length} macroárea(s) cadastrada(s)
           </span>
           <Button size="sm" variant="outline" onClick={() => check.mutate()} disabled={check.isPending}>
