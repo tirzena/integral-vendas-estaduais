@@ -41,7 +41,7 @@ export function SellerWhatsappConnection() {
  const edit=useMutation({
   mutationFn:async()=>updateProducts({data:{accountId:own.data!.id,productIds}}),
   onSuccess:async()=>{
-    toast.success("Macroáreas do WhatsApp atualizadas.");
+    toast.success("Macroáreas confirmadas e salvas no sistema.");
     await qc.invalidateQueries({queryKey:["seller-whatsapp-own"]});
     await qc.invalidateQueries({queryKey:["wa-accounts-inbox"]});
   },
@@ -79,8 +79,8 @@ export function SellerWhatsappConnection() {
        <p className="text-xs text-muted-foreground">{productIds.length} de {availableIds.length} macroáreas selecionadas.</p>
      </div>
      {own.data ? (
-       <Button onClick={()=>edit.mutate()} disabled={edit.isPending || !productIds.length || (productIds.length===(own.data.product_ids??[]).length && productIds.every(id=>(own.data.product_ids??[]).includes(id)))}>
-         {edit.isPending?"Salvando...":"Salvar macroáreas"}
+       <Button onClick={()=>edit.mutate()} disabled={edit.isPending || !productIds.length}>
+         {edit.isPending?"Salvando...":"Confirmar macroáreas"}
        </Button>
      ) : <>
        <Select value={audience} onValueChange={v=>setAudience(v as "atacado"|"varejo")}>
