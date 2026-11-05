@@ -66,6 +66,35 @@ export const connectSellerWhatsapp = createServerFn({method:"POST"})
     }
   });
 
+/** Permite editar macroáreas da própria conta sem recriar a integração/QR Code. */
+export const updateSellerWhatsappProducts = createServerFn({method:"POST"})
+  .middleware([requireSupabaseAuth])
+  .validator((input:{accountId:string;productIds:string[]})=>{
+    if (!uuid.test(input?.accountId??"")) throw new Error("Conta inválida.");
+    const productIds=[...new Set(Array.isArray(input?.productIds)?input.productIds:[])];
+    if (!productIds.length || productIds.length>100 || productIds.some(id=>!uuid.test(id)))
+      throw new Error("Selecione uma ou mais macroáreas válidas.");
+    return {accountId:input.accountId,productIds};
+  })
+  .handler(async ({context,data})=>{
+    const db=await sellerDatabase(context);
+    const {data:account,error:accountError}=await db.from("whatsapp_accounts")
+      .select("id").eq("id",data.accountId).eq("created_by",context.userId)
+      .eq("is_seller_owned",true).is("deleted_at",null).maybeSingle();
+    if (accountError || !account) throw new Error("Conta não encontrada no seu perfil.");
+    for (const id of data.productIds) {
+      const {data:granted,error}=await context.supabase.rpc("has_product_access",{
+        _user_id:context.userId,_product_id:id,
+      });
+      if (error || !granted) throw new Error("Você não tem permissão para uma das macroáreas selecionadas.");
+    }
+    const {error}=await db.from("whatsapp_accounts").update({
+      product_ids:data.productIds,product_id:data.productIds[0],
+    }).eq("id",account.id).eq("created_by",context.userId).eq("is_seller_owned",true);
+    if(error)throw new Error("Não foi possível atualizar as macroáreas.");
+    return {ok:true};
+  });
+
 export const refreshSellerWhatsapp = createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
   .validator((input:{accountId:string})=>{
