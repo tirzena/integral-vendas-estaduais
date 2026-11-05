@@ -94,6 +94,17 @@ export const refreshSellerWhatsapp = createServerFn({ method: "POST" })
       .eq("is_seller_owned", true).is("deleted_at", null).maybeSingle();
     if (error || !owned) throw new Error("WhatsApp não pertence a este vendedor.");
 
+    // Conta cadastrada, mas ainda sem instância concluída: primeiro tente a
+    // criação idempotente no provedor, sem passar pelo endpoint de check que
+    // depende de uma instância existente.
+    if (owned.connection_status === "conectando" || owned.connection_status === "erro") {
+      const created = await invokeEvolution(context, "create", { accountId: data.accountId });
+      await callSellerRpc(db, "integral_seller_whatsapp_state", {
+        p_account: data.accountId,
+        p_status: created.qrBase64 ? "aguardando_qr" : "conectando",
+      });
+      return { connected: false, qrBase64: created.qrBase64 ?? null };
+    }
     let check;
     try {
       check = await invokeEvolution(context, "check", { accountId: data.accountId });
