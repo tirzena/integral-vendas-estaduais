@@ -19,7 +19,7 @@ export const mySellerWhatsapp = createServerFn({method:"GET"})
   .handler(async ({context}) => {
     const db=await sellerDatabase(context);
     const {data,error}=await db.from("whatsapp_accounts")
-      .select("id,display_name,phone_e164,connection_status,created_at")
+      .select("id,display_name,phone_e164,connection_status,created_at,product_ids")
       .eq("created_by",context.userId).eq("is_seller_owned",true).is("deleted_at",null).order("created_at",{ascending:false}).limit(1);
     if(error) throw error;
     return data?.[0] ?? null;
@@ -27,24 +27,28 @@ export const mySellerWhatsapp = createServerFn({method:"GET"})
 
 export const connectSellerWhatsapp = createServerFn({method:"POST"})
   .middleware([requireSupabaseAuth])
-  .validator((input:{productId:string;audience:"atacado"|"varejo"})=>{
-    if(!uuid.test(input?.productId ?? "")) throw new Error("Selecione uma categoria válida.");
+  .validator((input:{productIds:string[];audience:"atacado"|"varejo"})=>{
+    const productIds = [...new Set(Array.isArray(input?.productIds) ? input.productIds : [])];
+    if (!productIds.length || productIds.length > 100 || productIds.some(id => !uuid.test(id)))
+      throw new Error("Selecione uma ou mais macroáreas válidas.");
     if(!["atacado","varejo"].includes(input?.audience)) throw new Error("Informe Atacado ou Varejo.");
-    return input;
+    return {productIds,audience:input.audience};
   })
   .handler(async ({context,data})=>{
     const db=await sellerDatabase(context);
-    const {data:granted,error:grantedError}=await context.supabase.rpc("has_product_access",{
-      _user_id:context.userId,_product_id:data.productId,
-    });
-    if(grantedError || !granted) throw new Error("Categoria não autorizada para este vendedor.");
+    for (const productId of data.productIds) {
+      const {data:granted,error:grantedError}=await context.supabase.rpc("has_product_access",{
+        _user_id:context.userId,_product_id:productId,
+      });
+      if(grantedError || !granted) throw new Error("Uma das macroáreas não está autorizada para este vendedor.");
+    }
     const {data:existing,error:existingError}=await db.from("whatsapp_accounts")
       .select("id").eq("created_by",context.userId).eq("is_seller_owned",true).is("deleted_at",null).limit(1);
     if(existingError) throw existingError;
     if(existing?.length) throw new Error("Você já possui um WhatsApp vinculado. Use reconectar.");
     const {data:account,error}=await db.from("whatsapp_accounts").insert({
       provider:"evolution",instance_name:newWhatsappInstanceName(),
-      display_name:"WhatsApp do vendedor",product_id:data.productId,product_ids:[data.productId],
+      display_name:"WhatsApp do vendedor",product_id:data.productIds[0],product_ids:data.productIds,
       status:"pendente",connection_status:"conectando",demo_mode:false,created_by:context.userId,is_seller_owned:true,
     }).select("id").single();
     if(error || !account) throw new Error("Não foi possível criar a conexão.");
@@ -96,11 +100,11 @@ export const openSellerHandoff = createServerFn({method:"POST"})
      .eq("id",data.conversationId).maybeSingle();
    if(!source || source.assignee_id!==context.userId) throw new Error("Atendimento não atribuído a você.");
    const {data:accounts}=await db.from("whatsapp_accounts")
-     .select("id,product_id,connection_status").eq("created_by",context.userId)
+     .select("id,product_id,product_ids,connection_status").eq("created_by",context.userId)
      .eq("connection_status","conectado").eq("is_seller_owned",true).is("deleted_at",null).limit(1);
    const account=accounts?.[0];
    if(!account)throw new Error("Vincule e conecte seu WhatsApp antes de iniciar atendimento.");
-   if(source.product_id && account.product_id!==source.product_id)
+   if(source.product_id && !(account.product_ids ?? [account.product_id]).includes(source.product_id))
      throw new Error("Sua conta não possui a categoria desta conversa.");
    const {data:existing}=await db.from("whatsapp_conversations").select("id")
      .eq("account_id",account.id).eq("contact_phone",source.contact_phone).maybeSingle();
